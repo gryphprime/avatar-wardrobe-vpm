@@ -1,0 +1,38 @@
+name: Release VPM package
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: vpm-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build package and merge listing history
+        run: python3 scripts/build_release.py --live --tag "$GITHUB_REF_NAME"
+      - name: Publish immutable release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          args=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then args+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS --title "Avatar Wardrobe $GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md "${args[@]}"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy VPM listing
+        id: deployment
+        uses: actions/deploy-pages@v4

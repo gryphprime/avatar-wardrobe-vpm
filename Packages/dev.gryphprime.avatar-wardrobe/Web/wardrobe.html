@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avatar Wardrobe</title>
+<link rel="stylesheet" href="/wardrobe.css">
+</head>
+<body>
+<svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs><symbol id="icon-wardrobe" viewBox="0 0 24 24"><path d="M9 3 3 6l2 5 3-1v11h8V10l3 1 2-5-6-3a3 3 0 0 1-6 0Z"/></symbol><symbol id="icon-presets" viewBox="0 0 24 24"><path d="M5 4h14v16H5z M9 1v6 M15 1v6 M8 11h8 M8 15h5"/></symbol><symbol id="icon-activity" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></symbol><symbol id="icon-settings" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 2h6l1 3 3 1 3 5-2 3v3l-5 4-3-1-3 1-5-4v-3l-2-3 3-5 3-1Z"/></symbol><symbol id="icon-search" viewBox="0 0 24 24"><path d="M21 21l-6-6 M17 9a8 8 0 1 1-16 0 8 8 0 0 1 16 0"/></symbol><symbol id="icon-filter" viewBox="0 0 24 24"><path d="M3 4h18l-7 8v7l-4 2v-9Z"/></symbol><symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol><symbol id="icon-spark" viewBox="0 0 24 24"><path d="M12 1l3 8 8 3-8 3-3 8-3-8-8-3 8-3Z"/></symbol></defs></svg>
+<aside id="rail" aria-label="Main navigation"><nav id="navtabs"><button id="navWardrobe" class="rail-item on" data-view="wardrobe" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#icon-wardrobe"></use></svg><span data-i18n="nav.wardrobe">Wardrobe</span></button><button id="navUpload" class="rail-item" data-view="upload"><svg class="icon" aria-hidden="true"><use href="#icon-presets"></use></svg><span data-i18n="nav.presets">Presets</span></button><button id="navActivity" class="rail-item" data-view="activity"><svg class="icon" aria-hidden="true"><use href="#icon-activity"></use></svg><span data-i18n="nav.activity">Activity</span></button><button id="navSettings" class="rail-item" data-view="settings"><svg class="icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span data-i18n="nav.settings">Settings</span></button></nav></aside>
+<header>
+  <div class="topline">
+    <div class="brand"><svg class="icon" aria-hidden="true"><use href="#icon-spark"></use></svg><div><h1 data-i18n="app.title">Avatar Wardrobe</h1></div></div>
+    <div class="avatar-target" id="avatarTarget"><strong id="avatar">—</strong></div>
+    <label><span data-i18n="avatar.base">Base avatar</span>: <select id="avatarBase" aria-label="Base avatar"><option value="">Automatic (source prefab)</option></select></label>
+    <label id="workflowPresetWrap" hidden>Preset: <select id="workflowPreset" aria-label="Preset"><option value="common">Common Preset</option></select></label>
+    <select id="lang" data-i18n-title="lang.title" title="Language" aria-label="Language"></select>
+    <details class="maintenance"><summary data-i18n-aria="maintenance.label" aria-label="Maintenance">&#8943;</summary><div class="menu">
+      <button id="indexInc" data-i18n-title="index.inc.t" title="Index changed assets" data-i18n="index.inc">Index changes</button>
+      <button id="cacheClear" data-i18n="cache.clear">Wipe cache/index</button>
+      <button id="indexFull" data-i18n-title="index.full.t" title="Rescan everything" data-i18n="index.full">Reindex project</button>
+      <button id="regenerateToggles">Regenerate toggles</button>
+      <button id="diag" data-i18n-title="diag.title" title="Inspect preview and catalog state" data-i18n="diag.button">Diagnostics</button>
+    </div></details>
+  </div>
+
+</header>
+<div id="app">
+  <div class="row" id="wardrobeToolbar" role="search">
+    <label class="search-field"><svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg><input id="search" type="search" data-i18n-ph="search.ph" placeholder="Search outfits, variants, paths…" autocomplete="off" aria-label="Search outfits"><kbd aria-hidden="true">Ctrl K</kbd></label>
+    <div class="chips" id="chips">
+      <button class="chip" data-f="all" data-i18n="filter.all">All outfits</button>
+      <button class="chip on" data-f="compatible" data-i18n="filter.compatible">Compatible</button>
+      <button class="chip" data-f="installed" data-i18n="filter.installed">Installed</button>
+      <button class="chip" data-f="unknown" data-i18n="filter.unknown">Review</button>
+    </div>
+    <details class="filters"><summary data-i18n="filters.label">Filters</summary><div class="filters-menu">
+      <label><span data-i18n="shop.label">Creator</span><select id="shop" data-i18n-title="shop.title" title="Filter by creator"><option value="" data-i18n="shop.all">All shops</option></select></label>
+      <label><span data-i18n="cat.label">Type</span><select id="category" data-i18n-title="cat.title" title="Filter by type">
+        <option value="" data-i18n="cat.both">Hair + outfits</option>
+        <option value="hair" data-i18n="cat.hair">Hair</option>
+        <option value="outfit" data-i18n="cat.outfit">Outfits</option>
+        <option value="gimmick" data-i18n="cat.gimmick">Gimmicks</option>
+        <option value="unknown" data-i18n="cat.unknown">Unknown</option>
+      </select></label>
+      <label><span data-i18n="sort.label">Sort</span><select id="sort" data-i18n-title="sort.title" title="Sort order">
+        <option value="recent" data-i18n="sort.recent">Newest first</option>
+        <option value="name" data-i18n="sort.name">Name A–Z</option>
+      </select></label>
+      <button id="hideEmpty" data-i18n-title="hide.title" title="Hide items Unity cannot render a preview for">Hide no-preview</button>
+    </div></details>
+    <span id="status" role="status" aria-live="polite"></span><span id="hdrspin" style="display:none"></span>
+  </div>
+<section id="upload" hidden>
+  <div class="up-tabs" role="tablist">
+    <button id="upTabPresets" class="chip on" data-i18n="nav.presets">Presets</button>
+    <button id="upTabDefs" class="chip" data-i18n="nav.defaults">Defaults</button>
+  </div>
+  <div id="upSdkNotice" class="up-sdk-notice" role="status" aria-live="polite"></div>
+  <div id="upJob" hidden>
+    <div class="up-jobrow"><span id="upJobSpin"></span><div class="up-jobmain"><div id="upJobLabel"></div><div class="up-bar"><div id="upJobBar"></div></div><div id="upJobMsg"></div></div><button id="upJobCancel">Cancel</button><button id="upJobClose">Close</button></div>
+  </div>
+  <div id="upPresets">
+    <div class="up-head"><h2 data-i18n="upload.presetsTitle">Presets</h2>
+      <div class="up-actions"><button id="upRefresh" data-i18n="upload.refresh">Refresh</button><button id="upNew" data-i18n="upload.newSet">New Set</button><button id="upAll" data-i18n="upload.uploadAll">Upload All Included</button></div>
+    </div>
+    <p id="upPresetHint" class="up-hint" data-i18n="upload.presetsHint">Each preset uploads as its own avatar.</p>
+    <div id="upStatus" role="status"></div>
+    <div id="upList"></div>
+    <h3 id="upUnassignedHeading" data-i18n="upload.unassigned">Not in any set</h3>
+    <div id="upUnassigned"></div>
+  </div>
+  <div id="upDefs" hidden>
+    <div class="up-head"><h2 data-i18n="upload.defsTitle">Defaults</h2>
+      <div class="up-actions"><button id="upDefsSave" data-i18n="upload.save">Save</button><button id="upExport" data-i18n="upload.export">Export</button><button id="upImportBtn" data-i18n="upload.import">Import</button><input type="file" id="upImportFile" accept=".json" hidden></div>
+    </div>
+    <div id="upDefsForm" class="up-card"></div>
+    <h3 data-i18n="upload.itemDefaults">Item defaults</h3>
+    <div id="upItemDefs" class="up-card"></div>
+    <h3 data-i18n="upload.logTitle">Upload log</h3>
+    <pre id="upLog" class="up-log"></pre>
+  </div>
+  <div id="upModal" hidden><div class="up-modalbox" role="dialog" aria-modal="true" aria-labelledby="upModalTitle" tabindex="-1"><div class="up-modalhead"><h3 id="upModalTitle"></h3><button id="upModalClose">Close</button></div><div id="upModalBody"></div></div></div>
+</section>
+
+
+
+<section id="activity" class="workspace" hidden>
+  <div class="workspace-heading"><div><p class="eyebrow" data-i18n="activity.eyebrow">WORKSPACE</p><h2 data-i18n="nav.activity">Activity</h2><p class="subtle" data-i18n="activity.hint">Indexing and previews, without interrupting your wardrobe.</p></div><button id="activityIndex" data-i18n="index.inc">Index changes</button></div>
+  <div class="activity-cards"><article class="surface"><span class="eyebrow" data-i18n="activity.catalog">CATALOG</span><h3 id="activityCatalog">—</h3><p id="activityIndexState" class="subtle"></p></article><article class="surface"><span class="eyebrow" data-i18n="activity.previews">PREVIEWS</span><h3 id="activityPreviews">—</h3><p class="subtle" data-i18n="activity.onDemand">Generated on demand for visible outfits.</p></article><article class="surface"><span class="eyebrow" data-i18n="activity.connection">CONNECTION</span><h3 id="activityConnection">—</h3><p class="subtle" data-i18n="activity.local">Your assets stay in this Unity project.</p></article></div>
+  <h3 data-i18n="activity.recent">Recent activity</h3><ol id="activityLog" class="activity-log"><li class="subtle" data-i18n="activity.empty">No activity yet.</li></ol>
+</section>
+<section id="settings" class="workspace" hidden>
+  <div class="workspace-heading"><div><p class="eyebrow" data-i18n="settings.eyebrow">MAKE IT YOURS</p><h2 data-i18n="nav.settings">Settings</h2><p class="subtle" data-i18n="settings.hint">A quieter workspace. The same tools.</p></div></div>
+  <div class="settings-stack">
+    <article class="surface"><p class="eyebrow">Project</p><h3>Avatar workflow</h3><p>How do you use this project?</p><label class="setting-row"><span><strong>One avatar</strong><small>Keep the interface simple. All outfit and menu changes use the default configuration.</small></span><input type="radio" name="workflow" id="workflowOne" value="one-avatar" checked></label><label class="setting-row"><span><strong>Multiple avatars</strong><small>Show presets for maintaining separate avatar configurations in this Unity project.</small></span><input type="radio" name="workflow" id="workflowMulti" value="multi-avatar"></label><p class="subtle">Existing presets and avatar configurations are preserved when switching modes.</p></article>
+    <article class="surface"><h3 data-i18n="settings.appearance">Appearance</h3><label class="setting-row"><span><strong data-i18n="settings.compact">Compact cards</strong><small data-i18n="settings.compactHint">Show more outfits without reducing text size.</small></span><input id="settingCompact" type="checkbox"></label></article>
+    <article class="surface"><h3 data-i18n="settings.indexing">Indexing</h3><p class="subtle" data-i18n="settings.autoIndexHint">Asset changes are indexed automatically in the background.</p><p class="subtle" data-i18n="settings.previewHint">High-resolution previews continue while this window is focused, prioritizing the current grid.</p></article>
+    <article class="surface"><h3 data-i18n="settings.maintenance">Maintenance</h3><p class="subtle" data-i18n="settings.maintenanceHint">Reindexing updates catalog metadata. It does not remove your outfits.</p><div class="actions"><button id="settingsReindex" data-i18n="index.full">Reindex project</button><button id="settingsDiagnostics" data-i18n="diag.button">Diagnostics</button></div></article>
+  </div>
+</section>
+
+  <div id="layout">
+  <div id="main">
+    <div id="emptyGridState" role="status" aria-live="polite"></div>
+    <div id="grid"></div>
+    <div id="pager">
+      <button id="prev">‹ <span data-i18n="nav.prev">Prev</span></button><span id="pageinfo"></span><button id="next"><span data-i18n="nav.next">Next</span> ›</button>
+      <button id="more" data-i18n="page.more">Load more</button>
+    </div>
+  </div>
+
+</div>
+</div>
+  <aside id="side">
+    <div class="side-header"><div><h2 id="sideTitle" data-i18n="side.installed">Installed</h2></div></div>
+    <div id="sideContent"><div id="instlist"></div></div>
+  </aside>
+<footer id="hud">
+  <div class="status-left"><span id="connectionDot" class="status-dot"></span><span id="hudLow" role="status">Connecting…</span><span class="status-divider"></span><span id="indexedCount"></span><span id="pendingCount"></span></div>
+  <button id="activityStatus" class="status-progress" title="View background activity"><span id="hudHi">Previews</span><span class="hbar" role="progressbar" aria-label="High-resolution previews" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="hudHiBar"></span></span><span id="hudPercent"></span></button>
+  <span id="connectionLabel" class="connection-label">Unity connection</span>
+</footer>
+<div id="sideBackdrop"></div>
+<div id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
+  <div class="side-header"><div><div class="eyebrow" id="modalMode"></div><h2 id="modalTitle"></h2></div><button id="modalClose" aria-label="Close" title="Close">×</button></div>
+  <div id="modalContent"></div>
+</div>
+<div id="toasts" aria-live="polite" aria-atomic="false"></div>
+<script src="/runtime.js" defer></script>
+<script src="/previews.js" defer></script>
+<script src="/upload.js" defer></script>
+<script src="/wardrobe.js" defer></script>
+</body>
+</html>

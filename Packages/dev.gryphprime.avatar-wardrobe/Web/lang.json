@@ -1,0 +1,2552 @@
+{
+  "langs": [
+    {
+      "code": "en",
+      "name": "English",
+      "strings": [
+        {
+          "k": "app.title",
+          "v": "Avatar Wardrobe"
+        },
+        {
+          "k": "search.ph",
+          "v": "Search outfits, variants, paths…"
+        },
+        {
+          "k": "filter.all",
+          "v": "All outfits"
+        },
+        {
+          "k": "filter.compatible",
+          "v": "Compatible"
+        },
+        {
+          "k": "filter.installed",
+          "v": "Installed"
+        },
+        {
+          "k": "filter.unknown",
+          "v": "Review"
+        },
+        {
+          "k": "shop.all",
+          "v": "All shops"
+        },
+        {
+          "k": "shop.title",
+          "v": "Filter by creator"
+        },
+        {
+          "k": "cat.title",
+          "v": "Filter by type"
+        },
+        {
+          "k": "cat.both",
+          "v": "Hair + outfits"
+        },
+        {
+          "k": "cat.hair",
+          "v": "Hair"
+        },
+        {
+          "k": "cat.outfit",
+          "v": "Outfits"
+        },
+        {
+          "k": "cat.gimmick",
+          "v": "Gimmicks"
+        },
+        {
+          "k": "cat.unknown",
+          "v": "Unknown"
+        },
+        {
+          "k": "hide.title",
+          "v": "Hide items Unity cannot render a preview for"
+        },
+        {
+          "k": "hide.hide",
+          "v": "Hide no-preview"
+        },
+        {
+          "k": "hide.show",
+          "v": "Show no-preview"
+        },
+        {
+          "k": "index.inc.t",
+          "v": "Index changed assets"
+        },
+        {
+          "k": "index.inc",
+          "v": "Index changes"
+        },
+        {
+          "k": "index.inc.busy",
+          "v": "Indexing changes…"
+        },
+        {
+          "k": "index.full.t",
+          "v": "Reindex project"
+        },
+        {
+          "k": "index.full",
+          "v": "Reindex project"
+        },
+        {
+          "k": "index.full.busy",
+          "v": "Starting reindex…"
+        },
+        {
+          "k": "index.failed",
+          "v": "Could not start indexing."
+        },
+        {
+          "k": "lang.title",
+          "v": "Language"
+        },
+        {
+          "k": "lang.auto",
+          "v": "Auto"
+        },
+        {
+          "k": "filters.label",
+          "v": "Filters"
+        },
+        {
+          "k": "shop.label",
+          "v": "Creator"
+        },
+        {
+          "k": "cat.label",
+          "v": "Type"
+        },
+        {
+          "k": "sort.label",
+          "v": "Sort"
+        },
+        {
+          "k": "sort.title",
+          "v": "Sort order"
+        },
+        {
+          "k": "sort.recent",
+          "v": "Newest first"
+        },
+        {
+          "k": "sort.name",
+          "v": "Name A–Z"
+        },
+        {
+          "k": "diag.title",
+          "v": "Inspect preview and catalog state"
+        },
+        {
+          "k": "diag.button",
+          "v": "Diagnostics"
+        },
+        {
+          "k": "diag.busy",
+          "v": "Checking…"
+        },
+        {
+          "k": "diag.failed",
+          "v": "Diagnostics unavailable."
+        },
+        {
+          "k": "diag.summary",
+          "v": "Preview cache: {0} low / {1} sharp · unavailable: {2} · sample: {3}"
+        },
+        {
+          "k": "diag.sample.ready",
+          "v": "sample ready"
+        },
+        {
+          "k": "diag.sample.missing",
+          "v": "sample unavailable"
+        },
+        {
+          "k": "maintenance.label",
+          "v": "Maintenance"
+        },
+        {
+          "k": "side.installed",
+          "v": "Installed"
+        },
+        {
+          "k": "side.viewInstalled",
+          "v": "View Installed"
+        },
+        {
+          "k": "side.context",
+          "v": "Current avatar"
+        },
+        {
+          "k": "side.selected",
+          "v": "Selected outfit"
+        },
+        {
+          "k": "side.review",
+          "v": "Review asset"
+        },
+        {
+          "k": "side.outfit",
+          "v": "Outfit"
+        },
+        {
+          "k": "avatar.label",
+          "v": "Avatar"
+        },
+        {
+          "k": "avatar.none",
+          "v": "(no avatar selected)"
+        },
+        {
+          "k": "banner.indexing",
+          "v": "Indexing… {0} / {1} — matches appear as they are found."
+        },
+        {
+          "k": "grid.empty",
+          "v": "No items match your filters."
+        },
+        {
+          "k": "grid.loading",
+          "v": "Loading wardrobe…"
+        },
+        {
+          "k": "banner.dirty",
+          "v": "{0} asset changes queued for automatic indexing."
+        },
+        {
+          "k": "status.line",
+          "v": "{0} families · {1} outfits · {2} avatars · {3}"
+        },
+        {
+          "k": "status.results.one",
+          "v": "{0} outfit"
+        },
+        {
+          "k": "status.results.other",
+          "v": "{0} outfits"
+        },
+        {
+          "k": "inst.count.one",
+          "v": "{0} outfit"
+        },
+        {
+          "k": "inst.count.other",
+          "v": "{0} outfits"
+        },
+        {
+          "k": "inst.empty",
+          "v": "Nothing installed on this avatar yet."
+        },
+        {
+          "k": "page.info.one",
+          "v": "Page {0} / {1} · {2} result"
+        },
+        {
+          "k": "page.info.other",
+          "v": "Page {0} / {1} · {2} results"
+        },
+        {
+          "k": "page.loaded",
+          "v": "{0} of {1} outfits"
+        },
+        {
+          "k": "page.hidden",
+          "v": " · {0} hidden (no preview)"
+        },
+        {
+          "k": "page.loading.next",
+          "v": "Loading next page…"
+        },
+        {
+          "k": "page.loading.prev",
+          "v": "Loading previous page…"
+        },
+        {
+          "k": "page.more",
+          "v": "Load more"
+        },
+        {
+          "k": "page.loading.more",
+          "v": "Loading more…"
+        },
+        {
+          "k": "card.variant.one",
+          "v": "{0} variant"
+        },
+        {
+          "k": "card.variant.other",
+          "v": "{0} variants"
+        },
+        {
+          "k": "card.installed",
+          "v": "Installed"
+        },
+        {
+          "k": "card.nopreview",
+          "v": "Preview unavailable"
+        },
+        {
+          "k": "card.preview.retry",
+          "v": "Retry preview"
+        },
+        {
+          "k": "card.preview.checking",
+          "v": "Checking alternate framing…"
+        },
+        {
+          "k": "card.baking",
+          "v": "baking…"
+        },
+        {
+          "k": "dt.source",
+          "v": "Source"
+        },
+        {
+          "k": "dt.category",
+          "v": "Category"
+        },
+        {
+          "k": "dt.confidence",
+          "v": "Confidence"
+        },
+        {
+          "k": "dt.setup",
+          "v": "Setup"
+        },
+        {
+          "k": "dt.setup.yes",
+          "v": "Detected — preserved"
+        },
+        {
+          "k": "dt.setup.no",
+          "v": "Not detected"
+        },
+        {
+          "k": "dt.creator",
+          "v": "Creator"
+        },
+        {
+          "k": "dt.type",
+          "v": "Type"
+        },
+        {
+          "k": "dt.colorway",
+          "v": "Colorway"
+        },
+        {
+          "k": "dt.parts",
+          "v": "Parts"
+        },
+        {
+          "k": "dt.performance",
+          "v": "Performance"
+        },
+        {
+          "k": "dt.materials",
+          "v": "Materials"
+        },
+        {
+          "k": "perf.light",
+          "v": "Light — no PhysBones or contacts"
+        },
+        {
+          "k": "perf.phys.one",
+          "v": "{0} PhysBone"
+        },
+        {
+          "k": "perf.phys.other",
+          "v": "{0} PhysBones"
+        },
+        {
+          "k": "perf.contact.one",
+          "v": "{0} contact"
+        },
+        {
+          "k": "perf.contact.other",
+          "v": "{0} contacts"
+        },
+        {
+          "k": "perf.heavy",
+          "v": " — heavy, may cost performance rank"
+        },
+        {
+          "k": "detail.remove",
+          "v": "Remove"
+        },
+        {
+          "k": "detail.remove.busy",
+          "v": "Removing…"
+        },
+        {
+          "k": "detail.remove.fail",
+          "v": "Remove failed."
+        },
+        {
+          "k": "detail.install",
+          "v": "Add to Avatar"
+        },
+        {
+          "k": "detail.install.busy",
+          "v": "Adding to avatar…"
+        },
+        {
+          "k": "detail.install.wait",
+          "v": "This can take a moment."
+        },
+        {
+          "k": "detail.loading",
+          "v": "Loading outfit details…"
+        },
+        {
+          "k": "detail.variants",
+          "v": "Variants"
+        },
+        {
+          "k": "detail.variant",
+          "v": "Variant {0}"
+        },
+        {
+          "k": "detail.switch",
+          "v": "Switch variant"
+        },
+        {
+          "k": "detail.switch.busy",
+          "v": "Switching variant…"
+        },
+        {
+          "k": "detail.switch.fail",
+          "v": "Switch failed."
+        },
+        {
+          "k": "detail.installed",
+          "v": "Installed"
+        },
+        {
+          "k": "variant.default",
+          "v": "Default"
+        },
+        {
+          "k": "detail.variant.count",
+          "v": "{0} of {1}"
+        },
+        {
+          "k": "detail.technical",
+          "v": "Technical details"
+        },
+        {
+          "k": "detail.compatibleOverride",
+          "v": "Mark as compatible"
+        },
+        {
+          "k": "detail.toggles",
+          "v": "Create toggles"
+        },
+        {
+          "k": "detail.avatarMode",
+          "v": "Upload as avatar"
+        },
+        {
+          "k": "detail.addPreset",
+          "v": "Add to preset"
+        },
+        {
+          "k": "detail.addCommon",
+          "v": "Add to common"
+        },
+        {
+          "k": "detail.newPreset",
+          "v": "New preset…"
+        },
+        {
+          "k": "detail.presetName",
+          "v": "Preset name:"
+        },
+        {
+          "k": "detail.preset.upload",
+          "v": "Upload preset"
+        },
+        {
+          "k": "detail.preset.uploading",
+          "v": "Uploading…"
+        },
+        {
+          "k": "detail.preset.never",
+          "v": "Never uploaded as an avatar"
+        },
+        {
+          "k": "detail.common.tag",
+          "v": "Common Preset"
+        },
+        {
+          "k": "detail.preset.tag",
+          "v": "Preset"
+        },
+        {
+          "k": "detail.preset.delete",
+          "v": "Delete selected preset"
+        },
+        {
+          "k": "detail.confirm.deletePreset",
+          "v": "Delete this preset? Its outfits stay on the avatar."
+        },
+        {
+          "k": "preset.notfound",
+          "v": "Preset not found."
+        },
+        {
+          "k": "preset.saved",
+          "v": "Preset '{0}' saved."
+        },
+        {
+          "k": "preset.deleted",
+          "v": "Preset '{0}' deleted. Its outfits stay on the avatar."
+        },
+        {
+          "k": "preset.assigned",
+          "v": "Assignment updated."
+        },
+        {
+          "k": "preset.mode.tip",
+          "v": "Group outfits into presets, one avatar per preset"
+        },
+        {
+          "k": "detail.ai",
+          "v": "Clean family name with AI"
+        },
+        {
+          "k": "detail.ai.busy",
+          "v": "Asking Apple Intelligence…"
+        },
+        {
+          "k": "detail.confirm.remove",
+          "v": "Remove this outfit from the avatar? Unity Undo can restore it."
+        },
+        {
+          "k": "detail.ai.fail",
+          "v": "AI rename failed."
+        },
+        {
+          "k": "detail.install.fail",
+          "v": "Install failed."
+        },
+        {
+          "k": "index.confirm",
+          "v": "Rescan all prefab assets? Existing corrections are kept."
+        },
+        {
+          "k": "err.notfound",
+          "v": "Outfit not found."
+        },
+        {
+          "k": "compat.ok",
+          "v": "✓ Compatible"
+        },
+        {
+          "k": "compat.likely",
+          "v": "Likely compatible"
+        },
+        {
+          "k": "compat.no",
+          "v": "Not compatible"
+        },
+        {
+          "k": "compat.unknown",
+          "v": "? Untested"
+        },
+        {
+          "k": "install.noavatar",
+          "v": "Select a scene avatar instance in the Unity window first."
+        },
+        {
+          "k": "install.onlyoutfits",
+          "v": "Only outfits can be installed."
+        },
+        {
+          "k": "install.notinstalled",
+          "v": "That outfit is not installed on this avatar."
+        },
+        {
+          "k": "install.removed",
+          "v": "Outfit removed. Unity Undo can restore it."
+        },
+        {
+          "k": "index.running",
+          "v": "The indexer is already running."
+        },
+        {
+          "k": "index.started.full",
+          "v": "Full reindex started."
+        },
+        {
+          "k": "index.started.inc",
+          "v": "Incremental index started."
+        },
+        {
+          "k": "name.unavailable",
+          "v": "Apple Intelligence is unavailable. Wardrobe still works without AI."
+        },
+        {
+          "k": "name.empty",
+          "v": "Apple Intelligence returned no usable family name."
+        },
+        {
+          "k": "name.renamed",
+          "v": "Family renamed to '{0}'."
+        },
+        {
+          "k": "name.unknownjob",
+          "v": "Unknown job."
+        },
+        {
+          "k": "msg.noavatar",
+          "v": "Select an avatar instance in the scene first."
+        },
+        {
+          "k": "msg.openavatar",
+          "v": "Open or instantiate the avatar before installing an outfit."
+        },
+        {
+          "k": "msg.nooutfit",
+          "v": "Select an outfit first."
+        },
+        {
+          "k": "msg.incompatible",
+          "v": "This item is incompatible. Enable Mark as compatible in the item details to override it."
+        },
+        {
+          "k": "msg.already",
+          "v": "This source prefab is already installed. Its Wardrobe toggle was updated and it is now the default outfit."
+        },
+        {
+          "k": "msg.already.notoggles",
+          "v": "This source prefab is already installed."
+        },
+        {
+          "k": "msg.nosource",
+          "v": "The outfit prefab source is missing."
+        },
+        {
+          "k": "msg.nocreate",
+          "v": "Unity could not instantiate the outfit prefab."
+        },
+        {
+          "k": "msg.nosetup",
+          "v": "Creator setup was not found, so automatic Setup Outfit was skipped."
+        },
+        {
+          "k": "msg.noapi",
+          "v": "Modular Avatar's Setup Outfit API is unavailable, so creator setup was preserved."
+        },
+        {
+          "k": "msg.setupfailed",
+          "v": "Automatic Setup Outfit failed: {0}"
+        },
+        {
+          "k": "msg.installed",
+          "v": "Outfit installed, set as default, and Wardrobe toggles created. Outfits stay visible while editing and switch via the menu."
+        },
+        {
+          "k": "msg.installed.notoggles",
+          "v": "Outfit installed. Wardrobe toggles were not created for it."
+        },
+        {
+          "k": "msg.reverted",
+          "v": "Installation was reverted: {0}"
+        },
+        {
+          "k": "msg.indexrunning",
+          "v": "The external indexer is already running."
+        },
+        {
+          "k": "msg.nondexer",
+          "v": "Indexer not found: {0}"
+        },
+        {
+          "k": "msg.nopython",
+          "v": "Could not start python3 ({0}). Run it yourself:\ncd \"{1}\" && python3 Tools/WardrobeIndexer/wardrobe_index.py --project ."
+        },
+        {
+          "k": "win.target",
+          "v": "Install target"
+        },
+        {
+          "k": "win.target.tip",
+          "v": "A scene avatar instance. Wardrobe never writes directly to a prefab asset."
+        },
+        {
+          "k": "win.browser",
+          "v": "Browser"
+        },
+        {
+          "k": "win.servefail",
+          "v": "Could not start the server."
+        },
+        {
+          "k": "win.stop",
+          "v": "Close Wardrobe"
+        },
+        {
+          "k": "win.open",
+          "v": "Open Wardrobe"
+        },
+        {
+          "k": "win.hint",
+          "v": "Browse, search, and install from the browser. Keep this window open — installs go to the target above."
+        },
+        {
+          "k": "win.serveerr",
+          "v": "Server failed to start: {0}"
+        },
+        {
+          "k": "win.view.wardrobe",
+          "v": "Wardrobe"
+        },
+        {
+          "k": "win.view.upload",
+          "v": "Upload"
+        },
+        {
+          "k": "nav.wardrobe",
+          "v": "Wardrobe"
+        },
+        {
+          "k": "nav.upload",
+          "v": "Upload"
+        },
+        {
+          "k": "upload.title",
+          "v": "Batch upload"
+        },
+        {
+          "k": "upload.hint",
+          "v": "Batch actions run in the Unity Upload tab for now — this page mirrors the queue."
+        },
+        {
+          "k": "upload.open",
+          "v": "Open Upload in Unity"
+        },
+        {
+          "k": "upload.refresh",
+          "v": "Refresh"
+        },
+        {
+          "k": "upload.loading",
+          "v": "Loading batch state..."
+        },
+        {
+          "k": "upload.empty",
+          "v": "No outfits under the Outfits parent yet."
+        },
+        {
+          "k": "upload.failed",
+          "v": "Could not load batch state."
+        },
+        {
+          "k": "upload.batchActive",
+          "v": "A batch is running — progress shows in Unity."
+        },
+        {
+          "k": "upload.never",
+          "v": "never uploaded"
+        },
+        {
+          "k": "upload.new",
+          "v": "new — no Blueprint ID yet"
+        },
+        {
+          "k": "nav.uploadSets",
+          "v": "Upload Sets"
+        },
+        {
+          "k": "nav.scene",
+          "v": "Scene Presets"
+        },
+        {
+          "k": "nav.defaults",
+          "v": "Defaults"
+        },
+        {
+          "k": "upload.advanced",
+          "v": "Advanced setup"
+        },
+        {
+          "k": "upload.apply",
+          "v": "Apply"
+        },
+        {
+          "k": "upload.applyVram",
+          "v": "Apply optimization"
+        },
+        {
+          "k": "upload.assignAll",
+          "v": "Assign all"
+        },
+        {
+          "k": "upload.batchTitle",
+          "v": "Batch Upload"
+        },
+        {
+          "k": "upload.cancel",
+          "v": "Cancel"
+        },
+        {
+          "k": "upload.confirmAll",
+          "v": "Upload all included now?"
+        },
+        {
+          "k": "upload.confirmExpress",
+          "v": "Set up and upload this preset as a brand-new avatar?"
+        },
+        {
+          "k": "upload.confirmOne",
+          "v": "Upload this preset now?"
+        },
+        {
+          "k": "upload.confirmUpload",
+          "v": "Upload now?"
+        },
+        {
+          "k": "upload.createUpload",
+          "v": "Create and Upload"
+        },
+        {
+          "k": "upload.defsTitle",
+          "v": "Defaults"
+        },
+        {
+          "k": "upload.discard",
+          "v": "Discard"
+        },
+        {
+          "k": "upload.dryrun",
+          "v": "Dry run"
+        },
+        {
+          "k": "upload.export",
+          "v": "Export"
+        },
+        {
+          "k": "upload.express",
+          "v": "Express setup"
+        },
+        {
+          "k": "upload.expressNew",
+          "v": "Express new first"
+        },
+        {
+          "k": "upload.feMissing",
+          "v": "Assigned FaceEmo object is missing from the scene."
+        },
+        {
+          "k": "upload.feStray",
+          "v": "An uncaptured FaceEmoPrefab exists."
+        },
+        {
+          "k": "upload.fetch",
+          "v": "Fetch VRChat avatars"
+        },
+        {
+          "k": "upload.fetched",
+          "v": "Fetched"
+        },
+        {
+          "k": "upload.fetching",
+          "v": "Fetching avatars..."
+        },
+        {
+          "k": "upload.import",
+          "v": "Import"
+        },
+        {
+          "k": "upload.itemDefaults",
+          "v": "Item defaults"
+        },
+        {
+          "k": "upload.logTitle",
+          "v": "Upload log"
+        },
+        {
+          "k": "upload.match",
+          "v": "Auto-match IDs"
+        },
+        {
+          "k": "upload.matchTitle",
+          "v": "Matched Blueprint IDs"
+        },
+        {
+          "k": "upload.newSet",
+          "v": "New preset"
+        },
+        {
+          "k": "upload.newSetName",
+          "v": "New set name"
+        },
+        {
+          "k": "upload.noItems",
+          "v": "No items found."
+        },
+        {
+          "k": "upload.noMatch",
+          "v": "No name matches found."
+        },
+        {
+          "k": "upload.noMembers",
+          "v": "no outfits assigned"
+        },
+        {
+          "k": "upload.noScene",
+          "v": "No presets in the scene."
+        },
+        {
+          "k": "upload.noSets",
+          "v": "No presets yet."
+        },
+        {
+          "k": "upload.none",
+          "v": "none"
+        },
+        {
+          "k": "upload.noneIncluded",
+          "v": "Nothing included."
+        },
+        {
+          "k": "upload.optimal",
+          "v": "Textures already optimal."
+        },
+        {
+          "k": "upload.ping",
+          "v": "Ping"
+        },
+        {
+          "k": "upload.save",
+          "v": "Save"
+        },
+        {
+          "k": "upload.saved",
+          "v": "Saved."
+        },
+        {
+          "k": "upload.sceneTitle",
+          "v": "Scene Presets"
+        },
+        {
+          "k": "upload.select",
+          "v": "Select"
+        },
+        {
+          "k": "upload.setsHint",
+          "v": "Assign outfits to sets in the Wardrobe detail view. Each set uploads as its own avatar."
+        },
+        {
+          "k": "upload.setsTitle",
+          "v": "Upload Sets"
+        },
+        {
+          "k": "upload.thumb",
+          "v": "Thumb"
+        },
+        {
+          "k": "upload.thumbTitle",
+          "v": "Thumbnail preview"
+        },
+        {
+          "k": "upload.upload",
+          "v": "Upload"
+        },
+        {
+          "k": "upload.uploadAll",
+          "v": "Upload All"
+        },
+        {
+          "k": "upload.uploading",
+          "v": "Uploading..."
+        },
+        {
+          "k": "nav.presets",
+          "v": "Presets"
+        },
+        {
+          "k": "upload.presetsTitle",
+          "v": "Presets"
+        },
+        {
+          "k": "upload.presetsHint",
+          "v": "Each preset uploads as its own avatar. Engine settings persist per preset."
+        },
+        {
+          "k": "upload.unassigned",
+          "v": "Not in any set"
+        },
+        {
+          "k": "upload.fromScene",
+          "v": "New set"
+        },
+        {
+          "k": "upload.members",
+          "v": "Members"
+        },
+        {
+          "k": "upload.vramWarn",
+          "v": "Changes texture import settings and cannot be undone."
+        },
+        {
+          "k": "wear.hair",
+          "v": "Hair"
+        },
+        {
+          "k": "wear.outfit",
+          "v": "Outfits"
+        },
+        {
+          "k": "wear.unknown",
+          "v": "Unknown"
+        },
+        {
+          "k": "kind.outfit",
+          "v": "Outfit"
+        },
+        {
+          "k": "kind.candidate",
+          "v": "Candidate"
+        },
+        {
+          "k": "kind.avatar",
+          "v": "Avatar"
+        },
+        {
+          "k": "kind.ignored",
+          "v": "Ignored"
+        },
+        {
+          "k": "menu.wardrobe",
+          "v": "Wardrobe"
+        },
+        {
+          "k": "toggle.master",
+          "v": "Wear This Outfit"
+        },
+        {
+          "k": "hud.low",
+          "v": "Low-res: {0} baking"
+        },
+        {
+          "k": "hud.hi",
+          "v": "Hi-res: {0} of {1}"
+        },
+        {
+          "k": "hud.done",
+          "v": "All previews ready"
+        },
+        {
+          "k": "hud.bg",
+          "v": "{0} queued"
+        },
+        {
+          "k": "nav.prev",
+          "v": "Prev"
+        },
+        {
+          "k": "nav.next",
+          "v": "Next"
+        },
+        {
+          "k": "nav.prev.variant",
+          "v": "Previous variant"
+        },
+        {
+          "k": "nav.next.variant",
+          "v": "Next variant"
+        },
+        {
+          "k": "compat.sel",
+          "v": "Select a detected avatar to evaluate compatibility."
+        },
+        {
+          "k": "compat.designed",
+          "v": "Designed for {0}."
+        },
+        {
+          "k": "compat.setup",
+          "v": "Designed for {0} with matching setup."
+        },
+        {
+          "k": "compat.limited",
+          "v": "Designed for {0}, but the armature evidence is limited."
+        },
+        {
+          "k": "compat.overlap",
+          "v": "Its armature strongly overlaps this avatar, but no explicit target was found."
+        },
+        {
+          "k": "compat.none",
+          "v": "No explicit target or decisive armature match was found."
+        },
+        {
+          "k": "compat.novariant",
+          "v": "No variant is available."
+        },
+        {
+          "k": "nav.activity",
+          "v": "Activity"
+        },
+        {
+          "k": "nav.settings",
+          "v": "Settings"
+        },
+        {
+          "k": "activity.eyebrow",
+          "v": "WORKSPACE"
+        },
+        {
+          "k": "activity.hint",
+          "v": "Indexing and previews, without interrupting your wardrobe."
+        },
+        {
+          "k": "activity.catalog",
+          "v": "Catalog"
+        },
+        {
+          "k": "activity.previews",
+          "v": "Previews"
+        },
+        {
+          "k": "activity.connection",
+          "v": "Connection"
+        },
+        {
+          "k": "activity.onDemand",
+          "v": "High-resolution previews continue while this window is focused, prioritizing the current grid."
+        },
+        {
+          "k": "activity.local",
+          "v": "Your assets stay in this Unity project."
+        },
+        {
+          "k": "activity.recent",
+          "v": "Recent activity"
+        },
+        {
+          "k": "activity.empty",
+          "v": "No activity yet."
+        },
+        {
+          "k": "activity.current",
+          "v": "Catalog is up to date."
+        },
+        {
+          "k": "settings.eyebrow",
+          "v": "MAKE IT YOURS"
+        },
+        {
+          "k": "settings.hint",
+          "v": "A quieter workspace. The same tools."
+        },
+        {
+          "k": "settings.appearance",
+          "v": "Appearance"
+        },
+        {
+          "k": "settings.art",
+          "v": "Header artwork"
+        },
+        {
+          "k": "settings.artHint",
+          "v": "Subtle character artwork from the supplied design reference."
+        },
+        {
+          "k": "settings.compact",
+          "v": "Compact cards"
+        },
+        {
+          "k": "settings.compactHint",
+          "v": "Show more outfits in the available space."
+        },
+        {
+          "k": "settings.indexing",
+          "v": "Indexing"
+        },
+        {
+          "k": "settings.autoIndex",
+          "v": "Automatically index changes"
+        },
+        {
+          "k": "settings.autoIndexHint",
+          "v": "Asset changes are indexed automatically in the background."
+        },
+        {
+          "k": "settings.maintenance",
+          "v": "Maintenance"
+        },
+        {
+          "k": "settings.maintenanceHint",
+          "v": "Indexing and diagnostics run in your Unity project."
+        },
+        {
+          "k": "status.ready",
+          "v": "Ready"
+        },
+        {
+          "k": "status.reconnecting",
+          "v": "Reconnecting…"
+        },
+        {
+          "k": "status.rendering",
+          "v": "Generating previews…"
+        },
+        {
+          "k": "status.indexed",
+          "v": "{0} outfits indexed"
+        },
+        {
+          "k": "status.pending",
+          "v": "{0} change pending"
+        },
+        {
+          "k": "status.pending.other",
+          "v": "{0} changes pending"
+        },
+        {
+          "k": "status.connected",
+          "v": "Unity connected"
+        },
+        {
+          "k": "status.disconnected",
+          "v": "Unity disconnected"
+        },
+        {
+          "k": "preview.unavailable",
+          "v": "Preview unavailable"
+        },
+        {
+          "k": "preview.paused",
+          "v": "Preview paused"
+        },
+        {
+          "k": "preview.pending",
+          "v": "Preview processing…"
+        },
+        {
+          "k": "preview.network",
+          "v": "Preview could not be loaded"
+        },
+        {
+          "k": "preview.retry",
+          "v": "Retry preview"
+        },
+        {
+          "k": "avatar.choose",
+          "v": "Choose the target avatar in the Unity Avatar Wardrobe launcher."
+        },
+        {
+          "k": "side.manage",
+          "v": "Manage"
+        },
+        {
+          "k": "settings.previewHint",
+          "v": "High-resolution previews continue while this window is focused, prioritizing the current grid."
+        },
+        {
+          "k": "grid.error",
+          "v": "Could not load outfits."
+        },
+        {
+          "k": "grid.retry",
+          "v": "Try again"
+        },
+        {
+          "k": "settings.presets",
+          "v": "Presets"
+        },
+        {
+          "k": "settings.separateUploads",
+          "v": "Upload each preset as a separate avatar"
+        },
+        {
+          "k": "settings.separateUploadsHint",
+          "v": "Off: keep all outfits in one avatar and generate preset selection toggles. Per-preset upload settings are saved for later."
+        },
+        {
+          "k": "preset.common",
+          "v": "Common Preset"
+        },
+        {
+          "k": "upload.singleAvatarHint",
+          "v": "All presets share one avatar. Use the generated Presets menu to switch outfits."
+        },
+        {
+          "k": "detail.close",
+          "v": "Close"
+        },
+        {
+          "k": "detail.advancedOptions",
+          "v": "Advanced options"
+        },
+        {
+          "k": "upload.faceEmoDisabled",
+          "v": "temporarily disabled"
+        },
+        {
+          "k": "upload.locate",
+          "v": "Locate"
+        },
+        {
+          "k": "upload.invalidId",
+          "v": "Enter an avatar ID in the format avtr_ followed by a UUID, or leave it empty for a new avatar."
+        },
+        {
+          "k": "compat.override",
+          "v": "Compatible override"
+        },
+        {
+          "k": "upload.complete",
+          "v": "Upload complete"
+        },
+        {
+          "k": "upload.finishedErrors",
+          "v": "Upload finished with errors"
+        },
+        {
+          "k": "upload.sdk.checking",
+          "v": "Checking VRChat SDK login…"
+        },
+        {
+          "k": "upload.sdk.login",
+          "v": "Log in to upload. Open the VRChat SDK Control Panel in Unity and sign in. This notice clears automatically when you’re logged in and the SDK is ready."
+        },
+        {
+          "k": "upload.sdk.builder",
+          "v": "You’re logged in. Open the VRChat SDK Control Panel in Unity to make the upload builder available."
+        },
+        {
+          "k": "cache.clear",
+          "v": "Wipe cache/index"
+        },
+        {
+          "k": "cache.confirm",
+          "v": "Clear the catalog index and cached previews, then rebuild automatically? Presets and installed outfits are kept."
+        },
+        {
+          "k": "avatar.base",
+          "v": "Base avatar"
+        },
+        {
+          "k": "avatar.base.auto",
+          "v": "Automatic (source prefab)"
+        },
+        {
+          "k": "avatar.base.saved",
+          "v": "Saved for this source prefab."
+        },
+        {
+          "k": "avatar.base.unlinked",
+          "v": "Select an avatar and save its scene to choose a base avatar."
+        },
+        {
+          "k": "index.discovery",
+          "v": "Discovering project assets…"
+        },
+        {
+          "k": "index.dependencies",
+          "v": "Checking asset dependencies… {0} / {1}"
+        },
+        {
+          "k": "avatar.base.sceneSaved",
+          "v": "Saved for this scene avatar."
+        }
+      ]
+    },
+    {
+      "code": "ja",
+      "name": "日本語",
+      "strings": [
+        {
+          "k": "app.title",
+          "v": "アバター・ワードローブ"
+        },
+        {
+          "k": "search.ph",
+          "v": "衣装・バリアント・パスを検索…"
+        },
+        {
+          "k": "filter.all",
+          "v": "すべての衣装"
+        },
+        {
+          "k": "filter.compatible",
+          "v": "対応"
+        },
+        {
+          "k": "filter.installed",
+          "v": "導入済み"
+        },
+        {
+          "k": "filter.unknown",
+          "v": "要確認"
+        },
+        {
+          "k": "shop.all",
+          "v": "全ショップ"
+        },
+        {
+          "k": "shop.title",
+          "v": "作者で絞り込み"
+        },
+        {
+          "k": "cat.title",
+          "v": "種類で絞り込み"
+        },
+        {
+          "k": "cat.both",
+          "v": "髪＋衣装"
+        },
+        {
+          "k": "cat.hair",
+          "v": "髪"
+        },
+        {
+          "k": "cat.outfit",
+          "v": "衣装"
+        },
+        {
+          "k": "cat.gimmick",
+          "v": "ギミック"
+        },
+        {
+          "k": "cat.unknown",
+          "v": "不明"
+        },
+        {
+          "k": "hide.title",
+          "v": "プレビューを生成できない項目を隠す"
+        },
+        {
+          "k": "hide.hide",
+          "v": "プレビューなしを隠す"
+        },
+        {
+          "k": "hide.show",
+          "v": "プレビューなしを表示"
+        },
+        {
+          "k": "index.inc.t",
+          "v": "変更のあったアセットをインデックス"
+        },
+        {
+          "k": "index.inc",
+          "v": "変更を反映"
+        },
+        {
+          "k": "index.inc.busy",
+          "v": "変更をインデックス中…"
+        },
+        {
+          "k": "index.full.t",
+          "v": "プロジェクトを再インデックス"
+        },
+        {
+          "k": "index.full",
+          "v": "プロジェクトを再インデックス"
+        },
+        {
+          "k": "index.full.busy",
+          "v": "再インデックスを開始中…"
+        },
+        {
+          "k": "index.failed",
+          "v": "インデックスを開始できませんでした。"
+        },
+        {
+          "k": "lang.title",
+          "v": "言語"
+        },
+        {
+          "k": "lang.auto",
+          "v": "自動"
+        },
+        {
+          "k": "filters.label",
+          "v": "フィルター"
+        },
+        {
+          "k": "shop.label",
+          "v": "クリエイター"
+        },
+        {
+          "k": "cat.label",
+          "v": "種類"
+        },
+        {
+          "k": "sort.label",
+          "v": "並び替え"
+        },
+        {
+          "k": "sort.title",
+          "v": "表示順"
+        },
+        {
+          "k": "sort.recent",
+          "v": "新着順"
+        },
+        {
+          "k": "sort.name",
+          "v": "名前順"
+        },
+        {
+          "k": "diag.title",
+          "v": "プレビューとカタログの状態を確認"
+        },
+        {
+          "k": "diag.button",
+          "v": "診断"
+        },
+        {
+          "k": "diag.busy",
+          "v": "確認中…"
+        },
+        {
+          "k": "diag.failed",
+          "v": "診断を利用できません。"
+        },
+        {
+          "k": "diag.summary",
+          "v": "プレビューキャッシュ: 低解像度 {0} / 高解像度 {1} · 利用不可: {2} · サンプル: {3}"
+        },
+        {
+          "k": "diag.sample.ready",
+          "v": "サンプル準備済み"
+        },
+        {
+          "k": "diag.sample.missing",
+          "v": "サンプル利用不可"
+        },
+        {
+          "k": "maintenance.label",
+          "v": "メンテナンス"
+        },
+        {
+          "k": "side.installed",
+          "v": "導入済み"
+        },
+        {
+          "k": "side.viewInstalled",
+          "v": "導入済みを表示"
+        },
+        {
+          "k": "side.context",
+          "v": "現在のアバター"
+        },
+        {
+          "k": "side.selected",
+          "v": "選択中の衣装"
+        },
+        {
+          "k": "side.review",
+          "v": "要確認アセット"
+        },
+        {
+          "k": "side.outfit",
+          "v": "衣装"
+        },
+        {
+          "k": "avatar.label",
+          "v": "アバター"
+        },
+        {
+          "k": "avatar.none",
+          "v": "（アバター未選択）"
+        },
+        {
+          "k": "banner.indexing",
+          "v": "インデックス作成中… {0} / {1} — 見つかったものから表示されます。"
+        },
+        {
+          "k": "grid.empty",
+          "v": "条件に一致するアイテムがありません。"
+        },
+        {
+          "k": "grid.loading",
+          "v": "ワードローブを読み込み中…"
+        },
+        {
+          "k": "banner.dirty",
+          "v": "{0} 件の変更を自動インデックス待ちです。"
+        },
+        {
+          "k": "status.line",
+          "v": "{0} ファミリー · {1} 衣装 · {2} アバター · {3}"
+        },
+        {
+          "k": "status.results.one",
+          "v": "{0} 着"
+        },
+        {
+          "k": "status.results.other",
+          "v": "{0} 着"
+        },
+        {
+          "k": "inst.count.one",
+          "v": "{0} 着"
+        },
+        {
+          "k": "inst.count.other",
+          "v": "{0} 着"
+        },
+        {
+          "k": "inst.empty",
+          "v": "このアバターにはまだ何も導入されていません。"
+        },
+        {
+          "k": "page.info.one",
+          "v": "ページ {0} / {1} · {2} 件"
+        },
+        {
+          "k": "page.info.other",
+          "v": "ページ {0} / {1} · {2} 件"
+        },
+        {
+          "k": "page.loaded",
+          "v": "{1} 件中 {0} 件を表示"
+        },
+        {
+          "k": "page.hidden",
+          "v": " · プレビューなし {0} 件を非表示"
+        },
+        {
+          "k": "page.loading.next",
+          "v": "次のページを読み込み中…"
+        },
+        {
+          "k": "page.loading.prev",
+          "v": "前のページを読み込み中…"
+        },
+        {
+          "k": "page.more",
+          "v": "さらに読み込む"
+        },
+        {
+          "k": "page.loading.more",
+          "v": "さらに読み込み中…"
+        },
+        {
+          "k": "card.variant.one",
+          "v": "{0} バリアント"
+        },
+        {
+          "k": "card.variant.other",
+          "v": "{0} バリアント"
+        },
+        {
+          "k": "card.installed",
+          "v": "導入済み"
+        },
+        {
+          "k": "card.nopreview",
+          "v": "プレビューを利用できません"
+        },
+        {
+          "k": "card.preview.retry",
+          "v": "再試行"
+        },
+        {
+          "k": "card.preview.checking",
+          "v": "別の構図を確認中…"
+        },
+        {
+          "k": "card.baking",
+          "v": "生成中…"
+        },
+        {
+          "k": "dt.source",
+          "v": "ソース"
+        },
+        {
+          "k": "dt.category",
+          "v": "カテゴリ"
+        },
+        {
+          "k": "dt.confidence",
+          "v": "信頼度"
+        },
+        {
+          "k": "dt.setup",
+          "v": "セットアップ"
+        },
+        {
+          "k": "dt.setup.yes",
+          "v": "検出 — 保持"
+        },
+        {
+          "k": "dt.setup.no",
+          "v": "未検出"
+        },
+        {
+          "k": "dt.creator",
+          "v": "作者"
+        },
+        {
+          "k": "dt.type",
+          "v": "種類"
+        },
+        {
+          "k": "dt.colorway",
+          "v": "カラー"
+        },
+        {
+          "k": "dt.parts",
+          "v": "パーツ"
+        },
+        {
+          "k": "dt.performance",
+          "v": "パフォーマンス"
+        },
+        {
+          "k": "dt.materials",
+          "v": "マテリアル"
+        },
+        {
+          "k": "perf.light",
+          "v": "軽量 — PhysBone・Contactなし"
+        },
+        {
+          "k": "perf.phys.one",
+          "v": "PhysBone {0} 件"
+        },
+        {
+          "k": "perf.phys.other",
+          "v": "PhysBone {0} 件"
+        },
+        {
+          "k": "perf.contact.one",
+          "v": "Contact {0} 件"
+        },
+        {
+          "k": "perf.contact.other",
+          "v": "Contact {0} 件"
+        },
+        {
+          "k": "perf.heavy",
+          "v": " — 重いためパフォーマンスランクに影響する可能性あり"
+        },
+        {
+          "k": "detail.remove",
+          "v": "削除"
+        },
+        {
+          "k": "detail.remove.busy",
+          "v": "削除しています…"
+        },
+        {
+          "k": "detail.remove.fail",
+          "v": "削除に失敗しました。"
+        },
+        {
+          "k": "detail.install",
+          "v": "アバターに追加"
+        },
+        {
+          "k": "detail.install.busy",
+          "v": "アバターに追加しています…"
+        },
+        {
+          "k": "detail.install.wait",
+          "v": "少し時間がかかることがあります。"
+        },
+        {
+          "k": "detail.loading",
+          "v": "衣装の詳細を読み込み中…"
+        },
+        {
+          "k": "detail.variants",
+          "v": "バリアント"
+        },
+        {
+          "k": "detail.variant",
+          "v": "バリアント {0}"
+        },
+        {
+          "k": "detail.switch",
+          "v": "バリアントを切り替え"
+        },
+        {
+          "k": "detail.switch.busy",
+          "v": "切り替え中…"
+        },
+        {
+          "k": "detail.switch.fail",
+          "v": "切り替えに失敗しました。"
+        },
+        {
+          "k": "detail.installed",
+          "v": "導入済み"
+        },
+        {
+          "k": "variant.default",
+          "v": "デフォルト"
+        },
+        {
+          "k": "detail.variant.count",
+          "v": "{1} 件中 {0} 件目"
+        },
+        {
+          "k": "detail.technical",
+          "v": "技術的な詳細"
+        },
+        {
+          "k": "detail.compatibleOverride",
+          "v": "互換性ありとしてマーク"
+        },
+        {
+          "k": "detail.toggles",
+          "v": "トグルを作成"
+        },
+        {
+          "k": "detail.avatarMode",
+          "v": "アバターとしてアップロード"
+        },
+        {
+          "k": "detail.addPreset",
+          "v": "プリセットに追加"
+        },
+        {
+          "k": "detail.addCommon",
+          "v": "共通に追加"
+        },
+        {
+          "k": "detail.newPreset",
+          "v": "新しいプリセット…"
+        },
+        {
+          "k": "detail.presetName",
+          "v": "プリセット名:"
+        },
+        {
+          "k": "detail.preset.upload",
+          "v": "プリセットをアップロード"
+        },
+        {
+          "k": "detail.preset.uploading",
+          "v": "アップロード中…"
+        },
+        {
+          "k": "detail.preset.never",
+          "v": "アバターとしてアップロードされていません"
+        },
+        {
+          "k": "detail.common.tag",
+          "v": "共通プリセット"
+        },
+        {
+          "k": "detail.preset.tag",
+          "v": "プリセット"
+        },
+        {
+          "k": "detail.preset.delete",
+          "v": "選択中のプリセットを削除"
+        },
+        {
+          "k": "detail.confirm.deletePreset",
+          "v": "このプリセットを削除しますか?衣装はアバターに残ります。"
+        },
+        {
+          "k": "preset.notfound",
+          "v": "プリセットが見つかりません。"
+        },
+        {
+          "k": "preset.saved",
+          "v": "プリセット「{0}」を保存しました。"
+        },
+        {
+          "k": "preset.deleted",
+          "v": "プリセット「{0}」を削除しました。衣装はアバターに残ります。"
+        },
+        {
+          "k": "preset.assigned",
+          "v": "割り当てを更新しました。"
+        },
+        {
+          "k": "preset.mode.tip",
+          "v": "衣装をプリセットに分けて管理します(1プリセット=1アバター)"
+        },
+        {
+          "k": "detail.ai",
+          "v": "AIでファミリー名を整える"
+        },
+        {
+          "k": "detail.ai.busy",
+          "v": "Apple Intelligence に問い合わせ中…"
+        },
+        {
+          "k": "detail.confirm.remove",
+          "v": "この衣装をアバターから削除しますか？UnityのUndoで復元できます。"
+        },
+        {
+          "k": "detail.ai.fail",
+          "v": "AIによるリネームに失敗しました。"
+        },
+        {
+          "k": "detail.install.fail",
+          "v": "インストールに失敗しました。"
+        },
+        {
+          "k": "index.confirm",
+          "v": "全プレハブを再スキャンしますか？修正内容は保持されます。"
+        },
+        {
+          "k": "err.notfound",
+          "v": "衣装が見つかりません。"
+        },
+        {
+          "k": "compat.ok",
+          "v": "✓ 対応"
+        },
+        {
+          "k": "compat.likely",
+          "v": "対応の可能性が高い"
+        },
+        {
+          "k": "compat.no",
+          "v": "非対応"
+        },
+        {
+          "k": "compat.unknown",
+          "v": "？ 未検証"
+        },
+        {
+          "k": "install.noavatar",
+          "v": "先にUnityウィンドウでシーン内のアバターを選択してください。"
+        },
+        {
+          "k": "install.onlyoutfits",
+          "v": "インストールできるのは衣装のみです。"
+        },
+        {
+          "k": "install.notinstalled",
+          "v": "その衣装はこのアバターに導入されていません。"
+        },
+        {
+          "k": "install.removed",
+          "v": "衣装を削除しました。UnityのUndoで復元できます。"
+        },
+        {
+          "k": "index.running",
+          "v": "インデクサは既に実行中です。"
+        },
+        {
+          "k": "index.started.full",
+          "v": "完全再インデックスを開始しました。"
+        },
+        {
+          "k": "index.started.inc",
+          "v": "差分インデックスを開始しました。"
+        },
+        {
+          "k": "name.unavailable",
+          "v": "Apple Intelligenceは利用できません。AIなしでもWardrobeは動作します。"
+        },
+        {
+          "k": "name.empty",
+          "v": "Apple Intelligenceから有効なファミリー名が得られませんでした。"
+        },
+        {
+          "k": "name.renamed",
+          "v": "ファミリー名を「{0}」に変更しました。"
+        },
+        {
+          "k": "name.unknownjob",
+          "v": "不明なジョブです。"
+        },
+        {
+          "k": "msg.noavatar",
+          "v": "シーン内のアバターを選択してください。"
+        },
+        {
+          "k": "msg.openavatar",
+          "v": "衣装をインストールする前にアバターを開くか配置してください。"
+        },
+        {
+          "k": "msg.nooutfit",
+          "v": "衣装を選択してください。"
+        },
+        {
+          "k": "msg.incompatible",
+          "v": "このアイテムは非互換です。アイテムの詳細で「互換性ありとしてマーク」を有効にしてください。"
+        },
+        {
+          "k": "msg.already",
+          "v": "このプレハブは既に導入済みです。Wardrobeトグルを更新し、デフォルト衣装に設定しました。"
+        },
+        {
+          "k": "msg.already.notoggles",
+          "v": "このプレハブは既に導入済みです。"
+        },
+        {
+          "k": "msg.nosource",
+          "v": "衣装プレハブのソースが見つかりません。"
+        },
+        {
+          "k": "msg.nocreate",
+          "v": "Unityが衣装プレハブを配置できませんでした。"
+        },
+        {
+          "k": "msg.nosetup",
+          "v": "作者のセットアップが見つからなかったため、自動セットアップをスキップしました。"
+        },
+        {
+          "k": "msg.noapi",
+          "v": "Modular AvatarのセットアップAPIが利用できないため、作者のセットアップを保持しました。"
+        },
+        {
+          "k": "msg.setupfailed",
+          "v": "自動セットアップに失敗しました: {0}"
+        },
+        {
+          "k": "msg.installed",
+          "v": "衣装をインストールし、デフォルトに設定してWardrobeトグルを作成しました。編集中は表示されたまま、実行時はメニューで切り替わります。"
+        },
+        {
+          "k": "msg.installed.notoggles",
+          "v": "衣装をインストールしました。Wardrobeトグルは作成されませんでした。"
+        },
+        {
+          "k": "msg.reverted",
+          "v": "インストールを取り消しました: {0}"
+        },
+        {
+          "k": "msg.indexrunning",
+          "v": "外部インデクサは既に実行中です。"
+        },
+        {
+          "k": "msg.nondexer",
+          "v": "インデクサが見つかりません: {0}"
+        },
+        {
+          "k": "msg.nopython",
+          "v": "python3を起動できませんでした ({0})。手動で実行してください:\ncd \"{1}\" && python3 Tools/WardrobeIndexer/wardrobe_index.py --project ."
+        },
+        {
+          "k": "win.target",
+          "v": "導入先"
+        },
+        {
+          "k": "win.target.tip",
+          "v": "シーン内のアバター。プレハブアセットには直接書き込みません。"
+        },
+        {
+          "k": "win.browser",
+          "v": "ブラウザ"
+        },
+        {
+          "k": "win.servefail",
+          "v": "サーバーを起動できませんでした。"
+        },
+        {
+          "k": "win.stop",
+          "v": "ワードローブを閉じる"
+        },
+        {
+          "k": "win.open",
+          "v": "ワードローブを開く"
+        },
+        {
+          "k": "win.hint",
+          "v": "ブラウザから閲覧・検索・インストールします。このウィンドウは開いたままにしてください。インストール先は上記ターゲットです。"
+        },
+        {
+          "k": "win.serveerr",
+          "v": "サーバーの起動に失敗しました: {0}"
+        },
+        {
+          "k": "win.view.wardrobe",
+          "v": "ワードローブ"
+        },
+        {
+          "k": "win.view.upload",
+          "v": "アップロード"
+        },
+        {
+          "k": "nav.wardrobe",
+          "v": "ワードローブ"
+        },
+        {
+          "k": "nav.upload",
+          "v": "アップロード"
+        },
+        {
+          "k": "upload.title",
+          "v": "一括アップロード"
+        },
+        {
+          "k": "upload.hint",
+          "v": "バッチ操作は当面UnityのUploadタブで行います — このページはキューを表示します。"
+        },
+        {
+          "k": "upload.open",
+          "v": "UnityでUploadを開く"
+        },
+        {
+          "k": "upload.refresh",
+          "v": "更新"
+        },
+        {
+          "k": "upload.loading",
+          "v": "バッチ状態を読み込み中..."
+        },
+        {
+          "k": "upload.empty",
+          "v": "Outfits配下に衣装がありません。"
+        },
+        {
+          "k": "upload.failed",
+          "v": "バッチ状態を取得できませんでした。"
+        },
+        {
+          "k": "upload.batchActive",
+          "v": "バッチ実行中 — 進捗はUnityで確認できます。"
+        },
+        {
+          "k": "upload.never",
+          "v": "未アップロード"
+        },
+        {
+          "k": "upload.new",
+          "v": "新規 — Blueprint ID未設定"
+        },
+        {
+          "k": "nav.uploadSets",
+          "v": "アップロードセット"
+        },
+        {
+          "k": "nav.scene",
+          "v": "シーンプリセット"
+        },
+        {
+          "k": "nav.defaults",
+          "v": "既定値"
+        },
+        {
+          "k": "upload.advanced",
+          "v": "詳細セットアップ"
+        },
+        {
+          "k": "upload.apply",
+          "v": "適用"
+        },
+        {
+          "k": "upload.assignAll",
+          "v": "すべて割り当て"
+        },
+        {
+          "k": "upload.batchTitle",
+          "v": "一括アップロード"
+        },
+        {
+          "k": "upload.cancel",
+          "v": "キャンセル"
+        },
+        {
+          "k": "upload.createUpload",
+          "v": "作成してアップロード"
+        },
+        {
+          "k": "upload.defsTitle",
+          "v": "既定値"
+        },
+        {
+          "k": "upload.discard",
+          "v": "破棄"
+        },
+        {
+          "k": "upload.dryrun",
+          "v": "ドライラン"
+        },
+        {
+          "k": "upload.export",
+          "v": "エクスポート"
+        },
+        {
+          "k": "upload.express",
+          "v": "Expressセットアップ"
+        },
+        {
+          "k": "upload.fetch",
+          "v": "VRChatアバターを取得"
+        },
+        {
+          "k": "upload.fetched",
+          "v": "取得しました"
+        },
+        {
+          "k": "upload.import",
+          "v": "インポート"
+        },
+        {
+          "k": "upload.itemDefaults",
+          "v": "アイテム既定値"
+        },
+        {
+          "k": "upload.logTitle",
+          "v": "アップロードログ"
+        },
+        {
+          "k": "upload.match",
+          "v": "ID自動照合"
+        },
+        {
+          "k": "upload.matchTitle",
+          "v": "照合結果"
+        },
+        {
+          "k": "upload.newSet",
+          "v": "新規プリセット"
+        },
+        {
+          "k": "upload.newSetName",
+          "v": "新規セット名"
+        },
+        {
+          "k": "upload.applyVram",
+          "v": "最適化を適用"
+        },
+        {
+          "k": "upload.confirmAll",
+          "v": "選択分を今アップロードしますか?"
+        },
+        {
+          "k": "upload.confirmExpress",
+          "v": "新規アバターとしてセットアップしてアップロードしますか?"
+        },
+        {
+          "k": "upload.confirmOne",
+          "v": "今アップロードしますか?"
+        },
+        {
+          "k": "upload.confirmUpload",
+          "v": "アップロードしますか?"
+        },
+        {
+          "k": "upload.expressNew",
+          "v": "新規はExpressを先に"
+        },
+        {
+          "k": "upload.feMissing",
+          "v": "FaceEmoがシーンにありません。"
+        },
+        {
+          "k": "upload.feStray",
+          "v": "未キャプチャのFaceEmoPrefabがあります。"
+        },
+        {
+          "k": "upload.fetching",
+          "v": "取得中..."
+        },
+        {
+          "k": "upload.noScene",
+          "v": "シーンにプリセットがありません。"
+        },
+        {
+          "k": "upload.setsHint",
+          "v": "セットへの割り当てはWardrobe詳細画面で行います。"
+        },
+        {
+          "k": "upload.vramWarn",
+          "v": "テクスチャ設定を変更します。"
+        },
+        {
+          "k": "upload.noItems",
+          "v": "アイテムがありません。"
+        },
+        {
+          "k": "upload.noMatch",
+          "v": "一致する名前がありません。"
+        },
+        {
+          "k": "upload.noMembers",
+          "v": "未割り当て"
+        },
+        {
+          "k": "upload.noSets",
+          "v": "プリセットはまだありません。"
+        },
+        {
+          "k": "upload.none",
+          "v": "なし"
+        },
+        {
+          "k": "upload.noneIncluded",
+          "v": "選択がありません。"
+        },
+        {
+          "k": "upload.optimal",
+          "v": "テクスチャは最適です。"
+        },
+        {
+          "k": "upload.ping",
+          "v": "Ping"
+        },
+        {
+          "k": "upload.save",
+          "v": "保存"
+        },
+        {
+          "k": "upload.saved",
+          "v": "保存しました。"
+        },
+        {
+          "k": "upload.sceneTitle",
+          "v": "シーンプリセット"
+        },
+        {
+          "k": "upload.select",
+          "v": "選択"
+        },
+        {
+          "k": "upload.setsTitle",
+          "v": "アップロードセット"
+        },
+        {
+          "k": "upload.thumb",
+          "v": "サムネ"
+        },
+        {
+          "k": "upload.thumbTitle",
+          "v": "サムネイル確認"
+        },
+        {
+          "k": "upload.upload",
+          "v": "アップロード"
+        },
+        {
+          "k": "upload.uploadAll",
+          "v": "すべてアップロード"
+        },
+        {
+          "k": "upload.uploading",
+          "v": "アップロード中..."
+        },
+        {
+          "k": "nav.presets",
+          "v": "プリセット"
+        },
+        {
+          "k": "upload.presetsTitle",
+          "v": "プリセット"
+        },
+        {
+          "k": "upload.presetsHint",
+          "v": "各プリセットが個別のアバターとしてアップロードされます。"
+        },
+        {
+          "k": "upload.unassigned",
+          "v": "未割り当て"
+        },
+        {
+          "k": "upload.fromScene",
+          "v": "新規セット"
+        },
+        {
+          "k": "upload.members",
+          "v": "メンバー"
+        },
+        {
+          "k": "wear.hair",
+          "v": "髪"
+        },
+        {
+          "k": "wear.outfit",
+          "v": "衣装"
+        },
+        {
+          "k": "wear.unknown",
+          "v": "不明"
+        },
+        {
+          "k": "kind.outfit",
+          "v": "衣装"
+        },
+        {
+          "k": "kind.candidate",
+          "v": "候補"
+        },
+        {
+          "k": "kind.avatar",
+          "v": "アバター"
+        },
+        {
+          "k": "kind.ignored",
+          "v": "除外"
+        },
+        {
+          "k": "menu.wardrobe",
+          "v": "ワードローブ"
+        },
+        {
+          "k": "toggle.master",
+          "v": "この衣装を着る"
+        },
+        {
+          "k": "hud.low",
+          "v": "低解像度: {0}件生成中"
+        },
+        {
+          "k": "hud.hi",
+          "v": "高解像度: {0}/{1}件完了"
+        },
+        {
+          "k": "hud.done",
+          "v": "プレビュー準備完了"
+        },
+        {
+          "k": "hud.bg",
+          "v": "ほか{0}件待機"
+        },
+        {
+          "k": "nav.prev",
+          "v": "前へ"
+        },
+        {
+          "k": "nav.next",
+          "v": "次へ"
+        },
+        {
+          "k": "nav.prev.variant",
+          "v": "前のバリアント"
+        },
+        {
+          "k": "nav.next.variant",
+          "v": "次のバリアント"
+        },
+        {
+          "k": "compat.sel",
+          "v": "互換性を判定するアバターを選択してください。"
+        },
+        {
+          "k": "compat.designed",
+          "v": "{0}用に設計。"
+        },
+        {
+          "k": "compat.setup",
+          "v": "{0}用に設計（セットアップ一致）。"
+        },
+        {
+          "k": "compat.limited",
+          "v": "{0}用に設計。ただしアーマチュアの証拠は限定的。"
+        },
+        {
+          "k": "compat.overlap",
+          "v": "アーマチュアはこのアバターと強く一致しますが、明示的な対象は見つかりませんでした。"
+        },
+        {
+          "k": "compat.none",
+          "v": "明示的な対象も決定的なアーマチュア一致も見つかりませんでした。"
+        },
+        {
+          "k": "compat.novariant",
+          "v": "利用可能なバリアントがありません。"
+        },
+        {
+          "k": "settings.presets",
+          "v": "プリセット"
+        },
+        {
+          "k": "settings.separateUploads",
+          "v": "プリセットごとに別のアバターとしてアップロード"
+        },
+        {
+          "k": "settings.separateUploadsHint",
+          "v": "オフ：すべての衣装を1つのアバターに含め、プリセット選択トグルを生成します。個別のアップロード設定は保持されます。"
+        },
+        {
+          "k": "preset.common",
+          "v": "共通プリセット"
+        },
+        {
+          "k": "upload.singleAvatarHint",
+          "v": "すべてのプリセットを1つのアバターで共有します。生成されたプリセットメニューで衣装を切り替えられます。"
+        },
+        {
+          "k": "detail.close",
+          "v": "閉じる"
+        },
+        {
+          "k": "detail.advancedOptions",
+          "v": "詳細オプション"
+        },
+        {
+          "k": "upload.faceEmoDisabled",
+          "v": "一時的に無効"
+        },
+        {
+          "k": "upload.locate",
+          "v": "場所を表示"
+        },
+        {
+          "k": "upload.invalidId",
+          "v": "avtr_ に続く UUID 形式のアバター ID を入力してください。新規アバターの場合は空欄にしてください。"
+        },
+        {
+          "k": "compat.override",
+          "v": "互換性の手動設定"
+        },
+        {
+          "k": "upload.complete",
+          "v": "アップロード完了"
+        },
+        {
+          "k": "upload.finishedErrors",
+          "v": "一部のアップロードに失敗しました"
+        },
+        {
+          "k": "upload.sdk.checking",
+          "v": "VRChat SDKのログイン状態を確認しています…"
+        },
+        {
+          "k": "upload.sdk.login",
+          "v": "アップロードするにはログインが必要です。UnityのVRChat SDK Control Panelを開き、ログインしてください。ログイン後、この通知は自動的に消えます。"
+        },
+        {
+          "k": "upload.sdk.builder",
+          "v": "ログイン済みです。UnityのVRChat SDK Control Panelを開き、アップロードの準備を完了してください。"
+        },
+        {
+          "k": "cache.clear",
+          "v": "キャッシュとインデックスを削除"
+        },
+        {
+          "k": "cache.confirm",
+          "v": "カタログとプレビューのキャッシュを削除して自動的に再構築しますか？プリセットと導入済みアイテムは保持されます。"
+        },
+        {
+          "k": "avatar.base",
+          "v": "ベースアバター"
+        },
+        {
+          "k": "avatar.base.auto",
+          "v": "自動（元のプレハブ）"
+        },
+        {
+          "k": "avatar.base.saved",
+          "v": "この元プレハブに保存されます。"
+        },
+        {
+          "k": "avatar.base.unlinked",
+          "v": "アバターを選択してシーンを保存してください。"
+        },
+        {
+          "k": "index.discovery",
+          "v": "プロジェクトのアセットを検索中…"
+        },
+        {
+          "k": "index.dependencies",
+          "v": "依存アセットを確認中… {0} / {1}"
+        },
+        {
+          "k": "avatar.base.sceneSaved",
+          "v": "このシーンのアバターに保存されます。"
+        }
+      ]
+    }
+  ]
+}

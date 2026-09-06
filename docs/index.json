@@ -1,0 +1,34 @@
+{
+  "name": "Avatar Wardrobe",
+  "id": "dev.gryphprime.avatar-wardrobe.listing",
+  "url": "https://gryphprime.github.io/avatar-wardrobe-vpm/index.json",
+  "author": "gryphprime",
+  "packages": {
+    "dev.gryphprime.avatar-wardrobe": {
+      "versions": {
+        "1.0.0-beta.1": {
+          "name": "dev.gryphprime.avatar-wardrobe",
+          "displayName": "Avatar Wardrobe",
+          "version": "1.0.0-beta.1",
+          "unity": "2022.3",
+          "description": "Browse and install avatar outfits, generate menu toggles, and manage preset uploads.",
+          "author": {
+            "name": "gryphprime",
+            "url": "https://github.com/gryphprime"
+          },
+          "license": "LicenseRef-Avatar-Wardrobe-View-Only",
+          "documentationUrl": "https://gryphprime.github.io/avatar-wardrobe/",
+          "vpmDependencies": {
+            "com.vrchat.avatars": ">=3.10.5",
+            "nadena.dev.modular-avatar": ">=1.18.7"
+          },
+          "legacyFolders": {
+            "Assets/OutfitToggleGenerator": ""
+          },
+          "url": "https://github.com/gryphprime/avatar-wardrobe-vpm/releases/download/v1.0.0-beta.1/dev.gryphprime.avatar-wardrobe-1.0.0-beta.1.zip",
+          "zipSHA256": "94b145275a3e159e2abab499336843e92fcd2a3207c4e0dffc8893a659c5d91c"
+        }
+      }
+    }
+  }
+}
