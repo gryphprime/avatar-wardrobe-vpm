@@ -2,7 +2,12 @@
 
 Public source and VPM distribution for Avatar Wardrobe.
 
-- **Listing:** https://gryphprime.github.io/avatar-wardrobe-vpm/index.json
+**Repository listing URL:**
+
+```text
+https://gryphprime.github.io/avatar-wardrobe-vpm/index.json
+```
+
 - **Repository page:** https://gryphprime.github.io/avatar-wardrobe-vpm/
 - **User guide:** https://gryphprime.github.io/avatar-wardrobe/
 
@@ -19,8 +24,9 @@ These steps are for users authorized to install and use Avatar Wardrobe under
 its license.
 
 1. Open the [repository page](https://gryphprime.github.io/avatar-wardrobe-vpm/)
-   and click **Add repository to VCC / ALCOM**. Confirm the repository in ALCOM.
-   If the link does not open ALCOM, open **Repositories → Add Repository** in
+   and click **Open in VCC / ALCOM**. Confirm the repository in ALCOM.
+   If the link does not open ALCOM, click **Copy repository URL** on the page,
+   then open **Repositories → Add Repository** in
    ALCOM and paste this listing URL:
 
    ```text
