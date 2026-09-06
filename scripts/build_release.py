@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import urllib.error
 import urllib.request
@@ -11,8 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / 'Packages/dev.gryphprime.avatar-wardrobe'
 LISTING_URL = 'https://gryphprime.github.io/avatar-wardrobe-vpm/index.json'
 
-def build(live=False, tag=None):
+def build(live=False, tag=None, version=None):
     manifest = json.loads((PACKAGE / 'package.json').read_text())
+    if version is not None:
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+            raise ValueError('Only regular release versions are supported for now')
+        manifest['version'] = version
+        manifest['url'] = f"https://github.com/gryphprime/avatar-wardrobe-vpm/releases/download/v{version}/{manifest['name']}-{version}.zip"
+        (PACKAGE / 'package.json').write_text(json.dumps(manifest, indent=2) + '\n')
     name, version = manifest['name'], manifest['version']
     if tag and tag != 'v' + version:
         raise ValueError('Git tag must match package.json version')
@@ -65,5 +72,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--live', action='store_true')
     parser.add_argument('--tag')
+    parser.add_argument('--version')
     args = parser.parse_args()
-    build(args.live, args.tag)
+    build(args.live, args.tag, args.version)

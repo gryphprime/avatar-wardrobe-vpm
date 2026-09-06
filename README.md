@@ -27,12 +27,10 @@ its license.
    https://gryphprime.github.io/avatar-wardrobe-vpm/index.json
    ```
 
-2. In ALCOM's settings, enable **Show Prerelease Packages**. The initial release
-   is a beta and may otherwise be hidden.
-3. Close the target project in Unity. In ALCOM, open the project's
+2. Close the target project in Unity. In ALCOM, open the project's
    **Manage Packages** page, refresh the package list, search for
    **Avatar Wardrobe**, and install it. Review and apply the package changes.
-4. Open the project in Unity. After compilation finishes, choose
+3. Open the project in Unity. After compilation finishes, choose
    **Tools → Avatar Wardrobe**.
 
 VPM resolves the required VRChat SDK Avatars and Modular Avatar packages.
@@ -40,7 +38,7 @@ If Modular Avatar cannot be found, add its repository using the
 [Modular Avatar installation page](https://modular-avatar.nadena.dev/docs/intro).
 An existing `Assets/OutfitToggleGenerator` installation is migrated automatically.
 
-The first VPM beta still needs a fresh installation smoke test. Start with a
+The VPM package still needs a fresh installation smoke test. Start with a
 separate test project before installing it in your main avatar project.
 
 ## Package
@@ -48,15 +46,20 @@ separate test project before installing it in your main avatar project.
 `Packages/dev.gryphprime.avatar-wardrobe` contains only the distributable tool.
 Avatar assets, scenes, project settings, generated content and caches are excluded.
 The VPM build uses runtime/editor assemblies and package-relative resource paths.
-The initial release is a beta pending a fresh Unity installation smoke test.
+Fresh Unity installation smoke testing remains pending.
 
 ## Release
 
-1. Update the package source and its `package.json` version and release URL.
-2. Run `python3 scripts/build_release.py` to validate and build the archive.
-3. Commit the source, then push a tag matching the version, such as `v1.0.0-beta.2`.
-4. The release workflow uploads the archive and deploys the VPM listing to Pages.
+Every push to `main` automatically publishes a regular GitHub and VPM release
+and updates the repository listing. No manual tag or prerelease setting is needed.
+This includes documentation-only pushes.
 
-The workflow merges the previous live listing before publishing, keeping old
-versions available. Release archives include SHA-256 values in the listing.
-Never overwrite an existing version; publish a new version for changed content.
+Versions are generated as `1.0.N`, where `N` is the release workflow run number.
+The build stamps that version and download URL into the packaged `package.json`;
+the source manifest is a template. The release tag points to the pushed source
+commit. Rerunning a workflow keeps the same version and verifies existing assets.
+
+For a local packaging check, run `python3 scripts/build_release.py --version 1.0.0`.
+The workflow merges the previous live listing, keeping old versions available.
+Release archives include SHA-256 values in the listing and are never overwritten.
+Release versus prerelease channels will be introduced later at launch.

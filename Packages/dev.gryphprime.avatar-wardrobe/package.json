@@ -1,7 +1,7 @@
 {
   "name": "dev.gryphprime.avatar-wardrobe",
   "displayName": "Avatar Wardrobe",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0",
   "unity": "2022.3",
   "description": "Browse and install avatar outfits, generate menu toggles, and manage preset uploads.",
   "author": {
@@ -17,5 +17,5 @@
   "legacyFolders": {
     "Assets/OutfitToggleGenerator": ""
   },
-  "url": "https://github.com/gryphprime/avatar-wardrobe-vpm/releases/download/v1.0.0-beta.1/dev.gryphprime.avatar-wardrobe-1.0.0-beta.1.zip"
+  "url": "https://github.com/gryphprime/avatar-wardrobe-vpm/releases/download/v1.0.0/dev.gryphprime.avatar-wardrobe-1.0.0.zip"
 }

@@ -1,4 +1,6 @@
-Initial Avatar Wardrobe VPM beta.
+Avatar Wardrobe VPM release.
+
+Published automatically from a push to main. No prerelease setting is required.
 
 Includes package-relative resource resolution, runtime/editor assembly definitions,
 preserved Unity asset GUIDs, and the packaged Windows Python indexer runtime.

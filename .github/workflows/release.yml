@@ -1,7 +1,7 @@
 name: Release VPM package
 on:
   push:
-    tags: ['v*']
+    branches: [main]
 permissions:
   contents: write
   pages: write
@@ -21,14 +21,21 @@ jobs:
         with:
           python-version: '3.12'
       - name: Build package and merge listing history
-        run: python3 scripts/build_release.py --live --tag "$GITHUB_REF_NAME"
+        run: |
+          echo "WARDROBE_VERSION=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+          python3 scripts/build_release.py --live --version "1.0.$GITHUB_RUN_NUMBER"
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          args=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then args+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS --title "Avatar Wardrobe $GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md "${args[@]}"
+          tag="v$WARDROBE_VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            mkdir -p published
+            gh release download "$tag" --pattern SHA256SUMS --dir published
+            cmp dist/SHA256SUMS published/SHA256SUMS
+          else
+            gh release create "$tag" dist/*.zip dist/SHA256SUMS --target "$GITHUB_SHA" --title "Avatar Wardrobe $tag" --notes-file RELEASE_NOTES.md --prerelease=false --latest
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
