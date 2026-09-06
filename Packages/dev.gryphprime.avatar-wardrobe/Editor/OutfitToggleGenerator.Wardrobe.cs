@@ -170,6 +170,14 @@ namespace OutfitToggleGenerator
             }
             var oldHosts = avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
                 .Where(marker => GeneratedKind(marker, "menu-groups", MenuGroupsHost)).Select(marker => marker.transform).ToArray();
+            // Missing ownership is not proof that a generated menu is obsolete.
+            // This can occur after saving a scene or reloading the Editor domain.
+            if (staging == null && oldHosts.Any(host => !AvatarWardrobePresets.HasStoredMenuOwner(
+                key, host.GetComponent<OutfitToggleGeneratedMenu>().ownerId)))
+            {
+                Debug.LogWarning("Avatar Wardrobe preserved generated menus because their saved owner could not be resolved. Recover the preset data before rebuilding menus.", avatar);
+                return;
+            }
             // Validate the entire replacement set before deleting anything or creating
             // replacements. Otherwise an untouched mixed tree could gain a duplicate.
             if (oldHosts.Any(host => !IsEntirelyMarked(host)))

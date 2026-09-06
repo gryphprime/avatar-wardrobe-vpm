@@ -233,7 +233,10 @@ namespace OutfitToggleGenerator
             }
             baseKey = lookup.key;
             string previousScope;
-            if (instanceScopes.TryGetValue(avatar, out previousScope) && previousScope != baseKey)
+            var sessionKey = "AvatarWardrobe.OwnerScope:" + Application.dataPath + ":" + avatar.GetInstanceID();
+            if (!instanceScopes.TryGetValue(avatar, out previousScope))
+                previousScope = SessionState.GetString(sessionKey, baseKey);
+            if (previousScope != baseKey)
             {
                 // Saving an unsaved scene gives the same live instance a durable identity.
                 var file = CloneFile(LoadFile());
@@ -242,6 +245,7 @@ namespace OutfitToggleGenerator
                 SaveFile(file);
             }
             instanceScopes[avatar] = baseKey;
+            SessionState.SetString(sessionKey, baseKey);
             var fileSnapshot = LoadFile();
             if (!ReferenceEquals(lookup.migratedFile, fileSnapshot) || lookup.migratedRevision != HierarchyRevision || lookup.name != baseName)
             {
@@ -259,6 +263,7 @@ namespace OutfitToggleGenerator
 
         private static void MigrateLegacyOwner(VRCAvatarDescriptor avatar, string baseKey, string baseName)
         {
+            RecoverSessionCommon(avatar, baseKey, baseName);
             var original = LoadFile();
             var owned = original.presets.Where(p => IsLegacyBaseKey(p.baseKey) && LegacyPresetBelongsTo(p, avatar)).ToList();
             // Common data had no owner identity. Copy it only when its concrete member paths
@@ -287,6 +292,38 @@ namespace OutfitToggleGenerator
             }
             // Staging keys, preset IDs, Blueprint IDs and engine configuration are unchanged.
             SaveFile(file);
+        }
+
+        // Group IDs in marked scene objects are evidence of ownership; names alone are not.
+        private static void RecoverSessionCommon(VRCAvatarDescriptor avatar, string key, string name)
+        {
+            var original = LoadFile();
+            if (original.commonPresets.Any(p => p.baseKey == key)) return;
+            var ids = new HashSet<string>(avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
+                .Where(m => m.generatedKind == "menu-group" && !string.IsNullOrEmpty(m.ownerId))
+                .Select(m => m.ownerId));
+            var candidates = original.commonPresets.Where(p => p.baseKey != key &&
+                p.baseKey != null && p.baseKey.StartsWith("scene-session:", StringComparison.Ordinal) &&
+                p.menuGroups != null && p.menuGroups.Count > 0 &&
+                p.menuGroups.All(g => ids.Contains(g.id) && g.paths.Count > 0 &&
+                    g.paths.All(path => !string.IsNullOrEmpty(path) && avatar.transform.Find(path) != null))).ToList();
+            if (candidates.Count != 1) return;
+            var source = candidates[0];
+            var file = CloneFile(original);
+            var copy = JsonUtility.FromJson<WardrobePreset>(JsonUtility.ToJson(source));
+            copy.baseKey = key;
+            copy.baseName = name;
+            file.commonPresets.Add(copy);
+            foreach (var assignment in original.assignments.Where(a => a.baseKey == source.baseKey && a.target == CommonTarget))
+                file.assignments.Add(new WardrobePresetAssignment { baseKey = key, target = CommonTarget, guid = assignment.guid });
+            SaveFile(file); // Preserve the old record as recovery data.
+        }
+
+        internal static bool HasStoredMenuOwner(string key, string owner)
+        {
+            var file = LoadFile();
+            return (owner == CommonTarget ? file.commonPresets : file.presets)
+                .Any(p => p.baseKey == key && p.id == owner);
         }
 
         private static bool LegacyPresetBelongsTo(WardrobePreset preset, VRCAvatarDescriptor avatar)

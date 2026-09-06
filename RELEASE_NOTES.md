@@ -1,16 +1,15 @@
-Clean up stale Avatar Wardrobe objects using AW markers only.
+Preserve menu groups when an avatar's saved-scene identity changes.
 
-Generated-host lookup no longer adopts objects solely by name. Menu migration
-now detects duplicate marked owners, obsolete layouts, and marked containers
-whose preset or menu groups no longer exist. Stale marked preset selectors and
-empty marked legacy menus are cleaned up with Undo support.
+Remember the previous owner scope across Editor script reloads. Recover orphaned
+Common records from an old session only when exactly one candidate matches the
+marked scene group IDs and all member paths. Preserve the original recovery data.
 
-Unmarked objects are not adopted or deleted. If a marked container has unmarked
-children, cleanup leaves it untouched and logs a warning. Menu-group replacement
-stops before deletion/creation when such a mixed tree exists, avoiding duplicates.
-Part toggles remain independent of outfit/hair switching groups.
+Menu rebuilding now stops before deleting generated hosts when their saved owner
+cannot be resolved. Missing ownership is no longer treated as proof of stale data.
+Unmarked scene objects remain untouched.
 
-Validation: compiled with AWTest's Unity compiler and references. Live scene
-migration has not been exercised; cleanup runs on the next menu migration/sync.
+Validation: compiled using AWTest's Unity compiler and references. AWTest's saved
+Outfits group association was recovered against its scene group ID and references,
+with the original JSON backed up. Interactive reload/migration remains unverified.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.
