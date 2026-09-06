@@ -3,7 +3,8 @@ using UnityEngine;
 namespace OutfitToggleGenerator
 {
     [AddComponentMenu("")]
-    public sealed class OutfitToggleGeneratedMenu : MonoBehaviour
+    // Bookkeeping for generated controls; never a runtime avatar component.
+    public sealed class OutfitToggleGeneratedMenu : MonoBehaviour, VRC.SDKBase.IEditorOnly
     {
         [HideInInspector] public string[] outfitPaths;
         [HideInInspector] public string generatedKind;
