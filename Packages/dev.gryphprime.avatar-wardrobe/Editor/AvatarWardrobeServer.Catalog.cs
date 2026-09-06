@@ -94,6 +94,7 @@ namespace OutfitToggleGenerator
             public bool sdkLoggedIn;
             public bool sdkUploadReady;
             public string server = "wardrobe-refactor-1";
+            public string wardrobeVersion = WardrobeVersion.Current;
             public int avatarInstanceId;
             public string avatarName = string.Empty;
             public string avatarLabel = string.Empty;

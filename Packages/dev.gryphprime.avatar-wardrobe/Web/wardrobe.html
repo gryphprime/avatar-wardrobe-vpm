@@ -16,6 +16,8 @@
     <label><span data-i18n="avatar.base">Base avatar</span>: <select id="avatarBase" aria-label="Base avatar"><option value="">Automatic (source prefab)</option></select></label>
     <label id="workflowPresetWrap" hidden>Preset: <select id="workflowPreset" aria-label="Preset"><option value="common">Common Preset</option></select></label>
     <select id="lang" data-i18n-title="lang.title" title="Language" aria-label="Language"></select>
+    <div class="top-actions">
+    <a id="wardrobeUpdate" class="update-indicator" href="https://gryphprime.github.io/avatar-wardrobe-vpm/#update" target="_blank" rel="noopener noreferrer" hidden data-i18n="update.available">Update available</a>
     <details class="maintenance"><summary data-i18n-aria="maintenance.label" aria-label="Maintenance">&#8943;</summary><div class="menu">
       <button id="indexInc" data-i18n-title="index.inc.t" title="Index changed assets" data-i18n="index.inc">Index changes</button>
       <button id="cacheClear" data-i18n="cache.clear">Wipe cache/index</button>
@@ -23,6 +25,7 @@
       <button id="regenerateToggles">Regenerate toggles</button>
       <button id="diag" data-i18n-title="diag.title" title="Inspect preview and catalog state" data-i18n="diag.button">Diagnostics</button>
     </div></details>
+    </div>
   </div>
 
 </header>

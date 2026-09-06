@@ -17,6 +17,7 @@ def build(live=False, tag=None, version=None):
     if version is not None:
         if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
             raise ValueError('Only regular release versions are supported for now')
+        (PACKAGE / 'Editor/WardrobeVersion.json').write_text(json.dumps({'version': version}) + '\n')
         manifest['version'] = version
         manifest['url'] = f"https://github.com/gryphprime/avatar-wardrobe-vpm/releases/download/v{version}/{manifest['name']}-{version}.zip"
         (PACKAGE / 'package.json').write_text(json.dumps(manifest, indent=2) + '\n')

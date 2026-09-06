@@ -336,6 +336,7 @@
       if(!s||s.pending||s.ok===0) throw new Error("No state");
       connected=true; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
       R.setContext(s.session, s.avatarInstanceId);
+      window.WardrobeUpdates.refresh(s.wardrobeVersion, T);
       if(!baseSaving){
         var baseSelect=$("avatarBase"),choices=[{guid:"",name:T("avatar.base.auto"),path:""}].concat(s.baseAvatars||[]);
         R.reconcile(baseSelect,choices,function(c){return c.guid;},function(){return document.createElement("option");},function(option,c){option.value=c.guid;R.text(option,c.name);option.title=c.path||"";});

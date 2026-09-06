@@ -1355,6 +1355,14 @@
         {
           "k": "avatar.base.sceneSaved",
           "v": "Saved for this scene avatar."
+        },
+        {
+          "k": "update.available",
+          "v": "Update available"
+        },
+        {
+          "k": "update.hint",
+          "v": "Installed: {0}. Available: {1}. Update in ALCOM or VCC."
         }
       ]
     },
@@ -2545,6 +2553,14 @@
         {
           "k": "avatar.base.sceneSaved",
           "v": "このシーンのアバターに保存されます。"
+        },
+        {
+          "k": "update.available",
+          "v": "アップデートがあります"
+        },
+        {
+          "k": "update.hint",
+          "v": "インストール済み: {0}。最新: {1}。ALCOM または VCC で更新してください。"
         }
       ]
     }

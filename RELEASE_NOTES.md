@@ -1,14 +1,13 @@
-Avatar Wardrobe VPM release.
+Avatar Wardrobe now shows an Update available link at the right of the top bar
+when the VPM listing contains a newer regular release.
 
-Published automatically from a push to main. No prerelease setting is required.
+Checks run in the browser, cache successful results for six hours, and remain
+quiet when offline. Clicking the indicator opens ALCOM/VCC update instructions.
+Installed versions come from the VPM package manifest or the bundled version
+file for legacy Assets installations. English and Japanese labels are included.
 
-Includes package-relative resource resolution, runtime/editor assembly definitions,
-preserved Unity asset GUIDs, and the packaged Windows Python indexer runtime.
-Requires Unity 2022.3, VRChat SDK Avatars 3.10.5+ and Modular Avatar 1.18.7+.
+Validation: Unity C# compilation; JavaScript syntax; version ordering, prerelease
+exclusion, visibility, caching and offline retry tests. Fresh VPM installation
+smoke testing remains pending.
 
-Validation: compiled with the Unity 2022.3 compiler and installed SDK assemblies;
-archive and manifest checks passed. A fresh VCC/ALCOM installation and upload
-smoke test remains pending.
-
-View-only license: installation and use require separate permission from gryphprime.
-See LICENSE and THIRD_PARTY_NOTICES.md. Existing third-party licenses are preserved.
+View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.

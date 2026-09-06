@@ -99,3 +99,66 @@
   });
   global.WardrobeRuntime = {text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,setContext:function(value,id){session=value||"";avatarId=id||0;},openDialog:openDialog,closeDialog:closeDialog};
 })(window);
+
+/* Update checks run in the browser, never on Unity's editor thread. */
+(function (global) {
+  'use strict';
+  var listing = 'https://gryphprime.github.io/avatar-wardrobe-vpm/index.json';
+  var key = 'wardrobe.vpm.update.v1', ttl = 6 * 60 * 60 * 1000;
+  var nextCheck = 0, flight = null, latest = '', current = '', translate = null;
+  function parse(version) {
+    var m = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(version || '');
+    return m ? {numbers:m.slice(1,4).map(Number), prerelease:m[4] || ''} : null;
+  }
+  function newer(candidate, installed) {
+    var a = parse(candidate), b = parse(installed);
+    if (!a || !b || a.prerelease) return false;
+    for (var i=0; i<3; i++) if (a.numbers[i] !== b.numbers[i]) return a.numbers[i] > b.numbers[i];
+    return !!b.prerelease;
+  }
+  function paint() {
+    var node = document.getElementById('wardrobeUpdate');
+    if (!node) return;
+    node.hidden = !newer(latest, current);
+    if (!node.hidden) {
+      node.textContent = translate('update.available');
+      node.title = translate('update.hint', current, latest);
+    }
+  }
+  function refresh(version, t) {
+    current = version || ''; translate = t;
+    if (!parse(current)) { paint(); return; }
+    if (!nextCheck) {
+      try {
+        var cached = JSON.parse(localStorage.getItem(key));
+        if (cached && parse(cached.latest) && cached.checkedAt <= Date.now() && Date.now()-cached.checkedAt < ttl) {
+          latest = cached.latest; nextCheck = cached.checkedAt + ttl;
+        }
+      } catch (_) { /* Storage may be disabled. */ }
+    }
+    paint();
+    if (flight || Date.now() < nextCheck) return flight;
+    // Failed checks remain quiet and retry after an hour rather than on every state poll.
+    nextCheck = Date.now() + 60 * 60 * 1000;
+    var controller = new AbortController(), timer = setTimeout(function(){controller.abort();},8000);
+    flight = fetch(listing, {signal:controller.signal, credentials:'omit', referrerPolicy:'no-referrer'})
+      .then(function(response){if (!response.ok) throw Error('Update check unavailable'); return response.json();})
+      .then(function(data){
+        var entry = data.packages && data.packages['dev.gryphprime.avatar-wardrobe'];
+        if (!entry || !entry.versions) throw Error('No package versions');
+        var best = '';
+        Object.keys(entry.versions).forEach(function(v){
+          var manifest = entry.versions[v], parsed = parse(v);
+          if (!parsed || parsed.prerelease || !manifest || manifest.version !== v || manifest.name !== 'dev.gryphprime.avatar-wardrobe' || manifest['vrc-get.yanked']) return;
+          if (!best || newer(v,best)) best=v;
+        });
+        if (!best) throw Error('No regular package versions');
+        latest=best; nextCheck=Date.now()+ttl;
+        try { localStorage.setItem(key,JSON.stringify({latest:latest,checkedAt:Date.now()})); } catch (_) {}
+        paint();
+      }).catch(function(){ /* Offline checks must not disturb the wardrobe. */ })
+      .finally(function(){clearTimeout(timer);flight=null;});
+    return flight;
+  }
+  global.WardrobeUpdates = {refresh:refresh, newer:newer};
+})(window);

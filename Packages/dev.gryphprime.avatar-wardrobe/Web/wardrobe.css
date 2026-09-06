@@ -212,3 +212,5 @@ input[type=radio] { accent-color:var(--accent-fill); width:16px; height:16px; fl
 
 .up-sdk-notice{margin:12px 0;padding:14px 18px;border:1px solid #b89245;border-radius:10px;background:#332c1c;color:#ffe4a3;line-height:1.5}
 .up-sdk-notice[hidden]{display:none}
+
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:12px;flex-shrink:0}.top-actions .maintenance{margin-left:0;align-self:center}.update-indicator{font-size:12px;font-weight:600;color:#a9d2ff;text-decoration:none;border:1px solid #42648a;border-radius:7px;padding:7px 10px;white-space:nowrap}.update-indicator:hover{background:#203c57}.update-indicator[hidden]{display:none}
