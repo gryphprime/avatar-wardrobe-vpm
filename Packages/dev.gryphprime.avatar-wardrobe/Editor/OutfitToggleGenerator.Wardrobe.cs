@@ -55,12 +55,9 @@ namespace OutfitToggleGenerator
         }
 
         private const string PresetSelectorName = "Avatar Wardrobe Preset Selector";
-        private const string PresetSelectorParameter = GeneratedParameterPrefix + "PresetSelection";
-        private static string presetSelectorSignature;
 
         internal static void RegeneratePresetToggles(VRCAvatarDescriptor avatar)
         {
-            presetSelectorSignature = null;
             SyncPresetSelection(avatar, AvatarWardrobePresets.SeparateAvatarUploads);
             SyncMenuGroups(avatar);
             if (avatar != null)
@@ -69,96 +66,20 @@ namespace OutfitToggleGenerator
                     GeneratePartToggles(avatar, marker.transform.parent.gameObject);
         }
 
+        // Compatibility entry point for existing callers. Presets organize content;
+        // only explicit menu groups generate outfit/hair switching controls.
         internal static void SyncPresetSelection(VRCAvatarDescriptor avatar, bool separate)
         {
             if (avatar == null) return;
-            var existing = FindGeneratedHost(avatar.transform, "preset-selector", PresetSelectorName);
-            if (existing != null && existing.GetComponent<OutfitToggleGeneratedMenu>() == null)
-                throw new InvalidOperationException("Rename the existing object named " + PresetSelectorName + " before generating preset controls.");
-            if (separate)
-            {
-                if (existing != null) Undo.DestroyObjectImmediate(existing.gameObject);
-                presetSelectorSignature = null;
-                return;
-            }
-            string baseKey, baseName;
-            AvatarWardrobePresets.CurrentBase(out baseKey, out baseName);
-            var groups = AvatarWardrobePresets.PresetsForBase(baseKey)
-                .Select(p => new { Preset = p, Roots = AvatarWardrobePresets.SceneMembers(p, avatar) })
-                .Where(g => g.Roots.Count > 0).ToList();
-            var commonRoots = AvatarWardrobePresets.SceneMembers(new AvatarWardrobePresets.WardrobePreset {
-                id = AvatarWardrobePresets.CommonTarget, baseKey = baseKey
-            }, avatar);
-            var signature = string.Join(",", commonRoots.Select(r => r.GetInstanceID() + ":" + new AvatarObjectReference(r).referencePath)) + "|" + avatar.GetInstanceID() + "|" + string.Join("|", groups.Select(g =>
-                g.Preset.id + ":" + g.Preset.name + ":" + string.Join(",", g.Roots.Select(r =>
-                    r.GetInstanceID() + ":" + new AvatarObjectReference(r).referencePath))));
-            if (existing != null && presetSelectorSignature == signature)
-            {
-                EnsureGeneratedMenuIcons(avatar.gameObject, existing);
-                return;
-            }
-            string defaultId = null;
-            if (existing != null)
-            {
-                foreach (var item in existing.GetComponentsInChildren<ModularAvatarMenuItem>(true))
-                    if (item.isDefault)
-                    {
-                        var marker = item.GetComponent<OutfitToggleGeneratedMenu>();
-                        defaultId = marker != null && marker.generatedKind == "preset-option" ? marker.ownerId : item.gameObject.name;
-                    }
-                Undo.DestroyObjectImmediate(existing.gameObject);
-            }
-            if (groups.Count == 0) { presetSelectorSignature = null; return; }
-            if (!groups.Any(g => g.Preset.id == defaultId)) defaultId = groups[0].Preset.id;
-            var host = new GameObject(PresetSelectorName);
-            Undo.RegisterCreatedObjectUndo(host, "Generate preset selection");
-            Undo.SetTransformParent(host.transform, avatar.transform, "Generate preset selection");
-            TagGenerated(host, "preset-selector");
-            Undo.AddComponent<ModularAvatarMenuInstaller>(host);
-            var submenu = Undo.AddComponent<ModularAvatarMenuItem>(host);
-            submenu.MenuSource = SubmenuSource.Children;
-            submenu.label = "Presets";
-            submenu.Control = new VRCExpressionsMenu.Control {
-                name = "Presets", type = VRCExpressionsMenu.Control.ControlType.SubMenu
-            };
-            var roots = groups.SelectMany(g => g.Roots).Concat(commonRoots).Distinct().ToList();
-            // Replace only our old outfit master controls, which would otherwise compete
-            // with the preset selector. Component toggles and third-party menus are retained.
-            foreach (var item in avatar.GetComponentsInChildren<ModularAvatarMenuItem>(true))
-            {
-                if (item.Control?.parameter?.name != WardrobeOutfitParameter) continue;
-                var toggle = item.GetComponent<ModularAvatarObjectToggle>();
-                if (toggle == null) continue;
-                if (toggle.Objects.Any(o => {
-                    var target = avatar.transform.Find(o.Object?.referencePath ?? "");
-                    return target != null && roots.Any(r => target == r.transform || target.IsChildOf(r.transform));
-                })) Undo.DestroyObjectImmediate(item.gameObject);
-            }
-            foreach (var group in groups)
-            {
-                var control = new GameObject(group.Preset.id);
-                Undo.RegisterCreatedObjectUndo(control, "Generate preset selection");
-                Undo.SetTransformParent(control.transform, host.transform, "Generate preset selection");
-                TagGenerated(control, "preset-option", group.Preset.id);
-                var item = Undo.AddComponent<ModularAvatarMenuItem>(control);
-                item.label = group.Preset.name;
-                item.automaticValue = true;
-                item.isDefault = group.Preset.id == defaultId;
-                item.Control = new VRCExpressionsMenu.Control {
-                    name = group.Preset.name, type = VRCExpressionsMenu.Control.ControlType.Toggle,
-                    parameter = new VRCExpressionsMenu.Control.Parameter { name = PresetSelectorParameter }, value = 1
-                };
-                var toggle = Undo.AddComponent<ModularAvatarObjectToggle>(control);
-                toggle.Inverted = true;
-                foreach (var root in group.Roots)
-                {
-                    toggle.Objects.Add(new ToggledObject { Object = new AvatarObjectReference(root), Active = false });
-                    if (!root.activeSelf) { Undo.RecordObject(root, "Enable preset selection"); root.SetActive(true); }
-                }
-            }
-            EnsureGeneratedMenuIcons(avatar.gameObject, host.transform);
-            presetSelectorSignature = signature;
-            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(avatar.gameObject.scene);
+            foreach (var marker in avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
+                .Where(m => GeneratedKind(m, "preset-selector", PresetSelectorName)).ToArray())
+                Undo.DestroyObjectImmediate(marker.gameObject);
+            var legacyMenu = FindGeneratedHost(avatar.transform, "wardrobe-menu", WardrobeMenuName);
+            if (legacyMenu == null || legacyMenu.GetComponent<OutfitToggleGeneratedMenu>() == null) return;
+            foreach (var item in legacyMenu.GetComponentsInChildren<ModularAvatarMenuItem>(true)
+                .Where(item => item.Control?.parameter?.name == WardrobeOutfitParameter &&
+                    item.GetComponent<ModularAvatarObjectToggle>() != null).ToArray())
+                Undo.DestroyObjectImmediate(item.gameObject);
         }
 
         private const string MenuGroupsHost = "Avatar Wardrobe Menu Groups";
@@ -166,6 +87,7 @@ namespace OutfitToggleGenerator
         internal static void MigrateMenuGroups(VRCAvatarDescriptor avatar)
         {
             if (avatar == null) return;
+            SyncPresetSelection(avatar, AvatarWardrobePresets.SeparateAvatarUploads);
             foreach (var marker in avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true))
             {
                 if (!string.IsNullOrEmpty(marker.generatedKind)) continue;
@@ -426,17 +348,9 @@ namespace OutfitToggleGenerator
         {
             if (avatar == null || outfitRoot == null) return;
 
-            var menuRoot = FindOrCreateWardrobeMenu(avatar);
-            label = string.IsNullOrWhiteSpace(label) ? outfitRoot.name : HumanizeName(label).Trim();
-            if (label.Length > 32) label = label.Substring(0, 32).TrimEnd();
-
-            MigrateLegacyFlatToggles(avatar, menuRoot);
-            var path = new AvatarObjectReference(outfitRoot).referencePath;
-            var submenu = FindSubmenuForOutfit(menuRoot, path) ?? FindOrCreateOutfitSubmenu(menuRoot, label);
-            SyncOutfitSubmenu(avatar, submenu, outfitRoot, label);
-            NormalizeMasterToggles(menuRoot);
-            SetDefaultOutfit(menuRoot, submenu);
-            ActivateManagedOutfits(avatar, menuRoot);
+            // Legacy callers requesting generated controls get part toggles only.
+            // Whole-item switching is owned exclusively by SyncMenuGroups.
+            GeneratePartToggles(avatar, outfitRoot);
         }
 
         internal static void RemoveWardrobeOutfit(VRCAvatarDescriptor avatar, GameObject instance)

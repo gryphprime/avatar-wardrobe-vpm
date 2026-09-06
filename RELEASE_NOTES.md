@@ -1,13 +1,12 @@
-Fix adding prefabs after marking them compatible.
+Outfit and hair switching controls are now generated only by explicit menu groups.
 
-Add to Avatar and preset assignment now accept descriptor-free prefabs regardless
-of automatic asset classification. A compatible candidate is no longer rejected
-with “Only outfits can be installed.” Compatibility checks remain in place.
-The loaded prefab is checked for Avatar Descriptors in inactive children as well
-as on its root before installation.
+Adding an item to a preset no longer creates an automatic Presets selector.
+Existing generated preset selectors and legacy Wardrobe master switches are
+removed during menu migration/synchronization. Part toggles remain available
+independently, and legacy control-generation calls now generate part toggles only.
 
-Validation: C# compilation using AWTest's Unity compiler and assembly references;
-descriptor regression tests; browser update tests; release archive checks.
-Interactive installation was not exercised in this validation.
+Validation: compiled with AWTest's Unity compiler and assembly references;
+descriptor and browser update regression tests passed. Live scene migration
+has not been exercised in this validation.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.
