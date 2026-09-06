@@ -1,11 +1,16 @@
-Mark OutfitToggleGeneratedMenu as a VRChat editor-only component.
+Clean up stale Avatar Wardrobe objects using AW markers only.
 
-The marker stores Avatar Wardrobe's generated-menu bookkeeping in Unity. It now
-implements VRC.SDKBase.IEditorOnly so the SDK recognizes it as editor tooling,
-rather than reporting it as an unsupported runtime avatar script. Existing marker
-components gain this behavior automatically after recompilation.
+Generated-host lookup no longer adopts objects solely by name. Menu migration
+now detects duplicate marked owners, obsolete layouts, and marked containers
+whose preset or menu groups no longer exist. Stale marked preset selectors and
+empty marked legacy menus are cleaned up with Undo support.
 
-Validation: runtime assembly compiled against AWTest's Unity/VRChat references.
-SDK UI validation after reload has not been exercised.
+Unmarked objects are not adopted or deleted. If a marked container has unmarked
+children, cleanup leaves it untouched and logs a warning. Menu-group replacement
+stops before deletion/creation when such a mixed tree exists, avoiding duplicates.
+Part toggles remain independent of outfit/hair switching groups.
+
+Validation: compiled with AWTest's Unity compiler and references. Live scene
+migration has not been exercised; cleanup runs on the next menu migration/sync.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.

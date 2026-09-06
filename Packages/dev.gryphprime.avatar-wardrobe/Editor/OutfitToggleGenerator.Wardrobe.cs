@@ -41,7 +41,25 @@ namespace OutfitToggleGenerator
             if (parent == null) return null;
             return parent.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
                 .Where(marker => marker.transform.parent == parent && GeneratedKind(marker, kind, legacyName))
-                .Select(marker => marker.transform).FirstOrDefault() ?? parent.Find(legacyName);
+                .Select(marker => marker.transform).FirstOrDefault();
+        }
+
+        // Removing a marked parent must never implicitly delete unmarked children.
+        private static bool IsEntirelyMarked(Transform root)
+        {
+            return root != null && root.GetComponentsInChildren<Transform>(true)
+                .All(t => t.GetComponent<OutfitToggleGeneratedMenu>() != null);
+        }
+
+        private static void RemoveStaleMarkedObject(GameObject target)
+        {
+            if (target == null || target.GetComponent<OutfitToggleGeneratedMenu>() == null) return;
+            if (!IsEntirelyMarked(target.transform))
+            {
+                Debug.LogWarning("Avatar Wardrobe left a stale marked object untouched because it contains unmarked children: " + target.name, target);
+                return;
+            }
+            Undo.DestroyObjectImmediate(target);
         }
 
         private static OutfitToggleGeneratedMenu TagGenerated(GameObject target, string kind, string owner = "")
@@ -73,17 +91,22 @@ namespace OutfitToggleGenerator
             if (avatar == null) return;
             foreach (var marker in avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
                 .Where(m => GeneratedKind(m, "preset-selector", PresetSelectorName)).ToArray())
-                Undo.DestroyObjectImmediate(marker.gameObject);
-            var legacyMenu = FindGeneratedHost(avatar.transform, "wardrobe-menu", WardrobeMenuName);
-            if (legacyMenu == null || legacyMenu.GetComponent<OutfitToggleGeneratedMenu>() == null) return;
-            foreach (var item in legacyMenu.GetComponentsInChildren<ModularAvatarMenuItem>(true)
-                .Where(item => item.Control?.parameter?.name == WardrobeOutfitParameter &&
-                    item.GetComponent<ModularAvatarObjectToggle>() != null).ToArray())
-                Undo.DestroyObjectImmediate(item.gameObject);
+                RemoveStaleMarkedObject(marker.gameObject);
+            foreach (var legacyMenu in avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
+                .Where(m => GeneratedKind(m, "wardrobe-menu", WardrobeMenuName)).ToArray())
+            {
+                foreach (var item in legacyMenu.GetComponentsInChildren<ModularAvatarMenuItem>(true)
+                    .Where(item => item.GetComponent<OutfitToggleGeneratedMenu>() != null &&
+                        item.Control?.parameter?.name == WardrobeOutfitParameter &&
+                        item.GetComponent<ModularAvatarObjectToggle>() != null).ToArray())
+                    RemoveStaleMarkedObject(item.gameObject);
+                if (legacyMenu != null && legacyMenu.transform.childCount == 0)
+                    RemoveStaleMarkedObject(legacyMenu.gameObject);
+            }
         }
 
         private const string MenuGroupsHost = "Avatar Wardrobe Menu Groups";
-        private const int MenuGroupsLayoutVersion = 4;
+        private const int MenuGroupsLayoutVersion = 5;
         internal static void MigrateMenuGroups(VRCAvatarDescriptor avatar)
         {
             if (avatar == null) return;
@@ -102,8 +125,15 @@ namespace OutfitToggleGenerator
                     GeneratePartToggles(avatar, marker.transform.parent.gameObject);
                 else EnsureGeneratedMenuIcons(avatar.gameObject, marker.transform);
             }
-            if (avatar != null && avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
-                .Any(marker => GeneratedKind(marker, "menu-groups", MenuGroupsHost) && marker.menuGroupsLayoutVersion < MenuGroupsLayoutVersion))
+            var hosts = avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
+                .Where(marker => GeneratedKind(marker, "menu-groups", MenuGroupsHost)).ToArray();
+            AvatarWardrobePresets.CurrentBase(out var baseKey, out var unused);
+            var validOwners = new HashSet<string>(AvatarWardrobePresets.PresetsForBase(baseKey)
+                .Where(p => (p.menuGroups?.Count ?? 0) > 0).Select(p => p.id));
+            if (AvatarWardrobePresets.CommonPreset(baseKey).menuGroups.Count > 0)
+                validOwners.Add(AvatarWardrobePresets.CommonTarget);
+            if (hosts.Any(h => h.menuGroupsLayoutVersion < MenuGroupsLayoutVersion || !validOwners.Contains(h.ownerId)) ||
+                hosts.GroupBy(h => h.ownerId).Any(group => group.Count() > 1))
                 SyncMenuGroups(avatar);
         }
 
@@ -140,6 +170,13 @@ namespace OutfitToggleGenerator
             }
             var oldHosts = avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
                 .Where(marker => GeneratedKind(marker, "menu-groups", MenuGroupsHost)).Select(marker => marker.transform).ToArray();
+            // Validate the entire replacement set before deleting anything or creating
+            // replacements. Otherwise an untouched mixed tree could gain a duplicate.
+            if (oldHosts.Any(host => !IsEntirelyMarked(host)))
+            {
+                Debug.LogWarning("Avatar Wardrobe menu cleanup stopped: a marked menu contains unmarked children. No menu containers were replaced.", avatar);
+                return;
+            }
             var previousTargets = new HashSet<GameObject>();
             var previousDefaults = new Dictionary<string, GameObject>();
             var managedTargets = new HashSet<GameObject>();
