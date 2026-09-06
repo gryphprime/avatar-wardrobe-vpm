@@ -695,7 +695,7 @@ namespace OutfitToggleGenerator
             var list = new InstalledListDto();
             var installed = InstalledGuids();
             if (installed.Count == 0) return list;
-            foreach (var family in CachedFamilies())
+            foreach (var family in CachedFamilies().Concat(CachedCandidates()))
             {
                 foreach (var variant in family.variants)
                 {

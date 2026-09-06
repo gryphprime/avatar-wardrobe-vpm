@@ -1,0 +1,14 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const source=fs.readFileSync(path.resolve(__dirname,'../Packages/dev.gryphprime.avatar-wardrobe/Web/wardrobe.js'),'utf8');
+const context={T:x=>x};vm.createContext(context);
+vm.runInContext(source.slice(source.indexOf('  function groupInstalledItems('),source.indexOf('  function loadInstalled(')),context);
+const items=[{guid:'outfit',path:'KE',target:'common'},{guid:'candidate',path:'Gals',target:'old-preset'},{guid:'outfit',path:'Outfits/KE',target:'old-preset'}];
+const presets=[{id:'old-preset',name:'KE 1'},{id:'empty',name:'KE 1 (2)'}];
+let groups=context.groupInstalledItems(items,presets,false);
+assert.equal(groups.size,1);assert.equal(groups.get('common').items.length,3);
+assert.equal(groups.get('common').items[1].guid,'candidate');
+assert.equal(items[1].target,'old-preset','Display grouping must preserve stored assignment');
+groups=context.groupInstalledItems(items,presets,true);
+assert.equal(groups.size,3);assert.equal(groups.get('common').items.length,1);assert.equal(groups.get('old-preset').items.length,2);
+assert.equal(context.groupInstalledItems([],presets,false).size,1);
+console.log('PASS: single-avatar flattening, candidate/duplicate instances retained, original assignments preserved, multi-avatar grouping and empty state.');

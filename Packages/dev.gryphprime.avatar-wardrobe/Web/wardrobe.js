@@ -270,6 +270,17 @@
       if(token===listToken){ initialGridPending=false; listInflight=false; paintEmptyGrid(); paintCount(); if(!gridNotice) scheduleGridPreload(); }
     }
   }
+  function groupInstalledItems(items,presets,separate){
+    var groups=new Map();
+    groups.set("common",{id:"common",name:separate?T("preset.common"):"Installed items",items:[]});
+    if(separate)presets.forEach(function(p){groups.set(p.id,{id:p.id,name:p.name,items:[]});});
+    items.forEach(function(it){
+      var key=separate?(it.target||"common"):"common";
+      if(!groups.has(key))groups.set(key,{id:key,name:it.targetName||T("detail.preset.tag"),items:[]});
+      groups.get(key).items.push(it);
+    });
+    return groups;
+  }
   function loadInstalled(){
     if(installedFlight) return installedFlight;
     var expectedContext=contextKey;
@@ -278,14 +289,7 @@
       var signature=JSON.stringify([result.items,(lastState||{}).workflowPresets||[]])+"|"+avatarMode+"|"+effectivePreset()+"|"+langCode+"|"+previewContext;
       if(signature===sideContent.dataset.signature) return;
       sideContent.dataset.signature=signature; installedItems=result.items;
-      var list=$("instlist"),groups=new Map();
-      groups.set("common",{id:"common",name:avatarMode?T("preset.common"):"Installed items",items:[]});
-      ((lastState||{}).workflowPresets||[]).forEach(function(p){groups.set(p.id,{id:p.id,name:p.name,items:[]});});
-      installedItems.forEach(function(it){
-        var key=it.target||"common";
-        if(!groups.has(key)) groups.set(key,{id:key,name:it.targetName||T("detail.preset.tag"),items:[]});
-        groups.get(key).items.push(it);
-      });
+      var list=$("instlist"),groups=groupInstalledItems(installedItems,(lastState||{}).workflowPresets||[],!!avatarMode);
       R.reconcile(list,Array.from(groups.values()),function(group){return group.id;},function(){
         var group=document.createElement("details");group.className="installed-preset";group.open=true;
         group.innerHTML='<summary><span></span><small></small></summary><div class="installed-preset-items"></div>';return group;
@@ -301,7 +305,7 @@
           previews.observe(el.querySelector(".inst-thumb"),it.guid,{priority:2,root:side});
         });
       });
-      var targetItems=installedItems.filter(function(it){return (it.target||"common")===effectivePreset();});
+      var targetItems=installedItems.filter(function(it){return !avatarMode||(it.target||"common")===effectivePreset();});
       var installedGuids=new Set(targetItems.map(function(x){return x.guid;}));
       var installedFamilies=new Set(targetItems.map(function(x){return x.familyId;}));
       detailCache.forEach(function(detail){detail.variants.forEach(function(v){v.installed=installedGuids.has(v.guid)?1:0;});});

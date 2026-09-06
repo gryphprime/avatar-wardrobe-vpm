@@ -26,6 +26,8 @@ jobs:
         run: node tests/updates.test.js
       - name: Check single-avatar upload UI
         run: node tests/scene-upload.test.js
+      - name: Check installed sidebar grouping
+        run: node tests/installed-sidebar.test.js
       - name: Build package and merge listing history
         run: |
           echo "WARDROBE_VERSION=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
