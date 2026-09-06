@@ -13,6 +13,36 @@ separate permission from gryphprime. Modification and redistribution are not
 granted. GitHub platform rights and existing third-party licenses are preserved.
 See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+## Install with ALCOM
+
+These steps are for users authorized to install and use Avatar Wardrobe under
+its license.
+
+1. Open the [repository page](https://gryphprime.github.io/avatar-wardrobe-vpm/)
+   and click **Add repository to VCC / ALCOM**. Confirm the repository in ALCOM.
+   If the link does not open ALCOM, open **Repositories → Add Repository** in
+   ALCOM and paste this listing URL:
+
+   ```text
+   https://gryphprime.github.io/avatar-wardrobe-vpm/index.json
+   ```
+
+2. In ALCOM's settings, enable **Show Prerelease Packages**. The initial release
+   is a beta and may otherwise be hidden.
+3. Close the target project in Unity. In ALCOM, open the project's
+   **Manage Packages** page, refresh the package list, search for
+   **Avatar Wardrobe**, and install it. Review and apply the package changes.
+4. Open the project in Unity. After compilation finishes, choose
+   **Tools → Avatar Wardrobe**.
+
+VPM resolves the required VRChat SDK Avatars and Modular Avatar packages.
+If Modular Avatar cannot be found, add its repository using the
+[Modular Avatar installation page](https://modular-avatar.nadena.dev/docs/intro).
+An existing `Assets/OutfitToggleGenerator` installation is migrated automatically.
+
+The first VPM beta still needs a fresh installation smoke test. Start with a
+separate test project before installing it in your main avatar project.
+
 ## Package
 
 `Packages/dev.gryphprime.avatar-wardrobe` contains only the distributable tool.
