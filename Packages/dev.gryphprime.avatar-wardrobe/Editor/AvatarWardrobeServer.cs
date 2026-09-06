@@ -207,6 +207,7 @@ namespace OutfitToggleGenerator
             if (queue == null) throw new OperationCanceledException("Wardrobe server is not running.");
             var expectedSession = requestSession;
             var expectedAvatar = requestWritesAvatar ? requestAvatarId : 0;
+            var writesAvatar = requestWritesAvatar;
             long mainMs = 0;
             try { return queue.Invoke(() =>
             {
@@ -214,6 +215,8 @@ namespace OutfitToggleGenerator
                     throw new OperationCanceledException("The Unity session changed. Refresh the wardrobe and retry.");
                 if (expectedAvatar != 0 && (SceneAvatar == null || SceneAvatar.GetInstanceID() != expectedAvatar))
                     throw new OperationCanceledException("The target avatar changed. Review the selected avatar and retry.");
+                if (writesAvatar && SceneUploadActive)
+                    throw new InvalidOperationException("Wait for the avatar build/upload to finish before editing through AW.");
                 var previous = WardrobeStrings.RequestCode;
                 WardrobeStrings.RequestCode = requestCode;
                 var timer = System.Diagnostics.Stopwatch.StartNew();

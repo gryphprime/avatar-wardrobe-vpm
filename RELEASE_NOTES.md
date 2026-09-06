@@ -1,15 +1,18 @@
-Preserve menu groups when an avatar's saved-scene identity changes.
+Add direct Upload Avatar in single-avatar mode (PC).
 
-Remember the previous owner scope across Editor script reloads. Recover orphaned
-Common records from an old session only when exactly one candidate matches the
-marked scene group IDs and all member paths. Preserve the original recovery data.
+Upload the selected scene avatar without creating or depending on an Outfits
+folder or named presets. Review new/existing identity, run a local Build Check,
+follow progress, or request cancellation. New uploads generate a thumbnail when
+none exists; existing remote thumbnails are preserved. Temporary build scenes
+are saved automatically and removed afterward. Successful uploads copy the
+Blueprint ID back to the source; save your scene to retain it.
 
-Menu rebuilding now stops before deleting generated hosts when their saved owner
-cannot be resolved. Missing ownership is no longer treated as proof of stale data.
-Unmarked scene objects remain untouched.
+The review includes explicit ownership confirmation, scoped batch-style SDK
+confirmation handling, avatar preview, status colors, reduced-motion support,
+and a top-right close button. Upload stays disabled until ownership is checked.
 
-Validation: compiled using AWTest's Unity compiler and references. AWTest's saved
-Outfits group association was recovered against its scene group ID and references,
-with the original JSON backed up. Interactive reload/migration remains unverified.
+Validation: Unity compilation; synthetic-avatar staging and cleanup tests on
+success, failure and cancellation; thumbnail generation/cache tests; browser
+flow and consent tests. A complete real SDK upload was not performed by these tests.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.

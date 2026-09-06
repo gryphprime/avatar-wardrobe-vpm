@@ -123,6 +123,106 @@ namespace OutfitToggleGenerator
 
         private static readonly Dictionary<string, UploadJobState> uploadJobs = new Dictionary<string, UploadJobState>();
         private static readonly object uploadJobsLock = new object();
+        [Serializable]
+        private sealed class SceneUploadReview
+        {
+            public int ok, avatarId;
+            public string name, blueprintId, message;
+            public bool isNew;
+        }
+        private static CancellationTokenSource sceneUploadCancellation;
+        private static string sceneUploadJob;
+        internal static bool SceneUploadActive => sceneUploadJob != null;
+
+        private static SceneUploadReview ReviewSceneUpload()
+        {
+            var avatar = SceneAvatar;
+            var result = new SceneUploadReview();
+            if (AvatarWardrobePresets.SeparateAvatarUploads) { result.message = "Use single-avatar mode for Upload Avatar."; return result; }
+            if (avatar == null || EditorUtility.IsPersistent(avatar)) { result.message = "Select a scene avatar first."; return result; }
+            if (EditorApplication.isPlayingOrWillChangePlaymode) { result.message = "Leave Play Mode first."; return result; }
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows64) { result.message = "This first version supports PC. Switch the build target to Windows in Unity."; return result; }
+            if (ShiroTools.OutfitBatchUploader.TryGetWardrobeBuilder(out var sdk) &&
+                (sdk.BuildState == VRC.SDKBase.Editor.SdkBuildState.Building || sdk.UploadState == VRC.SDKBase.Editor.SdkUploadState.Uploading))
+            { result.message = "The VRChat SDK is already building or uploading."; return result; }
+            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+                if (string.IsNullOrEmpty(UnityEngine.SceneManagement.SceneManager.GetSceneAt(i).path))
+                { result.message = "Save untitled scenes before building. AW does not save your scenes automatically."; return result; }
+            result.avatarId = avatar.GetInstanceID();
+            result.name = avatar.name;
+            result.blueprintId = avatar.GetComponent<VRC.Core.PipelineManager>()?.blueprintId ?? "";
+            result.isNew = string.IsNullOrEmpty(result.blueprintId);
+            result.message = ShiroTools.OutfitBatchUploader.WardrobeUploadReadinessError();
+            result.ok = result.message == null ? 1 : 0;
+            return result;
+        }
+
+        private static UploadJobDto StartSceneUpload(Dictionary<string, string> query)
+        {
+            var review = ReviewSceneUpload();
+            if (review.ok == 0) return new UploadJobDto { message = review.message };
+            query.TryGetValue("avatarId", out var id);
+            query.TryGetValue("blueprintId", out var expectedBlueprint);
+            if (id != review.avatarId.ToString() || expectedBlueprint != review.blueprintId)
+                return new UploadJobDto { message = "The avatar or Blueprint ID changed. Close this panel and review it again." };
+            query.TryGetValue("check", out var check);
+            query.TryGetValue("name", out var name);
+            bool buildOnly = check == "1";
+            query.TryGetValue("consent", out var consent);
+            if (!buildOnly && consent != "1")
+                return new UploadJobDto { message = "Confirm the copyright ownership checkbox before uploading." };
+            if (!buildOnly && review.isNew && string.IsNullOrWhiteSpace(name))
+                return new UploadJobDto { message = "Enter a name for the new avatar." };
+            if (uploadRunning || UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow)
+                return new UploadJobDto { message = "An upload or batch is already running." };
+            string thumbnail = null;
+            var avatar = SceneAvatar;
+            var job = Guid.NewGuid().ToString("N");
+            lock (uploadJobsLock)
+            {
+                uploadRunning = true;
+                uploadJobs[job] = new UploadJobState { message = "Preparing avatar copy…" };
+                sceneUploadJob = job;
+                sceneUploadCancellation = new CancellationTokenSource();
+            }
+            RunSceneUpload(job, avatar, review.blueprintId, name, thumbnail, buildOnly, sceneUploadCancellation.Token);
+            return new UploadJobDto { ok = 1, job = job };
+        }
+
+        private static ResultDto CancelSceneUpload(string job)
+        {
+            lock (uploadJobsLock)
+            {
+                if (job != sceneUploadJob || sceneUploadCancellation == null)
+                    return new ResultDto { message = "No matching active avatar upload." };
+                sceneUploadCancellation.Cancel();
+                return new ResultDto { ok = 1, message = "Cancellation requested. A build already in progress may need to finish." };
+            }
+        }
+
+        private static async void RunSceneUpload(string job, VRC.SDK3.Avatars.Components.VRCAvatarDescriptor source,
+            string blueprint, string name, string thumbnail, bool buildOnly, CancellationToken cancellation)
+        {
+            var targetLock = LockUploadTarget();
+            void Progress(string message) { lock (uploadJobsLock) uploadJobs[job].message = message; }
+            try
+            {
+                var result = await AvatarWardrobeUpload.UploadSceneAvatarAsync(source, blueprint, name, thumbnail, buildOnly, cancellation, Progress);
+                lock (uploadJobsLock) uploadJobs[job] = new UploadJobState { done = true, ok = result.ok,
+                    message = result.message, blueprintId = result.blueprintId, isNew = result.isNew };
+            }
+            catch (Exception error)
+            {
+                lock (uploadJobsLock) uploadJobs[job] = new UploadJobState { done = true,
+                    message = error is OperationCanceledException ? "Cancelled." : error.Message };
+            }
+            finally
+            {
+                targetLock.Dispose();
+                lock (uploadJobsLock) { uploadRunning = false; sceneUploadJob = null; sceneUploadCancellation.Dispose(); sceneUploadCancellation = null; }
+            }
+        }
+
         private static bool uploadRunning;
 
         private static UploadJobDto StartUpload(string guid, string preset)
@@ -222,7 +322,7 @@ namespace OutfitToggleGenerator
             {
                 if (string.IsNullOrEmpty(job) || !uploadJobs.TryGetValue(job, out state))
                     return new UploadResultDto { message = WardrobeStrings.T("name.unknownjob") };
-                if (!state.done) return new UploadResultDto { pending = 1 };
+                if (!state.done) return new UploadResultDto { pending = 1, message = state.message };
                 uploadJobs.Remove(job);
             }
             return new UploadResultDto

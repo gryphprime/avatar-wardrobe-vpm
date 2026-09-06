@@ -177,7 +177,7 @@ namespace ShiroTools
         // Read-only state for the Wardrobe Upload view and web Upload page.
         internal static bool BatchActiveNow
         {
-            get { return SessionState.GetBool(SESSION_BATCH_ACTIVE, false); }
+            get { return SessionState.GetBool(SESSION_BATCH_ACTIVE, false) || OutfitToggleGenerator.AvatarWardrobeServer.SceneUploadActive; }
         }
 
         internal static string ConfiguredOutfitsParentName

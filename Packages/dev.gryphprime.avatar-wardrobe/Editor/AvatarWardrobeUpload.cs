@@ -43,6 +43,128 @@ namespace OutfitToggleGenerator
             public string lastUpload = "";
         }
 
+        // No preset discovery, folder creation, activation changes or toggle generation.
+        // The delegate seam permits exercising staging and cleanup without network uploads.
+        internal static async Task RunOnAvatarCopy(VRCAvatarDescriptor source, Func<GameObject, Task> build)
+        {
+            if (source == null || EditorUtility.IsPersistent(source)) throw new InvalidOperationException("Select a scene avatar.");
+            const string stagingFolder = "Assets/Generated/WardrobeUploads/Temporary";
+            Directory.CreateDirectory(FullPath(stagingFolder));
+            var stagingPath = stagingFolder + "/Avatar_" + Guid.NewGuid().ToString("N") + ".unity";
+            var previous = SceneManager.GetActiveScene();
+            var staging = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+            SceneManager.SetActiveScene(staging);
+            GameObject clone = null;
+            try
+            {
+                clone = UnityEngine.Object.Instantiate(source.gameObject);
+                clone.name = source.name;
+                clone.transform.SetParent(null, true);
+                SceneManager.MoveGameObjectToScene(clone, staging);
+                // The SDK may save the build scene. Never hand it an untitled scene,
+                // which would open Save As in the middle of the upload.
+                if (!EditorSceneManager.SaveScene(staging, stagingPath))
+                    throw new IOException("Could not save the temporary avatar build scene.");
+                await build(clone);
+            }
+            finally
+            {
+                if (clone != null) UnityEngine.Object.DestroyImmediate(clone);
+                if (previous.IsValid() && previous.isLoaded) SceneManager.SetActiveScene(previous);
+                if (staging.IsValid() && staging.isLoaded) EditorSceneManager.CloseScene(staging, true);
+                if (File.Exists(FullPath(stagingPath))) AssetDatabase.DeleteAsset(stagingPath);
+            }
+        }
+
+        internal static string ResolveSceneUploadThumbnail(GameObject avatar, string cacheKey, bool hasRemoteThumbnail)
+        {
+            // Null tells the SDK to preserve the existing remote image.
+            if (hasRemoteThumbnail) return null;
+            var folder = FullPath("Library/AvatarWardrobe/upload-thumbnails");
+            Directory.CreateDirectory(folder);
+            var path = Path.Combine(folder, Hash128.Compute(cacheKey).ToString() + ".png");
+            if (File.Exists(path) && new FileInfo(path).Length > 8) return path;
+            var image = OutfitToggleGenerator.RenderOutfitThumb(avatar);
+            if (image == null) throw new InvalidOperationException("Could not generate an avatar thumbnail: no visible renderable content.");
+            try { File.WriteAllBytes(path, image.EncodeToPNG()); }
+            finally { UnityEngine.Object.DestroyImmediate(image); }
+            return path;
+        }
+
+        internal static async Task<WardrobeUploadOutcome> UploadSceneAvatarAsync(VRCAvatarDescriptor source,
+            string blueprint, string name, string thumbnail, bool buildOnly, System.Threading.CancellationToken cancellation,
+            Action<string> progress)
+        {
+            if (!ShiroTools.OutfitBatchUploader.TryGetWardrobeBuilder(out var builder))
+                throw new InvalidOperationException("Open the VRChat SDK Control Panel first.");
+            if (!source.gameObject.activeInHierarchy) throw new InvalidOperationException("Enable the source avatar before building.");
+            var originalPipeline = source.GetComponent<VRC.Core.PipelineManager>();
+            if ((originalPipeline?.blueprintId ?? "") != blueprint) throw new InvalidOperationException("The Blueprint ID changed. Review the avatar again.");
+            bool isNew = string.IsNullOrEmpty(blueprint);
+            var metadata = new VRC.SDKBase.Editor.Api.VRCAvatar();
+            if (!buildOnly)
+            {
+                if (isNew)
+                    metadata = new VRC.SDKBase.Editor.Api.VRCAvatar { Name = name.Trim(), Description = "",
+                        ReleaseStatus = "private", Tags = new List<string>() };
+                else
+                {
+                    progress("Loading existing avatar metadata…");
+                    metadata = await VRC.SDKBase.Editor.Api.VRCApi.GetAvatar(blueprint, cancellationToken: cancellation);
+                    if (metadata.AuthorId != VRC.Core.APIUser.CurrentUser.id)
+                        throw new InvalidOperationException("The selected avatar's Blueprint ID belongs to another user.");
+                }
+            }
+            string uploadedId = "";
+            var thumbnailKey = GlobalObjectId.GetGlobalObjectIdSlow(source.gameObject).ToString();
+            EventHandler<string> buildProgress = (sender, message) => progress(message);
+            EventHandler<(string status, float percentage)> uploadProgress = (sender, value) => progress(value.status + " " + (value.percentage * 100).ToString("0") + "%");
+            builder.OnSdkBuildProgress += buildProgress;
+            builder.OnSdkUploadProgress += uploadProgress;
+            try
+            {
+                await RunOnAvatarCopy(source, async clone =>
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    if (buildOnly)
+                    {
+                        progress("Building and validating locally. Nothing will be uploaded…");
+                        await builder.Build(clone);
+                        cancellation.ThrowIfCancellationRequested();
+                    }
+                    else
+                    {
+                        progress("Preparing avatar thumbnail…");
+                        thumbnail = ResolveSceneUploadThumbnail(clone, thumbnailKey,
+                            !isNew && (!string.IsNullOrEmpty(metadata.ImageUrl) || !string.IsNullOrEmpty(metadata.ThumbnailImageUrl)));
+                        progress("Building and uploading. Complete any SDK confirmation in Unity…");
+                        using (ShiroTools.OutfitBatchUploader.BeginSceneUploadConsent())
+                            await builder.BuildAndUpload(clone, metadata, thumbnail, cancellationToken: cancellation);
+                        uploadedId = clone.GetComponent<VRC.Core.PipelineManager>()?.blueprintId ?? "";
+                        if (string.IsNullOrEmpty(uploadedId)) throw new InvalidOperationException("SDK returned without a Blueprint ID. Check VRChat before retrying.");
+                    }
+                });
+            }
+            finally { builder.OnSdkBuildProgress -= buildProgress; builder.OnSdkUploadProgress -= uploadProgress; }
+            if (!buildOnly)
+            {
+                if (source == null) return new WardrobeUploadOutcome { ok = true, blueprintId = uploadedId, isNew = isNew,
+                    message = "Uploaded, but the source avatar was removed. Save this Blueprint ID: " + uploadedId };
+                var pipeline = source.GetComponent<VRC.Core.PipelineManager>() ?? Undo.AddComponent<VRC.Core.PipelineManager>(source.gameObject);
+                if ((pipeline.blueprintId ?? "") != blueprint)
+                    return new WardrobeUploadOutcome { ok = true, blueprintId = uploadedId, isNew = isNew,
+                        message = "Uploaded. Source Blueprint ID changed during upload and was not overwritten. Uploaded ID: " + uploadedId };
+                Undo.RecordObject(pipeline, "Save uploaded avatar ID");
+                pipeline.blueprintId = uploadedId;
+                PrefabUtility.RecordPrefabInstancePropertyModifications(pipeline);
+                EditorUtility.SetDirty(pipeline);
+                EditorSceneManager.MarkSceneDirty(source.gameObject.scene);
+            }
+            return new WardrobeUploadOutcome { ok = true, blueprintId = uploadedId, isNew = isNew,
+                message = buildOnly ? "Build check passed. Nothing uploaded; the source avatar is unchanged."
+                    : "Upload complete. Save your scene to retain the Blueprint ID: " + uploadedId };
+        }
+
         internal static string SaveUploadSourceScenes()
         {
             try

@@ -246,6 +246,37 @@ namespace OutfitToggleGenerator
                     guid, allow == "1", toggles != "0", switchVariant == "1", target ?? string.Empty, group ?? string.Empty), requestCode));
                 return;
             }
+            if (path == "/api/scene_upload_thumbnail")
+            {
+                Query(request.Url.Query).TryGetValue("avatarId", out var id);
+                var png = RunOnMain(() => {
+                    var avatar = SceneAvatar;
+                    if (avatar == null || avatar.GetInstanceID().ToString() != id) return null;
+                    var key = GlobalObjectId.GetGlobalObjectIdSlow(avatar.gameObject).ToString();
+                    var file = AvatarWardrobeUpload.ResolveSceneUploadThumbnail(avatar.gameObject, key, false);
+                    return File.ReadAllBytes(file);
+                }, requestCode, true);
+                if (png == null) WriteJson(context, 404, new ResultDto { message = "Preview unavailable." });
+                else WriteBytes(context, 200, "image/png", png);
+                return;
+            }
+            if (path == "/api/scene_upload_review")
+            {
+                WriteJson(context, 200, RunOnMain(ReviewSceneUpload, requestCode));
+                return;
+            }
+            if (path == "/api/scene_upload")
+            {
+                var query = Query(request.Url.Query);
+                WriteJson(context, 200, RunOnMain(() => StartSceneUpload(query), requestCode));
+                return;
+            }
+            if (path == "/api/scene_upload_cancel")
+            {
+                Query(request.Url.Query).TryGetValue("job", out var job);
+                WriteJson(context, 200, CancelSceneUpload(job));
+                return;
+            }
             if (path == "/api/upload")
             {
                 var query = Query(request.Url.Query);

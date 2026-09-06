@@ -24,6 +24,8 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       - name: Check update indicator behavior
         run: node tests/updates.test.js
+      - name: Check single-avatar upload UI
+        run: node tests/scene-upload.test.js
       - name: Build package and merge listing history
         run: |
           echo "WARDROBE_VERSION=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"

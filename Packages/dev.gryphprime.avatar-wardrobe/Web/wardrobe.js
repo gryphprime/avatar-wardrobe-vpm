@@ -55,6 +55,7 @@
     avatarModeChip.checked=!!avatarMode;$("workflowOne").checked=!avatarMode;
     document.body.classList.toggle("one-avatar",!avatarMode);
     $("workflowPresetWrap").hidden=!avatarMode;
+    $("sceneUpload").hidden=!!avatarMode;
     var label=$("navUpload").querySelector("span");label.removeAttribute("data-i18n");R.text(label,avatarMode?T("nav.presets"):"Organization");
   }
   function applyAvatarMode(value){
@@ -956,4 +957,76 @@
     document.querySelectorAll("#chips button").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.f===filter));});
     tick();
   });
+  // Direct scene-avatar upload, independent of preset records and folders.
+  var sceneUploadButton=$("sceneUpload"),sceneDialog=$("sceneUploadDialog"),sceneReview=null,sceneJob=null,scenePoll=null;
+  function sceneMessage(text,tone){
+    $("sceneUploadMessage").textContent=text||"";
+    tone=tone||(sceneJob?"working":"ready");sceneDialog.dataset.tone=tone;
+    var title={ready:"Ready to review",working:"Working on your avatar",waiting:"Action needed",error:"Could not complete",success:"Complete"}[tone];
+    $("sceneUploadStatusTitle").textContent=title;
+    $("sceneUploadStatusIcon").textContent=tone==="success"?"✓":tone==="error"?"!":"●";
+    var progress=$("sceneUploadProgress");progress.hidden=tone!=="working";
+    $("sceneUploadStages").hidden=tone!=="working";
+    var percent=(text||"").match(/(\d+(?:\.\d+)?)%/);
+    if(percent)progress.value=Math.min(100,Math.max(0,Number(percent[1])));else progress.removeAttribute("value");
+  }
+  function sceneConsentState(){ $("sceneUploadConfirm").disabled=!sceneReview||!sceneReview.ok||!!sceneJob||$("sceneUploadConsent").disabled||!$("sceneUploadConsent").checked; }
+  $("sceneUploadConsent").onchange=sceneConsentState;
+  $("sceneUploadPreview").onload=function(){this.hidden=false;$("sceneUploadPreviewFallback").hidden=true;};
+  $("sceneUploadPreview").onerror=function(){this.hidden=true;$("sceneUploadPreviewFallback").hidden=false;};
+  function sceneBusy(busy){
+    $("sceneBuildCheck").disabled=busy;$("sceneUploadConfirm").disabled=busy;
+    $("sceneUploadName").disabled=busy;$("sceneUploadConsent").disabled=busy;$("sceneUploadCancel").hidden=!busy;
+    $("sceneUploadCloseX").disabled=busy;
+    $("sceneUploadClose").disabled=busy;sceneConsentState();
+  }
+  sceneUploadButton.onclick=async function(){
+    sceneReview=null;$("sceneUploadPreview").hidden=true;$("sceneUploadPreviewFallback").hidden=false;
+    $("sceneUploadConsent").checked=false;
+    sceneDialog.showModal();sceneMessage("Checking selected avatar…");sceneBusy(true);
+    try {
+      sceneReview=await api("/api/scene_upload_review");
+      $("sceneUploadTarget").textContent=sceneReview.name||"No avatar selected";
+      $("sceneUploadBadge").textContent=sceneReview.isNew?"New private avatar":"Update existing";
+      if(sceneReview.avatarId)$("sceneUploadPreview").src="/api/scene_upload_thumbnail?avatarId="+sceneReview.avatarId;
+      $("sceneUploadIdentity").textContent=sceneReview.isNew?"Create a new private avatar":"Update avatar: "+(sceneReview.blueprintId||"");
+      $("sceneUploadName").value=sceneReview.name||"";
+      $("sceneUploadNameWrap").hidden=!sceneReview.isNew;
+      sceneMessage(sceneReview.message||"Includes the entire selected avatar, preserving enabled states and existing controls. PC only. Your existing thumbnail is kept. If none exists, AW generates one automatically.");
+      sceneBusy(false);
+      $("sceneBuildCheck").disabled=!sceneReview.ok;sceneConsentState();
+      if(!sceneReview.ok)sceneMessage(sceneReview.message,"waiting");
+    } catch(error){sceneMessage(error.message,"error");sceneBusy(false);$("sceneBuildCheck").disabled=$("sceneUploadConfirm").disabled=true;}
+  };
+  async function pollSceneUpload(){
+    try {
+      var result=await api("/api/upload_result?job="+encodeURIComponent(sceneJob));
+      sceneMessage(result.message||(result.pending?"Working…":"The job is no longer available. Check Unity/VRChat before retrying."),result.pending?"working":result.ok?"success":"error");
+      if(result.pending){scenePoll=setTimeout(pollSceneUpload,1000);return;}
+      sceneJob=null;sceneBusy(false);sceneReview=null;
+      $("sceneBuildCheck").disabled=$("sceneUploadConfirm").disabled=true;
+      refreshState();
+    } catch(error){
+      sceneMessage("Connection lost. The job may still be running in Unity. Do not start another upload. "+error.message);
+      scenePoll=setTimeout(pollSceneUpload,3000);
+    }
+  }
+  async function startSceneUpload(check){
+    if(!sceneReview||!sceneReview.ok||sceneJob)return;
+    if(!check&&!$("sceneUploadConsent").checked){sceneMessage("Confirm copyright ownership before uploading.");return;}
+    sceneBusy(true);sceneMessage(check?"Starting local build check…":"Starting upload; check Unity for SDK prompts…","working");
+    try {
+      var result=await api("/api/scene_upload?avatarId="+sceneReview.avatarId+"&blueprintId="+encodeURIComponent(sceneReview.blueprintId||"")+"&name="+encodeURIComponent($("sceneUploadName").value)+"&consent="+($("sceneUploadConsent").checked?1:0)+"&check="+(check?1:0));
+      if(!result.ok)throw new Error(result.message||"Could not start.");
+      sceneJob=result.job;pollSceneUpload();
+    }catch(error){sceneMessage(error.message,"error");sceneBusy(false);}
+  }
+  $("sceneBuildCheck").onclick=function(){startSceneUpload(true);};
+  $("sceneUploadConfirm").onclick=function(){startSceneUpload(false);};
+  $("sceneUploadCancel").onclick=async function(){
+    if(!sceneJob)return;
+    try{var result=await api("/api/scene_upload_cancel?job="+encodeURIComponent(sceneJob));sceneMessage(result.message);}catch(error){sceneMessage(error.message);}
+  };
+  $("sceneUploadClose").onclick=$("sceneUploadCloseX").onclick=function(){sceneDialog.close();};
+  sceneDialog.addEventListener("cancel",function(event){if(sceneJob)event.preventDefault();});
 })();

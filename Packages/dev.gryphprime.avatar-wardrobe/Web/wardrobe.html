@@ -17,6 +17,7 @@
     <label id="workflowPresetWrap" hidden>Preset: <select id="workflowPreset" aria-label="Preset"><option value="common">Common Preset</option></select></label>
     <select id="lang" data-i18n-title="lang.title" title="Language" aria-label="Language"></select>
     <div class="top-actions">
+    <button id="sceneUpload">Upload Avatar</button>
     <a id="wardrobeUpdate" class="update-indicator" href="https://gryphprime.github.io/avatar-wardrobe-vpm/#update" target="_blank" rel="noopener noreferrer" hidden data-i18n="update.available">Update available</a>
     <details class="maintenance"><summary data-i18n-aria="maintenance.label" aria-label="Maintenance">&#8943;</summary><div class="menu">
       <button id="indexInc" data-i18n-title="index.inc.t" title="Index changed assets" data-i18n="index.inc">Index changes</button>
@@ -130,6 +131,15 @@
   <div class="side-header"><div><div class="eyebrow" id="modalMode"></div><h2 id="modalTitle"></h2></div><button id="modalClose" aria-label="Close" title="Close">×</button></div>
   <div id="modalContent"></div>
 </div>
+<dialog id="sceneUploadDialog" aria-labelledby="sceneUploadHeading" class="scene-upload" data-tone="ready">
+<button id="sceneUploadCloseX" class="scene-upload-close" aria-label="Close upload dialog" title="Close">×</button>
+<div class="scene-upload-heading"><h2 id="sceneUploadHeading">Upload Avatar</h2><p class="subtle">Your avatar, outfits and controls. One upload.</p></div>
+<div class="scene-avatar-summary"><div class="scene-avatar-image"><img id="sceneUploadPreview" alt="Current avatar preview" hidden><span id="sceneUploadPreviewFallback">Preview unavailable</span></div><div><span id="sceneUploadBadge" class="scene-upload-badge">Selected avatar</span><h3 id="sceneUploadTarget">—</h3><p id="sceneUploadIdentity" class="subtle"></p><small class="subtle">Avatar preview · existing upload thumbnail is preserved</small></div></div>
+<label id="sceneUploadNameWrap" class="scene-name">New avatar name <input id="sceneUploadName" maxlength="100"></label>
+<div class="scene-upload-status"><div class="scene-status-title"><span id="sceneUploadStatusIcon" aria-hidden="true">●</span><strong id="sceneUploadStatusTitle">Ready to review</strong></div><p id="sceneUploadMessage" role="status"></p><progress id="sceneUploadProgress" max="100" aria-label="Avatar upload progress" hidden></progress><ol id="sceneUploadStages" class="scene-upload-stages" hidden><li>Preparing</li><li>Building</li><li>Uploading</li><li>Complete</li></ol></div>
+<label class="scene-consent"><input id="sceneUploadConsent" type="checkbox"><span><strong>Copyright ownership</strong><span>I certify that I have the necessary rights to upload this content and that it will not infringe third-party legal or intellectual property rights. I authorize AW to confirm the SDK ownership dialog for this upload.</span></span></label>
+<div class="scene-upload-actions"><button id="sceneUploadClose">Close</button><button id="sceneBuildCheck">Build Check</button><button id="sceneUploadCancel" class="danger" hidden>Cancel</button><button id="sceneUploadConfirm" class="primary" disabled>Upload to VRChat</button></div><p class="scene-upload-footnote">Build Check validates locally without uploading.</p>
+</dialog>
 <div id="toasts" aria-live="polite" aria-atomic="false"></div>
 <script src="/runtime.js" defer></script>
 <script src="/previews.js" defer></script>

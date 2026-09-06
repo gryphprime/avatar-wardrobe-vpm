@@ -681,7 +681,33 @@ namespace ShiroTools
 
         /// <summary>Finds a visible "copyright / ownership" modal in the SDK panel and clicks its OK button.
         /// Best-effort: relies on SDK UI internals, wrapped so failure is harmless (you click OK yourself).</summary>
-        private void TryAutoConfirmCopyrightModal()
+        // Single-avatar uploads reuse the exact batch dialog handler without opening
+        // a batch window. Disposal bounds confirmation to the user's upload operation.
+        internal static IDisposable BeginSceneUploadConsent()
+        {
+            return new SceneUploadConsentScope();
+        }
+
+        private sealed class SceneUploadConsentScope : IDisposable
+        {
+            private readonly double started = EditorApplication.timeSinceStartup;
+            private bool disposed;
+            internal SceneUploadConsentScope() { EditorApplication.update += Tick; }
+            private void Tick()
+            {
+                if (EditorApplication.timeSinceStartup - started > 300) { Dispose(); return; }
+                try { TryAutoConfirmCopyrightModal(); }
+                catch (Exception error) { Debug.LogWarning("Avatar upload consent handler: " + error.Message); }
+            }
+            public void Dispose()
+            {
+                if (disposed) return;
+                disposed = true;
+                EditorApplication.update -= Tick;
+            }
+        }
+
+        private static void TryAutoConfirmCopyrightModal()
         {
             var panel = VRCSdkControlPanel.window;
             if (panel == null) return;
