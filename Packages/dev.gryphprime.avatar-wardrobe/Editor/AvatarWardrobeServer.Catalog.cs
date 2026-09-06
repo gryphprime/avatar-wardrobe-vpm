@@ -454,7 +454,7 @@ namespace OutfitToggleGenerator
             category = (category ?? string.Empty).Trim().ToLowerInvariant();
             string hideEmpty;
             query.TryGetValue("hideEmpty", out hideEmpty);
-            var needThumb = hideEmpty == "1";
+            var needThumb = filter != "all" && hideEmpty == "1";
             string sort;
             query.TryGetValue("sort", out sort);
             sort = (sort ?? string.Empty).Trim().ToLowerInvariant();

@@ -741,7 +741,7 @@ namespace OutfitToggleGenerator
             EnsureIndexed();
             LoadOverrides();
             var groups = new Dictionary<string, WardrobeFamily>(StringComparer.OrdinalIgnoreCase);
-            foreach (var record in cache.records.Where(record => EffectiveKind(record) == WardrobeAssetKind.Outfit))
+            foreach (var record in cache.records.Where(record => IsBrowsablePrefab(record) && EffectiveKind(record) == WardrobeAssetKind.Outfit))
             {
                 var assetOverride = GetOverride(record.guid);
                 var manualFamily = assetOverride == null ? null : assetOverride.familyName;
@@ -777,11 +777,17 @@ namespace OutfitToggleGenerator
                 .ToList();
         }
 
+        // Classification is advisory: only a descriptor excludes a prefab from browsing.
+        internal static bool IsBrowsablePrefab(WardrobeAssetRecord record)
+        {
+            return record != null && !record.hasAvatarDescriptor;
+        }
+
         internal static List<WardrobeFamily> CandidateFamilies()
         {
             EnsureIndexed();
             return cache.records
-                .Where(record => EffectiveKind(record) == WardrobeAssetKind.Candidate)
+                .Where(record => IsBrowsablePrefab(record) && EffectiveKind(record) != WardrobeAssetKind.Outfit)
                 .OrderBy(record => record.displayName, StringComparer.OrdinalIgnoreCase)
                 .Select(record => new WardrobeFamily
                 {
@@ -1203,6 +1209,13 @@ namespace OutfitToggleGenerator
                 rendererCount = 1,
                 boneNames = new List<string> { "hips", "spine", "chest", "leftupperleg", "rightupperleg" },
             };
+            foreach (WardrobeAssetKind kind in Enum.GetValues(typeof(WardrobeAssetKind)))
+            {
+                var browsable = new WardrobeAssetRecord { kind = kind };
+                Debug.Assert(IsBrowsablePrefab(browsable), "Classification must not hide a descriptor-free prefab.");
+                browsable.hasAvatarDescriptor = true;
+                Debug.Assert(!IsBrowsablePrefab(browsable), "Descriptor prefabs must not appear in the browser.");
+            }
             ClassifyRecord(outfit, new[] { "shinano" });
             Debug.Assert(outfit.kind == WardrobeAssetKind.Outfit,
                 "A skinned prefab in an explicit avatar folder must be an outfit.");

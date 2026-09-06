@@ -208,7 +208,8 @@ class Indexer:
 
     def is_avatar_scripts(self, scripts):
         return any((g == self.vrc_guid and f == self.vrc_fileid) or
-                   self.script_names.get(g) == "VRCAvatarDescriptor" for (g, f) in scripts)
+                   (f == "11500000" and self.script_names.get(g) == "VRCAvatarDescriptor")
+                   for (g, f) in scripts)
 
     def material_name(self, guid):
         path = self.guid_to_path.get(guid)
@@ -280,7 +281,8 @@ class Indexer:
     def build_record(self, relpath, resolved, avatar_tokens, mtime_ns, size):
         names = self.script_names
         has = lambda key: any(names.get(g) == key for (g, _f) in resolved["scripts"])
-        is_avatar = self.is_avatar_scripts(resolved["scripts"]) and not is_preview_utility(relpath)
+        has_descriptor = self.is_avatar_scripts(resolved["scripts"])
+        is_avatar = has_descriptor and not is_preview_utility(relpath)
         mesh_ids = list(resolved["meshIds"])
         bones = sorted(resolved["bones"])
         disp = display_name(relpath)
@@ -331,7 +333,7 @@ class Indexer:
             "displayName": disp,
             "kind": kind,
             "confidence": conf,
-            "hasAvatarDescriptor": is_avatar,
+            "hasAvatarDescriptor": has_descriptor,
             "hasHumanoidAnimator": resolved["avatar_ref"],
             "hasMergeArmature": flags["merge"],
             "hasOutfitRoot": flags["outfit_root"],
@@ -492,7 +494,7 @@ class Indexer:
         self.memo.clear()
         self.build_guidmap()
         analysis_signature = hashlib.sha256(json.dumps({"config": self.cfg,
-            "scripts": self.script_names, "parserVersion": 2}, sort_keys=True).encode("utf-8")).hexdigest()
+            "scripts": self.script_names, "parserVersion": 4}, sort_keys=True).encode("utf-8")).hexdigest()
         inputs = InputSnapshot(self.root, self.guid_to_path,
                                os.path.join(os.path.dirname(paths["catalog"]), "inputs.json"), full)
         self.base_list = self.load_base_list()

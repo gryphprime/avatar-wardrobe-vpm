@@ -171,7 +171,7 @@
 
 
   var previews=new WardrobePreviews({text:T,onActivity:function(value){previewActivity=value;hud();},onUnavailable:function(node){
-    if(!hideEmpty||!node.classList.contains("thumb")) return false;
+    if(filter==="all"||!hideEmpty||!node.classList.contains("thumb")) return false;
     var card=node.closest(".card"); if(card) card.hidden=true; return true;
   }});
   function loadDetailThumb(guid){ var wrap=modalContent.querySelector(".imgwrap"); if(wrap) previews.bind(wrap,guid,{priority:0,detail:true}); }
@@ -230,7 +230,7 @@
       }
       return card;
     },function(card,f){
-      card.hidden=!!hideEmpty && previews.isUnavailable(f.thumb); paintCardBody(card,f);
+      card.hidden=filter!=="all" && !!hideEmpty && previews.isUnavailable(f.thumb); paintCardBody(card,f);
       previews.observe(card.querySelector(".thumb"),f.thumb,{priority:1,root:$("main")});
     });
     // Detached cards are disposable; retain the current grid and a small warm history.
