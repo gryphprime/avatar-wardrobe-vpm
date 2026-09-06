@@ -359,7 +359,7 @@ namespace OutfitToggleGenerator
                 return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
             var outfit = AvatarWardrobeCatalog.GetRecord(guid);
             if (outfit == null) return new ResultDto { message = WardrobeStrings.T("err.notfound") };
-            if (AvatarWardrobeCatalog.EffectiveKind(outfit) != WardrobeAssetKind.Outfit)
+            if (!AvatarWardrobeCatalog.IsBrowsablePrefab(outfit))
                 return new ResultDto { message = WardrobeStrings.T("install.onlyoutfits") };
             string baseKey;
             string baseName;
@@ -382,7 +382,7 @@ namespace OutfitToggleGenerator
                 return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
             var outfit = AvatarWardrobeCatalog.GetRecord(guid);
             if (outfit == null) return new ResultDto { message = WardrobeStrings.T("err.notfound") };
-            if (AvatarWardrobeCatalog.EffectiveKind(outfit) != WardrobeAssetKind.Outfit)
+            if (!AvatarWardrobeCatalog.IsBrowsablePrefab(outfit))
                 return new ResultDto { message = WardrobeStrings.T("install.onlyoutfits") };
             var cleanTarget = (target ?? string.Empty).Trim();
             string assignBaseKey = string.Empty;

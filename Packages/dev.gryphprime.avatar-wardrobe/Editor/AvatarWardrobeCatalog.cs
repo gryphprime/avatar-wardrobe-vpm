@@ -1048,7 +1048,7 @@ namespace OutfitToggleGenerator
 
             var source = AssetDatabase.LoadAssetAtPath<GameObject>(outfit.assetPath);
             if (source == null) return WardrobeInstallResult.Failure(WardrobeStrings.T("msg.nosource"));
-            if (source.GetComponent<VRCAvatarDescriptor>() != null)
+            if (source.GetComponentInChildren<VRCAvatarDescriptor>(true) != null)
                 return WardrobeInstallResult.Failure("A base avatar cannot be installed as an outfit.");
             if (EditorApplication.isPlayingOrWillChangePlaymode)
                 return WardrobeInstallResult.Failure("Leave Play Mode before editing the avatar.");
