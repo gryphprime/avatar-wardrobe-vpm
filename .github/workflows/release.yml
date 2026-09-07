@@ -22,6 +22,8 @@ jobs:
           python-version: '3.12'
       - name: Check descriptor detection
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Check reporting behavior
+        run: node tests/reporting.test.js
       - name: Check update indicator behavior
         run: node tests/updates.test.js
       - name: Check single-avatar upload UI

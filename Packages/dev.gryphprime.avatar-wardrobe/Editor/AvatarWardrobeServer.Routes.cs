@@ -67,6 +67,7 @@ namespace OutfitToggleGenerator
                 case "/runtime.js": uiFile = "runtime.js"; uiMime = "application/javascript"; break;
                 case "/previews.js": uiFile = "previews.js"; uiMime = "application/javascript"; break;
                 case "/upload.js": uiFile = "upload.js"; uiMime = "application/javascript"; break;
+                case "/reporting.js": uiFile = "reporting.js"; uiMime = "application/javascript"; break;
                 case "/wardrobe.js": uiFile = "wardrobe.js"; uiMime = "application/javascript"; break;
                 case "/assets/header-portrait.webp": uiFile = "assets/header-portrait.webp"; uiMime = "image/webp"; break;
                 case "/assets/rail-landscape.webp": uiFile = "assets/rail-landscape.webp"; uiMime = "image/webp"; break;

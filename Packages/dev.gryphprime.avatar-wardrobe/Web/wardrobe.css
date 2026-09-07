@@ -225,3 +225,11 @@ input[type=radio] { accent-color:var(--accent-fill); width:16px; height:16px; fl
 @media(max-width:480px){.scene-upload{padding:18px}.scene-avatar-summary{gap:12px}.scene-avatar-image{width:80px;height:100px}.scene-upload-actions button{flex:1}.scene-upload-stages{font-size:9px}}
 
 .scene-upload{position:relative}.scene-upload-close{position:absolute;top:16px;right:16px;width:32px;height:32px;padding:0;font-size:23px;background:transparent;color:var(--muted)}.scene-upload-heading{padding-right:36px}
+
+.report-dialog{color:var(--text,#eee);background:#152334;border:1px solid #6e8eaf;border-radius:16px;width:min(620px,calc(100vw - 40px));max-height:85dvh;padding:24px;overflow:auto}
+.report-dialog::backdrop{background:#000b}
+.report-dialog label{display:block;margin:16px 0}
+.report-dialog input:not([type=checkbox]),.report-dialog textarea{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;color:inherit;background:#0c1826;border:1px solid #6e8eaf;border-radius:6px;font:inherit}
+.report-dialog .report-check{display:flex;gap:10px;align-items:center}
+.report-dialog pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.report-dialog p{line-height:1.5}

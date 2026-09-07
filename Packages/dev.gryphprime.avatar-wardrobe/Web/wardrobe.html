@@ -98,6 +98,7 @@
 <section id="settings" class="workspace" hidden>
   <div class="workspace-heading"><div><p class="eyebrow" data-i18n="settings.eyebrow">MAKE IT YOURS</p><h2 data-i18n="nav.settings">Settings</h2><p class="subtle" data-i18n="settings.hint">A quieter workspace. The same tools.</p></div></div>
   <div class="settings-stack">
+    <article class="surface"><h3>Help</h3><p class="subtle">Tell us about a problem with Avatar Wardrobe.</p><button id="settingsReportBug">Report a problem</button></article>
     <article class="surface"><p class="eyebrow">Project</p><h3>Avatar workflow</h3><p>How do you use this project?</p><label class="setting-row"><span><strong>One avatar</strong><small>Keep the interface simple. All outfit and menu changes use the default configuration.</small></span><input type="radio" name="workflow" id="workflowOne" value="one-avatar" checked></label><label class="setting-row"><span><strong>Multiple avatars</strong><small>Show presets for maintaining separate avatar configurations in this Unity project.</small></span><input type="radio" name="workflow" id="workflowMulti" value="multi-avatar"></label><p class="subtle">Existing presets and avatar configurations are preserved when switching modes.</p></article>
     <article class="surface"><h3 data-i18n="settings.appearance">Appearance</h3><label class="setting-row"><span><strong data-i18n="settings.compact">Compact cards</strong><small data-i18n="settings.compactHint">Show more outfits without reducing text size.</small></span><input id="settingCompact" type="checkbox"></label></article>
     <article class="surface"><h3 data-i18n="settings.indexing">Indexing</h3><p class="subtle" data-i18n="settings.autoIndexHint">Asset changes are indexed automatically in the background.</p><p class="subtle" data-i18n="settings.previewHint">High-resolution previews continue while this window is focused, prioritizing the current grid.</p></article>
@@ -144,6 +145,7 @@
 <script src="/runtime.js" defer></script>
 <script src="/previews.js" defer></script>
 <script src="/upload.js" defer></script>
+<script src="/reporting.js" defer></script>
 <script src="/wardrobe.js" defer></script>
 </body>
 </html>
