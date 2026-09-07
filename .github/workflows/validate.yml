@@ -1,0 +1,43 @@
+name: Validate Avatar Wardrobe
+on:
+  workflow_call:
+  push:
+    branches: ['dev/**']
+permissions:
+  contents: read
+jobs:
+  fast-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - run: for test in tests/*.test.js; do node "$test" || exit; done
+  unity-tests:
+    # Dedicated licensed runner with the supported SDK dependencies already resolved.
+    # Do not route untrusted pull-request code to this runner.
+    runs-on: [self-hosted, avatar-wardrobe-unity]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile package and run isolated EditMode regressions
+        shell: bash
+        run: |
+          test -n "$UNITY_EDITOR_PATH"
+          test -n "$WARDROBE_UNITY_DEPENDENCIES"
+          fixture="$RUNNER_TEMP/wardrobe-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          python3 scripts/prepare_unity_tests.py --dependencies "$WARDROBE_UNITY_DEPENDENCIES" --output "$fixture"
+          "$UNITY_EDITOR_PATH" -batchmode -projectPath "$fixture" -runTests -testPlatform EditMode -testFilter OutfitToggleGenerator.ReviewRegressionTests -testResults "$GITHUB_WORKSPACE/unity-results.xml" -logFile "$GITHUB_WORKSPACE/unity-tests.log"
+          python3 scripts/check_unity_results.py unity-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unity-validation
+          path: |
+            unity-results.xml
+            unity-tests.log

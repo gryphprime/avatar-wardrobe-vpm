@@ -10,7 +10,10 @@ concurrency:
   group: vpm-release
   cancel-in-progress: false
 jobs:
+  validation:
+    uses: ./.github/workflows/validate.yml
   release:
+    needs: validation
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -12,9 +12,9 @@
 //      name no longer share blueprint IDs
 //    • can be committed / backed up together with the project
 //
-//  Legacy EditorPrefs entries are migrated lazily: the first time
-//  a value is read and the JSON doesn't know it yet, the old
-//  EditorPrefs value is imported and saved. Nothing is lost.
+//  Legacy EditorPrefs values supply defaults when a record is missing.
+//  Only explicit mutations persist those defaults. Read scopes keep missing
+//  records detached from authoritative state.
 // ============================================================
 
 using System;
@@ -30,6 +30,15 @@ namespace ShiroTools
     {
         private const string FILE_NAME = "ShiroOutfit_data.json";
         private static string FilePath => Path.Combine("ProjectSettings", FILE_NAME);
+
+        private static int readDepth;
+        internal static IDisposable ReadOnly() => new ReadScope();
+        private sealed class ReadScope : IDisposable
+        {
+            public ReadScope() { readDepth++; }
+            public void Dispose() { readDepth--; }
+        }
+        internal static AvatarData FindAvatar(string name) => Data.avatars.FirstOrDefault(a => a.name == name);
 
         // ---- Legacy EditorPrefs key patterns (for one-time migration) ----
         private const string LEGACY_PREFIX             = "ShiroOutfitUploader_";
@@ -116,58 +125,64 @@ namespace ShiroTools
             }
         }
 
+        private static string _durable;
         private static void Load()
         {
-            _root = new Root();
-            try
+            Root loaded;
+            if (!File.Exists(FilePath)) loaded = new Root();
+            else
             {
-                if (File.Exists(FilePath))
+                try { loaded = ParseRoot(File.ReadAllText(FilePath)); }
+                catch (Exception primary)
                 {
-                    var parsed = ParseRoot(File.ReadAllText(FilePath));
-                    if (parsed != null) _root = parsed;
-                    else throw new InvalidDataException($"{FilePath} has no valid avatars collection.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[OutfitBatchUploader] Could not read {FilePath}: {ex.Message}");
-                string backupPath = FilePath + ".bak";
-                try
-                {
-                    if (File.Exists(backupPath))
+                    try
                     {
-                        var backup = ParseRoot(File.ReadAllText(backupPath));
-                        if (backup != null)
-                        {
-                            _root = backup;
-                            Debug.LogWarning($"[OutfitBatchUploader] Recovered settings from {backupPath}.");
-                        }
+                        loaded = ParseRoot(File.ReadAllText(FilePath + ".bak"));
+                        // Preserve evidence before permitting any replacement of the primary.
+                        File.Copy(FilePath, FilePath + ".corrupt-" + Guid.NewGuid().ToString("N"));
+                    }
+                    catch (Exception backup)
+                    {
+                        throw new IOException("Upload settings could not be recovered. Writes are blocked; restore " + FilePath,
+                            new AggregateException(primary, backup));
                     }
                 }
-                catch (Exception backupEx)
-                {
-                    Debug.LogError($"[OutfitBatchUploader] Could not recover {backupPath} (.bak): {backupEx.Message}");
-                }
             }
+            _root = loaded;
+            _durable = JsonUtility.ToJson(loaded, true);
+            ClearCaches();
         }
 
         private static Root ParseRoot(string json)
         {
+            if (string.IsNullOrWhiteSpace(json) || !json.Contains("\"avatars\""))
+                throw new InvalidDataException("Missing avatars collection.");
             var parsed = JsonUtility.FromJson<Root>(json);
-            return parsed?.avatars != null ? parsed : null;
+            if (parsed?.avatars == null) throw new InvalidDataException("Invalid avatars collection.");
+            return parsed;
         }
 
         internal static void Save()
         {
-            if (_root == null) return;
-            try
+            if (readDepth > 0) throw new InvalidOperationException("A settings read attempted to save upload configuration.");
+            var json = JsonUtility.ToJson(Data, true);
+            try { WriteAtomically(FilePath, json); }
+            catch
             {
-                WriteAtomically(FilePath, JsonUtility.ToJson(_root, true));
+                _root = _durable == null ? null : ParseRoot(_durable);
+                ClearCaches();
+                throw;
             }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[OutfitBatchUploader] Could not write {FilePath}: {ex.Message}");
-            }
+            _durable = json;
+            ClearCaches();
+        }
+
+        internal static string CaptureSettings() => File.Exists(FilePath) ? File.ReadAllText(FilePath) : null;
+        internal static void RestoreSettings(string json)
+        {
+            if (json == null) { if (File.Exists(FilePath)) File.Delete(FilePath); }
+            else { ParseRoot(json); WriteAtomically(FilePath, json); }
+            _root = null; _durable = null; ClearCaches();
         }
 
         /// <summary>Writes critical project state through a sibling temp file and keeps the
@@ -186,7 +201,7 @@ namespace ShiroTools
             if (av == null)
             {
                 av = new AvatarData { name = avatarName };
-                Data.avatars.Add(av);
+                if (readDepth == 0) Data.avatars.Add(av);
             }
             return av;
         }
@@ -196,7 +211,7 @@ namespace ShiroTools
         internal static OutfitData GetOutfit(string avatarName, string outfitName)
         {
             var key = (avatarName, outfitName);
-            if (_outfitCache.TryGetValue(key, out var cached)) return cached;
+            if (readDepth == 0 && _outfitCache.TryGetValue(key, out var cached)) return cached;
 
             var av = GetAvatar(avatarName);
             var o = av.outfits.FirstOrDefault(x => x.name == outfitName);
@@ -204,10 +219,9 @@ namespace ShiroTools
             {
                 o = new OutfitData { name = outfitName };
                 MigrateLegacyOutfit(avatarName, o);
-                av.outfits.Add(o);
-                Save();
+                if (readDepth == 0) av.outfits.Add(o);
             }
-            _outfitCache[key] = o;
+            if (readDepth == 0) _outfitCache[key] = o;
             return o;
         }
 
@@ -228,8 +242,7 @@ namespace ShiroTools
                 if (EditorPrefs.HasKey(legacyKey))
                 {
                     result = EditorPrefs.GetBool(legacyKey, false);
-                    o.itemOverrides.Add(new ItemOverride { name = itemName, included = result });
-                    Save();
+
                 }
                 else
                     result = GetItemDefault(avatarName, itemName);
@@ -277,9 +290,7 @@ namespace ShiroTools
                 // Legacy global default (old model was not per avatar)
                 string legacyKey = LEGACY_ITEM_DEFAULT_PREFIX + itemName;
                 result = EditorPrefs.HasKey(legacyKey) && EditorPrefs.GetBool(legacyKey, false);
-                av.itemDefaultsDecided.Add(itemName);
-                if (result) av.itemDefaults.Add(itemName);
-                Save();
+
             }
 
             _boolMemo[memoKey] = result;
@@ -316,7 +327,6 @@ namespace ShiroTools
         // ---- Export / import (whole file, for backups & transferring to another project) ----
         internal static string ExportRaw()
         {
-            Save();
             try
             {
                 return File.Exists(FilePath)
@@ -332,9 +342,11 @@ namespace ShiroTools
             {
                 var parsed = JsonUtility.FromJson<Root>(json);
                 if (parsed == null || parsed.avatars == null || parsed.avatars.Count == 0) return false;
+                var existing = Data; // Refuse import over unrecoverable state.
+                WriteAtomically(FilePath, JsonUtility.ToJson(parsed, true));
                 _root = parsed;
+                _durable = JsonUtility.ToJson(parsed, true);
                 ClearCaches();
-                Save();
                 return true;
             }
             catch { return false; }

@@ -365,7 +365,7 @@ namespace OutfitToggleGenerator
                 var query = Query(request.Url.Query);
                 string name;
                 query.TryGetValue("name", out name);
-                WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebUploadScene(name, false), requestCode));
+                WriteJson(context, 200, RunOnMain(() => StartBatchRequest(request.Url.Query, () => ShiroTools.OutfitBatchUploader.WebUploadScene(name, false)), requestCode));
                 return;
             }
             if (path == "/api/batch_upload_scene")
@@ -374,7 +374,7 @@ namespace OutfitToggleGenerator
                 string names, express;
                 query.TryGetValue("names", out names);
                 query.TryGetValue("express", out express);
-                WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebUploadScene(names, express == "1"), requestCode));
+                WriteJson(context, 200, RunOnMain(() => StartBatchRequest(request.Url.Query, () => ShiroTools.OutfitBatchUploader.WebUploadScene(names, express == "1")), requestCode));
                 return;
             }
             if (path == "/api/batch_upload_presets")
@@ -382,7 +382,7 @@ namespace OutfitToggleGenerator
                 var query = Query(request.Url.Query);
                 string ids;
                 query.TryGetValue("ids", out ids);
-                WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebUploadPresets(ids), requestCode));
+                WriteJson(context, 200, RunOnMain(() => StartBatchRequest(request.Url.Query, () => ShiroTools.OutfitBatchUploader.WebUploadPresets(ids)), requestCode));
                 return;
             }
             if (path == "/api/batch_job")
@@ -400,7 +400,7 @@ namespace OutfitToggleGenerator
             }
             if (path == "/api/batch_retry")
             {
-                WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebRetry(), requestCode));
+                WriteJson(context, 200, RunOnMain(() => StartBatchRequest(request.Url.Query, () => ShiroTools.OutfitBatchUploader.WebRetry()), requestCode));
                 return;
             }
             if (path == "/api/batch_dismiss_failed")
@@ -418,12 +418,12 @@ namespace OutfitToggleGenerator
                 var query = Query(request.Url.Query);
                 string exname;
                 query.TryGetValue("name", out exname);
-                WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebExpress(exname, query), requestCode));
+                WriteJson(context, 200, RunOnMain(() => StartBatchRequest(request.Url.Query, () => ShiroTools.OutfitBatchUploader.WebExpress(exname, query)), requestCode));
                 return;
             }
             if (path == "/api/batch_fetch")
             {
-                WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebFetchAvatars(), requestCode));
+                WriteJson(context, 200, RunOnMain(() => StartBatchRequest(request.Url.Query, () => ShiroTools.OutfitBatchUploader.WebFetchAvatars()), requestCode));
                 return;
             }
             if (path == "/api/batch_match")
@@ -512,7 +512,7 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("name", out name);
                 query.TryGetValue("mode", out mode);
                 query.TryGetValue("token", out token);
-                if (op == "confirm") WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebThumbConfirm(token), requestCode));
+                if (op == "confirm") WriteJson(context, 200, RunOnMain(() => StartBatchRequest(request.Url.Query, () => ShiroTools.OutfitBatchUploader.WebThumbConfirm(token)), requestCode));
                 else if (op == "discard") WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebThumbDiscard(token), requestCode));
                 else WriteJson(context, 200, RunOnMain(() => ShiroTools.OutfitBatchUploader.WebThumbCapture(name, mode), requestCode));
                 return;
@@ -538,12 +538,30 @@ namespace OutfitToggleGenerator
                 {
                     try
                     {
-                        var changed = string.IsNullOrEmpty(op) ? "" : AvatarWardrobePresets.UpdateMenuGroup(id, group, name, item, guid, op);
+                        var changed = "";
+                        if (!string.IsNullOrEmpty(op))
+                        {
+                            var result = EditAvatar("Edit wardrobe menu group", () =>
+                            {
+                                changed = AvatarWardrobePresets.UpdateMenuGroup(id, group, name, item, guid, op);
+                                return new ResultDto { ok = 1 };
+                            });
+                            if (result.ok != 1) return new MenuGroupsDto { message = result.message };
+                        }
                         if (!string.IsNullOrEmpty(op)) InvalidateInstalled();
                         return new MenuGroupsDto { ok = 1, id = changed, groups = AvatarWardrobePresets.MenuGroups(id) };
                     }
                     catch (Exception ex) { return new MenuGroupsDto { message = ex.Message }; }
                 }, requestCode));
+                return;
+            }
+            if (path == "/api/migrate_avatar")
+            {
+                WriteJson(context, 200, RunOnMain(() => EditAvatar("Migrate wardrobe avatar", () =>
+                {
+                    ShiroTools.OutfitBatchUploader.MigrateSelectedAvatar();
+                    return new ResultDto { ok = 1 };
+                }), requestCode));
                 return;
             }
             if (path == "/api/regenerate_toggles")
@@ -689,7 +707,7 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("id", out id);
                 string name;
                 query.TryGetValue("name", out name);
-                WriteJson(context, 200, RunOnMain(() => SavePreset(id, name), requestCode));
+                WriteJson(context, 200, RunOnMain(() => EditAvatar("Save wardrobe preset", () => SavePreset(id, name)), requestCode));
                 return;
             }
             if (path == "/api/preset_delete")

@@ -56,7 +56,7 @@ Fresh Unity installation smoke testing remains pending.
 
 ## Release
 
-Every push to `main` automatically publishes a regular GitHub and VPM release
+After fast tests and the supported Unity EditMode gate pass, each push to `main` publishes a regular GitHub and VPM release
 and updates the repository listing. No manual tag or prerelease setting is needed.
 This includes documentation-only pushes.
 
@@ -69,3 +69,5 @@ For a local packaging check, run `python3 scripts/build_release.py --version 1.0
 The workflow merges the previous live listing, keeping old versions available.
 Release archives include SHA-256 values in the listing and are never overwritten.
 Release versus prerelease channels will be introduced later at launch.
+
+See [development validation](DEVELOPMENT.md) for the review fixes, local test fixture, and required Unity CI runner provisioning.

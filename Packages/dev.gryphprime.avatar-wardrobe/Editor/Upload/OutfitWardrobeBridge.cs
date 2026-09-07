@@ -75,9 +75,10 @@ namespace ShiroTools
         /// <summary>Uploads one preset child headless (Windows only, v1).
         /// Re-uploads when the preset already has a valid Blueprint ID,
         /// otherwise runs the Express first-time setup quietly.</summary>
-        public static async Task<WardrobeBridgeResult> UploadOutfitHeadless(string avatarRootName, string outfitName)
+        public static async Task<WardrobeBridgeResult> UploadOutfitHeadless(GameObject root, string outfitName)
         {
             var result = new WardrobeBridgeResult();
+            string avatarRootName = root != null ? root.name : "";
             try
             {
                 if (string.IsNullOrEmpty(avatarRootName) || string.IsNullOrEmpty(outfitName))
@@ -90,9 +91,10 @@ namespace ShiroTools
                 // needs a live window, and the status line shows progress.
                 var win = WardrobeUploadWindow();
 
-                var root = GameObject.Find(avatarRootName);
-                if (root == null)
-                    return Fail(result, $"Avatar root '{avatarRootName}' not found in the open scene.");
+                if (root == null || !root.scene.IsValid() || !root.scene.isLoaded ||
+                    !root.scene.path.StartsWith("Assets/Generated/WardrobeUploads/", StringComparison.Ordinal) ||
+                    root.GetComponent<VRC.SDK3.Avatars.Components.VRCAvatarDescriptor>() == null)
+                    return Fail(result, "The intended staging avatar is no longer valid.");
                 win._avatarRoot = root;
                 win._wardrobeBuildTarget = root;
                 win.AutoDetectSkin();
@@ -102,7 +104,8 @@ namespace ShiroTools
                 if (entry == null)
                     return Fail(result, $"Preset '{outfitName}' not found under '{avatarRootName}/Outfits'.");
 
-                int failedBefore = LoadQueue(SESSION_FAILED).Count;
+                string runBefore = SessionState.GetString(SESSION_BATCH_RUN_ID, "");
+                string runId = null;
                 bool isNew = !IsValidBlueprintId(entry.BlueprintId);
                 result.isNew = isNew;
 
@@ -112,7 +115,8 @@ namespace ShiroTools
                     if (!isNew)
                     {
                         await win.StartBatchAsync(new List<OutfitEntry> { entry });
-                        if (!SessionState.GetBool(SESSION_BATCH_ACTIVE, false))
+                        runId = SessionState.GetString(SESSION_BATCH_RUN_ID, "");
+                        if (runId == runBefore)
                             return Fail(result, string.IsNullOrEmpty(win._statusMessage)
                                 ? "Batch did not start." : win._statusMessage);
                         if (!await WaitForBatchAsync())
@@ -133,10 +137,12 @@ namespace ShiroTools
 
                 var after = OutfitProjectData.GetOutfit(avatarRootName, outfitName);
                 string afterId = after != null ? after.blueprintId ?? "" : "";
-                bool failedNow = LoadQueue(SESSION_FAILED).Skip(failedBefore)
-                    .Any(f => f != null && f.outfit == outfitName);
+                bool failedNow = isNew ? !win._expressSucceeded :
+                    !BatchRunSucceeded(runId);
 
-                result.blueprintId = afterId;
+                result.blueprintId = isNew && !string.IsNullOrEmpty(win._expressRemoteId) ? win._expressRemoteId : afterId;
+                if (isNew && !win._expressSucceeded && !string.IsNullOrEmpty(win._expressRemoteId))
+                    return Fail(result, "Remote avatar was created as " + win._expressRemoteId + "; local settings could not be saved. Preserve this ID before retrying. " + win._statusMessage);
                 if (!IsValidBlueprintId(afterId))
                     return Fail(result, string.IsNullOrEmpty(win._statusMessage)
                         ? "Upload finished without a Blueprint ID." : win._statusMessage);

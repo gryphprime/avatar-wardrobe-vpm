@@ -68,7 +68,7 @@ namespace OutfitToggleGenerator
         private sealed class BaseAvatarChoice { public string guid; public string name; public string path; }
 
         [Serializable]
-        private sealed class ResultDto
+        internal sealed class ResultDto
         {
             public int ok;
             public string message;
@@ -229,7 +229,7 @@ namespace OutfitToggleGenerator
             // Discover legacy presets before the sidebar and modal request their assignments.
             // Reuse discovery until the avatar hierarchy changes; polling never generates icons.
             if (SceneAvatar != null && !EditorApplication.isPlayingOrWillChangePlaymode)
-                ShiroTools.OutfitBatchUploader.WebEngine(false);
+                ShiroTools.OutfitBatchUploader.WebEngine();
             AvatarWardrobeCatalog.RecoverMissingIndex();
             AvatarWardrobeCatalog.PollExternalUpdates();
             // Settles the dirty flag even when a run changed nothing on disk
@@ -389,6 +389,7 @@ namespace OutfitToggleGenerator
             WardrobeCompatibility cached;
             if (compatCache.TryGetValue(key, out cached) && cached != null) return cached;
             var fresh = compute();
+            if (compatCache.Count >= 4096) compatCache.Clear();
             compatCache[key] = fresh;
             return fresh;
         }

@@ -177,8 +177,9 @@ class Indexer:
                 base = self.resolve(base_path, stack + (relpath,))
                 if not base:
                     continue
-                agg["renderers"] += base["renderers"]
-                agg["skinned"] += base["skinned"]
+                count = local.get("source_counts", {}).get(guid, 1)
+                agg["renderers"] += base["renderers"] * count
+                agg["skinned"] += base["skinned"] * count
                 agg["scripts"] |= base["scripts"]
                 agg["avatar_ref"] = agg["avatar_ref"] or base["avatar_ref"]
                 agg["mesh"] += base["mesh"]
@@ -187,7 +188,7 @@ class Indexer:
                 agg["sources"] |= base["sources"]
                 agg["mod_mats"] = agg["mod_mats"] or base["mod_mats"]
                 agg["mod_bones"] = agg["mod_bones"] or base["mod_bones"]
-                agg["script_counts"] += Counter(base["script_counts"])
+                agg["script_counts"] += Counter({key: value * count for key, value in base["script_counts"].items()})
                 for name in base["renderer_names"]:
                     if name not in agg["renderer_names"]:
                         agg["renderer_names"].append(name)
@@ -494,7 +495,7 @@ class Indexer:
         self.memo.clear()
         self.build_guidmap()
         analysis_signature = hashlib.sha256(json.dumps({"config": self.cfg,
-            "scripts": self.script_names, "parserVersion": 4}, sort_keys=True).encode("utf-8")).hexdigest()
+            "scripts": self.script_names, "parserVersion": 5}, sort_keys=True).encode("utf-8")).hexdigest()
         inputs = InputSnapshot(self.root, self.guid_to_path,
                                os.path.join(os.path.dirname(paths["catalog"]), "inputs.json"), full)
         self.base_list = self.load_base_list()
