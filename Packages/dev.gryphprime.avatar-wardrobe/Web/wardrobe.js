@@ -353,6 +353,7 @@
       connected=true; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
       R.setContext(s.session, s.avatarInstanceId);
       window.WardrobeUpdates.refresh(s.wardrobeVersion, T);
+      window.WardrobeReporting.setVersion(s.wardrobeVersion);
       if(!baseSaving){
         var baseSelect=$("avatarBase"),choices=[{guid:"",name:T("avatar.base.auto"),path:""}].concat(s.baseAvatars||[]);
         R.reconcile(baseSelect,choices,function(c){return c.guid;},function(){return document.createElement("option");},function(option,c){option.value=c.guid;R.text(option,c.name);option.title=c.path||"";});
@@ -464,8 +465,9 @@
           ? '<div class="variant-control"><button class="variant-nav" id="dPrevVar" aria-label="'+esc(T("nav.prev.variant"))+'">&#8249;</button><div class="filmstrip" id="dFilm"></div><button class="variant-nav" id="dNextVar" aria-label="'+esc(T("nav.next.variant"))+'">&#8250;</button></div>'
           : '<div class="single-variant-label" id="dSingleVariant"></div>')+
         '</section><section class="detail-options"><div id="dCompatibility"></div><div id="dPresetWrap"></div><div id="dVarBody"></div><div id="dAllowWrap"></div></section></div>'+
-        '<footer class="detail-footer"><button id="dClose">'+esc(T("detail.close"))+'</button><div class="actions" id="dActs"></div></footer>';
+        '<footer class="detail-footer"><button id="dReportItem">Item was misclassified</button><button id="dClose">'+esc(T("detail.close"))+'</button><div class="actions" id="dActs"></div></footer>';
       document.getElementById("dClose").onclick=closeDetail;
+      document.getElementById("dReportItem").onclick=function(){ window.WardrobeReporting.openItem(d,v); };
       if(multi) buildFilm();
       selectVariant(startIndex);
     }
