@@ -249,17 +249,28 @@
     if(listController) listController.abort();
     listController=new AbortController();
     var token=++listToken,controller=listController,target=append?page+1:0;
-    var key=[langCode,catalogEpoch,contextKey,queryFor(target)].join("|");
+    var lastPage=!append&&preserveScroll?page:target;
+    var cachePrefix=[langCode,catalogEpoch,contextKey].join("|")+"|";
     listInflight=true; gridNotice=""; paintEmptyGrid(); paintCount();
     try {
-      var result=listCache.get(key)||await api(queryFor(target),{signal:controller.signal,method:"GET",timeout:40000});
-      if(token!==listToken) return;
-      if(!result||!Array.isArray(result.items)) throw new Error((result&&result.message)||T("grid.error"));
-      cacheSet(listCache,key,result,32);
-      var merged=append?listItems.concat(result.items):result.items;
+      // Keep the full loaded range until its replacement is ready, so the grid
+      // never collapses to page one during an install or background refresh.
+      var refreshed=[],result;
+      for(var next=target;next<=lastPage;next++){
+        var query=queryFor(next),key=cachePrefix+query;
+        result=listCache.get(key)||await api(query,{signal:controller.signal,method:"GET",timeout:40000});
+        if(token!==listToken) return;
+        if(!result||!Array.isArray(result.items)) throw new Error((result&&result.message)||T("grid.error"));
+        cacheSet(listCache,key,result,32);
+        refreshed=refreshed.concat(result.items);
+        lastPage=Math.min(lastPage,Math.max(0,result.pageCount-1));
+      }
+      var merged=append?listItems.concat(refreshed):refreshed;
       listItems=Array.from(new Map(merged.map(function(f){return [f.id,f];})).values());
       page=result.page;pageCount=Math.max(1,result.pageCount);total=result.total;
+      var scrollTop=$("main").scrollTop;
       renderGrid();
+      if(preserveScroll) $("main").scrollTop=scrollTop;
       if(!document.hidden&&document.hasFocus()) pingActive(true);
       if(!append&&!preserveScroll) $("main").scrollTop=0;
     } catch(error){
@@ -621,7 +632,7 @@
           v.assignedName=common?"":presetNameOf(target);
           markVariantInstalled(d.id,v.guid,true,false);
           dropCaches();
-          load();
+          load(false,true);
           refreshState();
           closeDetail();
         }else{
@@ -735,7 +746,7 @@
         var allow="0";
         var createToggles=!createTogglesBox||createTogglesBox.checked?"1":"0";
         api("/api/install?guid="+encodeURIComponent(v.guid)+"&allow="+allow+"&toggles="+createToggles+"&switch="+(switching?"1":"0")).then(function(r){
-          if(r&&r.ok){ installInFlight=false; toast(r.message,"ok"); markVariantInstalled(d.id,v.guid,true,switching); closeDetail(); if(filter==="installed"){ dropCaches(); load(); } refreshState(); }
+          if(r&&r.ok){ installInFlight=false; toast(r.message,"ok"); markVariantInstalled(d.id,v.guid,true,switching); closeDetail(); if(filter==="installed"){ dropCaches(); load(false,true); } refreshState(); }
           else restoreInstall(r&&r.message);
         }).catch(function(){ restoreInstall(); });
         function restoreInstall(message){

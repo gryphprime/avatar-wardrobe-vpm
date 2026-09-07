@@ -1,11 +1,10 @@
-Fix the Installed sidebar in single-avatar mode.
+Preserve catalog scroll position when adding an outfit.
 
-Single-avatar mode shows one Installed items list instead of empty named-preset
-sections. Installed candidate prefabs are now included alongside classified
-outfits. Separate scene instances remain separate entries, and stored preset
-assignments and multi-avatar grouping are preserved.
+Adding an outfit and background catalog refreshes retain all previously loaded
+pages, keeping the browser at its current scroll position. Changing filters or
+search queries continues to start at the top.
 
-Validation: C# compilation against AWTest Unity references; sidebar grouping,
-single-avatar upload UI, update indicator, and descriptor regression tests.
+Validation: JavaScript syntax and focused pagination/scroll behavior checks,
+plus the package regression suite.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.
