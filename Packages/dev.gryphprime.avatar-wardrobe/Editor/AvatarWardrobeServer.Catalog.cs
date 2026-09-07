@@ -38,6 +38,8 @@ namespace OutfitToggleGenerator
         [Serializable]
         private sealed class InstalledItemDto
         {
+            public int instanceId;
+            public string setupWarning = "";
             public string path = string.Empty;
             public string guid = string.Empty;
             public string family = string.Empty;
@@ -96,6 +98,8 @@ namespace OutfitToggleGenerator
             public string server = "wardrobe-refactor-1";
             public string wardrobeVersion = WardrobeVersion.Current;
             public int avatarInstanceId;
+            public string projectPath, scenePath;
+            public TargetChoice[] sceneTargets;
             public string avatarName = string.Empty;
             public string avatarLabel = string.Empty;
             public string avatarGuid = string.Empty;
@@ -245,6 +249,10 @@ namespace OutfitToggleGenerator
                 wardrobeMode = ReadWorkflow().wardrobeMode,
                 selectedPreset = ReadWorkflow().selectedPreset,
                 workflowPresets = AvatarWardrobePresets.PresetsForBase(WorkflowBaseKey()).Select(p => new PresetDto { id = p.id, name = p.name }).ToList(),
+                projectPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..")),
+                scenePath = SceneAvatar == null ? "" : SceneAvatar.gameObject.scene.path,
+                sceneTargets = SceneTargets().Select(a => new TargetChoice { id = a.GetInstanceID(), name = a.name,
+                    scene = a.gameObject.scene.path, identity = GlobalObjectId.GetGlobalObjectIdSlow(a).ToString() }).ToArray(),
                 avatarName = avatarName,
                 avatarInstanceId = SceneAvatar == null ? 0 : SceneAvatar.GetInstanceID(),
                 avatarGuid = ActiveAvatarGuid(),
@@ -387,7 +395,7 @@ namespace OutfitToggleGenerator
                       AvatarWardrobeCatalog.CatalogEpoch + "|" + AvatarWardrobeCatalog.OverridesVersion + "|" +
                       AvatarWardrobeCatalog.BaseAvatarStamp;
             WardrobeCompatibility cached;
-            if (compatCache.TryGetValue(key, out cached) && cached != null) return cached;
+            if (compatCache.TryGetValue(key, out cached) && cached != null && !cached.compatibleOverride) return cached;
             var fresh = compute();
             compatCache[key] = fresh;
             return fresh;
@@ -661,6 +669,7 @@ namespace OutfitToggleGenerator
             public string id = "";
             public string name = "";
             public List<string> paths = new List<string>();
+            public List<int> instanceIds = new List<int>();
         }
         [Serializable]
         private sealed class PrefabPresetsDto
@@ -678,6 +687,7 @@ namespace OutfitToggleGenerator
                     partToggles = group.All(OutfitToggleGenerator.HasPartToggles) ? 1 : 0,
                     partTogglesMixed = group.Any(OutfitToggleGenerator.HasPartToggles) && !group.All(OutfitToggleGenerator.HasPartToggles) ? 1 : 0,
                     name = group.Key == "common" ? "Common Preset" : AvatarWardrobePresets.GetPresetName(group.Key),
+                    instanceIds = group.Select(item => item.GetInstanceID()).ToList(),
                     paths = group.Select(item => AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform)).ToList()
                 });
             return result;
@@ -704,6 +714,8 @@ namespace OutfitToggleGenerator
                     {
                         var target = AvatarWardrobePresets.ItemPreset(instance, SceneAvatar);
                         list.items.Add(new InstalledItemDto {
+                            instanceId = instance.GetInstanceID(),
+                            setupWarning = instance.GetComponent<WardrobeSetupStatus>()?.warning ?? "",
                             path = AnimationUtility.CalculateTransformPath(instance.transform, SceneAvatar.transform),
                             guid = variant.guid, family = family.displayName,
                             variant = AvatarWardrobeCatalog.DisplayVariant(variant), familyId = family.id,

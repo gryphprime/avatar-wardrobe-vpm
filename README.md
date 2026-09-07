@@ -56,16 +56,16 @@ Fresh Unity installation smoke testing remains pending.
 
 ## Release
 
-Every push to `main` automatically publishes a regular GitHub and VPM release
-and updates the repository listing. No manual tag or prerelease setting is needed.
-This includes documentation-only pushes.
+Development pushes to `dev` and pull requests run checks without publishing.
+Stable release publication is a manual workflow on `main`. The maintainer must
+confirm that a fresh-project installation and representative avatar build were
+validated for that source commit. Documentation changes do not publish releases.
 
-Versions are generated as `1.0.N`, where `N` is the release workflow run number.
-The build stamps that version and download URL into the packaged `package.json`;
-the source manifest is a template. The release tag points to the pushed source
-commit. Rerunning a workflow keeps the same version and verifies existing assets.
+Versions are generated as `1.0.N` from the release workflow run number. The build
+stamps the version and download URL into the package; source manifests are templates.
+Published assets remain immutable and the listing retains prior versions.
 
 For a local packaging check, run `python3 scripts/build_release.py --version 1.0.0`.
-The workflow merges the previous live listing, keeping old versions available.
-Release archives include SHA-256 values in the listing and are never overwritten.
-Release versus prerelease channels will be introduced later at launch.
+
+See [implementation progress](docs/implementation-progress.md) for this development
+branch's delivered features and remaining validation gates.

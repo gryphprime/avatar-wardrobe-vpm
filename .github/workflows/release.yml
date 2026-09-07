@@ -1,7 +1,12 @@
 name: Release VPM package
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      unity_smoke_verified:
+        description: Fresh-project installation and representative avatar build validated for this commit
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: write
   pages: write
@@ -11,6 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
+    if: github.ref == 'refs/heads/main' && inputs.unity_smoke_verified
     runs-on: ubuntu-latest
     environment:
       name: github-pages

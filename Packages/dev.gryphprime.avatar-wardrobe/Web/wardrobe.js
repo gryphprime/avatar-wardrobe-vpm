@@ -309,10 +309,10 @@
         R.reconcile(group.querySelector(".installed-preset-items"),data.items,function(it){return it.guid+"|"+(it.path||"");},function(){
           var el=document.createElement("button");el.type="button";el.className="inst";
           el.innerHTML='<span class="inst-thumb"></span><span class="inst-copy"><span class="t"></span><span class="s"></span></span><span class="inst-arrow" aria-hidden="true">›</span>';
-          el.onclick=function(){openDetail(el._item.familyId,el._item.guid);};return el;
+          el.onclick=function(){openDetail(el._item.familyId,el._item.guid,el._item.instanceId);};return el;
         },function(el,it){
           el._item=it;var variant=it.variant&&it.variant.toLowerCase()!=="default"?it.variant:T("variant.default");
-          R.text(el.querySelector(".t"),it.family);R.text(el.querySelector(".s"),variant);el.title=it.family+" · "+variant;
+          R.text(el.querySelector(".t"),it.family);R.text(el.querySelector(".s"),it.setupWarning?T("setup.attention")+" — "+it.setupWarning:variant);el.title=it.family+" · "+variant;
           previews.observe(el.querySelector(".inst-thumb"),it.guid,{priority:2,root:side});
         });
       });
@@ -381,6 +381,23 @@
       previews.reset(nextPreviews);
       if(previewsChanged) previews.resume();
       R.text(avatar,s.avatarLabel||s.avatarName||T("avatar.none"));
+      var targetSelect=$('wardrobeTarget'),targetChoices=s.sceneTargets||[];
+      if(targetSelect){
+        var signature=JSON.stringify(targetChoices);
+        if(targetSelect.dataset.choices!==signature){
+          targetSelect.innerHTML='<option value="">'+esc(T('target.choose'))+'</option>'+targetChoices.map(function(a){return '<option value="'+a.id+'">'+esc(a.name+' · '+(a.scene.split('/').pop()||T('target.unsaved')))+'</option>';}).join('');
+          targetSelect.dataset.choices=signature;
+        }
+        targetSelect.value=String(s.avatarInstanceId||'');
+        targetSelect.onchange=async function(){
+          if(!this.value)return;
+          this.disabled=true;
+          try{var result=await api('/api/target?id='+encodeURIComponent(this.value));if(!result.ok)throw new Error(result.message);await refreshState();}
+          catch(error){toast(error.message,'err');this.value=String((lastState||{}).avatarInstanceId||'');}
+          finally{this.disabled=false;}
+        };
+      }
+      R.text($('targetLocation'),[s.projectPath?s.projectPath.split('/').pop():'',s.scenePath?s.scenePath.split('/').pop():''].filter(Boolean).join(' / '));
       aiAvailable=s.ai?1:0;
       if(changed){dropCaches();loadShops();load(false,listItems.length>0);}
       if(indexAction){if(indexing) indexAction.runningSeen=true;else if(indexAction.runningSeen||Date.now()-indexAction.startedAt>2500) finishIndexAction();}
@@ -403,7 +420,9 @@
   }
   function closeDetail(){closeModal();}
   $("modalClose").onclick=closeDetail;sideBackdrop.onclick=closeDetail;
-  function openDetail(id,selGuid){
+  var detailInstanceId=0;
+  function openDetail(id,selGuid,instanceId){
+    detailInstanceId=instanceId||0;
     if(detailBusy()) return;
     inspectorMode="selected";selectedFamilyId=id;modal.classList.add("on");sideBackdrop.classList.add("on");
     modal.scrollTop=0;R.text(modalMode,T(filter==="unknown"?"side.review":"side.selected"));
@@ -448,7 +467,7 @@
         [T("dt.confidence"),v.confidence||"—"]];
       if(v.mats&&v.mats.length) rows.push([T("dt.materials"),v.mats.join(", ")]);
       if(v.parts&&v.parts.length) rows.push([T("dt.parts"),v.parts.join(", ")]);
-      return '<details class="technical" open><summary>'+esc(T("detail.technical"))+'</summary><dl>'+rows.map(function(row){
+      return '<details class="technical"><summary>'+esc(T("detail.technical"))+'</summary><dl>'+rows.map(function(row){
         return '<dt>'+esc(row[0])+'</dt><dd>'+esc(row[1])+'</dd>';
       }).join("")+'</dl></details>';
     }
@@ -512,12 +531,12 @@
       for(var k=0;k<btns.length;k++){btns[k].classList.toggle("on",k===n);btns[k].setAttribute("aria-pressed",String(k===n));}
       if(film&&btns[n]) { var b=btns[n]; if(b.offsetLeft<film.scrollLeft||b.offsetLeft+b.offsetWidth>film.scrollLeft+film.clientWidth) film.scrollLeft=Math.max(0,b.offsetLeft-film.clientWidth/2+b.offsetWidth/2); }
       R.text(document.getElementById("dCreator"),[v.shop,v.product].filter(Boolean).join(" / "));
-      document.getElementById("dCompatibility").innerHTML='<div class="badge c'+v.compat+'">'+esc(v.compatText)+'</div>'+
+      document.getElementById("dCompatibility").innerHTML='<div class="badge c'+v.compat+'">'+esc(v.compatText)+'</div><p class="subtle">'+esc(v.explanation||"")+'</p>'+
         (v.installed?'<div class="variant-installed">✓ '+esc(T("detail.installed"))+'</div>':"");
       document.getElementById("dVarBody").innerHTML=variantBody();
       var familyInstalled=d.variants.some(function(x){ return !!x.installed; });
       document.getElementById("dAllowWrap").innerHTML=
-        '<details class="technical" open><summary>'+esc(T("detail.advancedOptions"))+'</summary><label class="allow"><input type="checkbox" id="dCreateToggles" disabled> Generate toggles</label><div class="subtle">Create independent toggles for each child object in the prefab.</div><div id="dToggleStatus" class="subtle" role="status" aria-live="polite"></div>'+
+        '<details class="technical"><summary>'+esc(T("detail.advancedOptions"))+'</summary><label class="allow"><input type="checkbox" id="dCreateToggles" disabled> Generate toggles</label><div class="subtle">Create independent toggles for each child object in the prefab.</div><div id="dToggleStatus" class="subtle" role="status" aria-live="polite"></div>'+
         '<label class="allow"><input type="checkbox" id="dCompatibleOverride"'+(v.compatibleOverride?' checked':'')+'> '+esc(T("detail.compatibleOverride"))+'</label>' +'</details>';
       document.getElementById("dCompatibleOverride").onchange=function(){
         var box=this, guid=v.guid, enabled=box.checked, saved=false;
@@ -539,8 +558,18 @@
       };
       document.getElementById("dPresetWrap").innerHTML='<label for="dPreset">'+esc(T("detail.preset.tag"))+'</label><div class="preset-row"><select id="dPreset"></select><button id="dNewPreset" title="'+esc(T("detail.newPreset"))+'">+</button></div>';
       document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend','<div id="dGroupWrap" hidden><label for="dGroup">Menu Group</label><div class="preset-row"><select id="dGroup"><option value="">No menu group</option></select><button id="dNewGroup" title="New menu group">+</button></div><div id="dGroupStatus" class="subtle" role="status" aria-live="polite"></div></div>');
+      var wornFamily=installedItems.filter(function(item){return item.familyId===d.id && item.target===effectivePreset();});
+      document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend',
+        '<label for="dWearMode">'+esc(T('wear.action'))+'</label><select id="dWearMode"><option value="wear">'+esc(T('wear.apply'))+'</option>'+
+        (wornFamily.length?'<option value="replace">'+esc(T('wear.replace'))+'</option>':'')+'<option value="copy">'+esc(T('wear.copy'))+'</option></select>'+
+        '<label for="dReplaceCopy">'+esc(T('wear.replaceCopy'))+'</label><select id="dReplaceCopy">'+wornFamily.map(function(item){return '<option value="'+item.instanceId+'">'+esc(item.path+' — '+item.variant)+'</option>';}).join('')+'</select>'+
+        '<p class="subtle">'+esc(T('wear.semantics'))+'</p>');
+      document.getElementById('dWearMode').value=wornFamily.length&&!v.installed?'replace':'wear';
+      var replaceSelect=document.getElementById('dReplaceCopy');
+      function paintWearMode(){replaceSelect.hidden=document.getElementById('dWearMode').value!=='replace';replaceSelect.previousElementSibling.hidden=replaceSelect.hidden;}
+      document.getElementById('dWearMode').onchange=paintWearMode;paintWearMode();
       var action='<button id="dRemove" class="danger" hidden>Remove</button>'+
-        '<button id="dAddPreset" class="primary">'+esc(avatarMode?T("detail.addPreset"):"Add Outfit")+"</button>";
+        '<button id="dAddPreset" class="primary">'+esc(T("wear.apply"))+"</button>";
       document.getElementById("dActs").innerHTML=action+
         (aiAvailable?'<button id="dAi">'+esc(T("detail.ai"))+"</button>":"");
       wireActions();
@@ -624,7 +653,8 @@
       var allow="0";
       var togglesBox=document.getElementById("dCreateToggles");
       var toggles=!togglesBox||togglesBox.checked?"1":"0";
-      api("/api/install?guid="+encodeURIComponent(v.guid)+"&allow="+allow+"&toggles="+toggles+"&switch=0&target="+encodeURIComponent(target)+"&group="+encodeURIComponent(groupId)).then(function(r){
+      var mode=document.getElementById('dWearMode').value,replacement=document.getElementById('dReplaceCopy').value;
+      api("/api/install?guid="+encodeURIComponent(v.guid)+"&allow="+allow+"&toggles="+toggles+"&switch="+(mode==='replace'?'1':'0')+"&copy="+(mode==='copy'?'1':'0')+"&replaceId="+encodeURIComponent(replacement)+"&target="+encodeURIComponent(target)+"&group="+encodeURIComponent(groupId)).then(function(r){
         installInFlight=false;
         if(r&&r.ok){
           toast(r.message,"ok");
@@ -633,8 +663,9 @@
           markVariantInstalled(d.id,v.guid,true,false);
           dropCaches();
           load(false,true);
+          if(btn) endButtonBusy(btn,st);
           refreshState();
-          closeDetail();
+          loadInstalled().then(function(){return api('/api/family?id='+encodeURIComponent(d.id)+'&target='+encodeURIComponent(target));}).then(function(updated){if(document.getElementById('dWearMode'))renderDetail(updated,v.guid);});
         }else{
           if(btn) endButtonBusy(btn,st);
           toast((r&&r.message)||T("detail.install.fail"),"err");
@@ -653,6 +684,23 @@
       var id=effectivePreset(preset.value);
       var remove=document.getElementById('dRemove'),present=installedPresets.some(function(p){return p.id===id;});
       if(remove){remove.hidden=!present;remove.textContent=avatarMode?'Remove from '+(id==='common'?T('preset.common'):presetNameOf(id)):'Remove Outfit';}
+      var copy=document.getElementById('dInstance');
+      if(!copy){
+        var copyWrap=document.createElement('div');copyWrap.innerHTML='<label for="dInstance">'+esc(T('detail.wornCopy'))+'</label><select id="dInstance"></select><p id="dSetupWarning" role="status"></p>';
+        document.getElementById('dPresetWrap').appendChild(copyWrap);copy=document.getElementById('dInstance');
+      }
+      var copies=installedPresets.find(function(p){return p.id===id;}),oldId=detailInstanceId||Number(copy.value)||0;
+      copy.innerHTML='<option value="">'+esc(T('detail.chooseCopy'))+'</option>'+(copies?copies.paths:[]).map(function(path,index){return '<option value="'+esc(copies.instanceIds[index])+'">'+esc(path)+'</option>';}).join('');
+      if(copies&&copies.instanceIds.indexOf(oldId)>=0)copy.value=String(oldId);
+      else if(copies&&copies.instanceIds.length===1)copy.value=String(copies.instanceIds[0]);
+      copy.parentElement.hidden=!present;
+      function chooseCopy(){
+        detailInstanceId=Number(copy.value)||0;
+        if(remove)remove.disabled=!detailInstanceId;
+        var worn=installedItems.find(function(item){return item.instanceId===detailInstanceId;});
+        R.text(document.getElementById('dSetupWarning'),worn&&worn.setupWarning?T('setup.attention')+' — '+worn.setupWarning:'');
+      }
+      copy.onchange=chooseCopy;chooseCopy();
       var installedList=document.getElementById('dInstalledPresets');
       if(!installedList){installedList=document.createElement('div');installedList.id='dInstalledPresets';installedList.className='subtle';document.getElementById('dPresetWrap').appendChild(installedList);}
       installedList.hidden=!avatarMode;
@@ -802,12 +850,15 @@
       if(rem) rem.onclick=function(){
         var target=effectivePreset(document.getElementById('dPreset').value);
         var name=avatarMode?(target==='common'?T('preset.common'):presetNameOf(target)):'avatar';
-        if(!installedPresets.some(function(p){return p.id===target;}))return;
+        var membership=installedPresets.find(function(p){return p.id===target;}),copy=document.getElementById('dInstance');
+        var copyId=copy?Number(copy.value):0,index=membership?membership.instanceIds.indexOf(copyId):-1;
+        if(index<0){toast(T('detail.chooseCopy'),'err');return;}
+        var itemPath=membership.paths[index];
         if(!confirm('Remove this prefab from '+name+'?')) return;
         if(removeInFlight) return;
         removeInFlight=true;
         var removeState=beginButtonBusy(rem,T("detail.remove.busy"));
-        api("/api/preset_remove_item?guid="+encodeURIComponent(v.guid)+"&target="+encodeURIComponent(target)).then(function(r){
+        api("/api/preset_remove_item?guid="+encodeURIComponent(v.guid)+"&target="+encodeURIComponent(target)+"&item="+encodeURIComponent(itemPath)+"&instanceId="+encodeURIComponent(copyId)).then(function(r){
           if(r&&r.ok){ removeInFlight=false; toast(avatarMode?r.message:"Outfit removed.","ok"); dropCaches();closeDetail();load();refreshState(); }
           else finishRemove((r&&r.message)||T("detail.remove.fail"));
         }).catch(function(){ finishRemove(T("detail.remove.fail")); });

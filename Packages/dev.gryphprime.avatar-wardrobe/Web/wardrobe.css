@@ -225,3 +225,9 @@ input[type=radio] { accent-color:var(--accent-fill); width:16px; height:16px; fl
 @media(max-width:480px){.scene-upload{padding:18px}.scene-avatar-summary{gap:12px}.scene-avatar-image{width:80px;height:100px}.scene-upload-actions button{flex:1}.scene-upload-stages{font-size:9px}}
 
 .scene-upload{position:relative}.scene-upload-close{position:absolute;top:16px;right:16px;width:32px;height:32px;padding:0;font-size:23px;background:transparent;color:var(--muted)}.scene-upload-heading{padding-right:36px}
+
+.avatar-target { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.avatar-target select { max-width: min(36ch, 60vw); }
+#targetLocation { flex-basis: 100%; overflow-wrap: anywhere; }
+#dInstance { max-width: 100%; }
+#dSetupWarning:empty { display: none; }

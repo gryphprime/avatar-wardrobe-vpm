@@ -86,6 +86,12 @@ namespace OutfitToggleGenerator
                 WriteText(context, 204, "text/plain", string.Empty);
                 return;
             }
+            if (path == "/api/target")
+            {
+                var query = Query(request.Url.Query);
+                WriteJson(context, 200, RunOnMain(() => SelectTarget(query.ContainsKey("id") ? query["id"] : ""), requestCode));
+                return;
+            }
             if (path == "/api/state")
             {
                 WriteJson(context, 200, RunOnMain(GetState, requestCode));
@@ -219,10 +225,10 @@ namespace OutfitToggleGenerator
                 {
                     if (AvatarWardrobeCatalog.GetRecord(guid) == null || (enabled != "0" && enabled != "1"))
                         return new ResultDto { ok = 0, message = WardrobeStrings.T("msg.nooutfit") };
-                    var current = AvatarWardrobeCatalog.OverrideFor(guid);
-                    AvatarWardrobeCatalog.SetOverride(guid, current == null ? -1 : current.kind,
-                        current?.familyName, current?.variantName, enabled == "1");
-                    return new ResultDto { ok = 1 };
+                    return EditAvatar("Trust this avatar fit", () => {
+                        AvatarWardrobeCatalog.SetFitTrust(guid, ActiveAvatarGuid(), enabled == "1");
+                        return new ResultDto { ok = 1 };
+                    });
                 }, requestCode));
                 return;
             }
@@ -243,7 +249,7 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("group", out group);
                 // Missing means enabled for clients from before this option.
                 WriteJson(context, 200, RunOnMain(() => Install(
-                    guid, allow == "1", toggles != "0", switchVariant == "1", target ?? string.Empty, group ?? string.Empty), requestCode));
+                    guid, allow == "1", toggles != "0", switchVariant == "1", target ?? string.Empty, group ?? string.Empty, query.ContainsKey("replaceId") ? query["replaceId"] : "", query.ContainsKey("copy") && query["copy"] == "1"), requestCode));
                 return;
             }
             if (path == "/api/scene_upload_thumbnail")
@@ -538,8 +544,15 @@ namespace OutfitToggleGenerator
                 {
                     try
                     {
-                        var changed = string.IsNullOrEmpty(op) ? "" : AvatarWardrobePresets.UpdateMenuGroup(id, group, name, item, guid, op);
-                        if (!string.IsNullOrEmpty(op)) InvalidateInstalled();
+                        var changed = "";
+                        if (!string.IsNullOrEmpty(op))
+                        {
+                            var result = EditAvatar("Organize wardrobe menu", () => {
+                                changed = AvatarWardrobePresets.UpdateMenuGroup(id, group, name, item, guid, op);
+                                return new ResultDto { ok = 1 };
+                            });
+                            if (result.ok != 1) return new MenuGroupsDto { message = result.message };
+                        }
                         return new MenuGroupsDto { ok = 1, id = changed, groups = AvatarWardrobePresets.MenuGroups(id) };
                     }
                     catch (Exception ex) { return new MenuGroupsDto { message = ex.Message }; }
@@ -731,7 +744,7 @@ namespace OutfitToggleGenerator
                 var query = Query(request.Url.Query);
                 string guid, target, item;
                 query.TryGetValue("guid", out guid); query.TryGetValue("target", out target); query.TryGetValue("item", out item);
-                WriteJson(context, 200, RunOnMain(() => RemovePresetItem(guid, target, item), requestCode));
+                WriteJson(context, 200, RunOnMain(() => RemovePresetItem(guid, target, item, query.ContainsKey("instanceId") ? query["instanceId"] : null), requestCode));
                 return;
             }
             if (path == "/api/remove")
@@ -748,8 +761,10 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("guid", out var guid);
                 WriteJson(context, 200, RunOnMain(() =>
                 {
-                    AvatarWardrobeCatalog.SetAvatarOverride(SceneAvatar, guid);
-                    return new ResultDto { ok = 1 };
+                    return EditAvatar("Correct avatar base", () => {
+                        AvatarWardrobeCatalog.SetAvatarOverride(SceneAvatar, guid);
+                        return new ResultDto { ok = 1 };
+                    });
                 }, requestCode));
                 return;
             }
@@ -807,6 +822,9 @@ namespace OutfitToggleGenerator
             requestWritesAvatar = !read &&
                 r.Url.AbsolutePath != "/api/index" && r.Url.AbsolutePath != "/api/active" && r.Url.AbsolutePath != "/api/thumb" && r.Url.AbsolutePath != "/api/name";
             int.TryParse(r.Headers["X-Wardrobe-Avatar"], out requestAvatarId);
+            if (requestWritesAvatar && (suppliedSession != serverSession ||
+                (requestAvatarId == 0 && r.Url.AbsolutePath != "/api/target")))
+            { WriteText(context, 409, "text/plain", "Choose an avatar and refresh Wardrobe before editing."); return false; }
             return true;
         }
         private static bool IsAssetGuid(string guid)

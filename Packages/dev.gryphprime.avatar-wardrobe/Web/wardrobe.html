@@ -12,7 +12,7 @@
 <header>
   <div class="topline">
     <div class="brand"><svg class="icon" aria-hidden="true"><use href="#icon-spark"></use></svg><div><h1 data-i18n="app.title">Avatar Wardrobe</h1></div></div>
-    <div class="avatar-target" id="avatarTarget"><strong id="avatar">—</strong></div>
+    <div class="avatar-target" id="avatarTarget"><label for="wardrobeTarget" data-i18n="target.label">Dressing avatar</label><select id="wardrobeTarget"><option value="">Choose avatar</option></select><strong id="avatar" hidden>—</strong><small id="targetLocation"></small></div>
     <label><span data-i18n="avatar.base">Base avatar</span>: <select id="avatarBase" aria-label="Base avatar"><option value="">Automatic (source prefab)</option></select></label>
     <label id="workflowPresetWrap" hidden>Preset: <select id="workflowPreset" aria-label="Preset"><option value="common">Common Preset</option></select></label>
     <select id="lang" data-i18n-title="lang.title" title="Language" aria-label="Language"></select>

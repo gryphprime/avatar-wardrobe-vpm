@@ -438,7 +438,7 @@
         },
         {
           "k": "detail.compatibleOverride",
-          "v": "Mark as compatible"
+          "v": "Trust this match for this avatar and body shape"
         },
         {
           "k": "detail.toggles",
@@ -1363,6 +1363,54 @@
         {
           "k": "update.hint",
           "v": "Installed: {0}. Available: {1}. Update in ALCOM or VCC."
+        },
+        {
+          "k": "target.choose",
+          "v": "Choose avatar"
+        },
+        {
+          "k": "target.unsaved",
+          "v": "Unsaved scene"
+        },
+        {
+          "k": "target.label",
+          "v": "Dressing avatar"
+        },
+        {
+          "k": "detail.wornCopy",
+          "v": "Worn copy"
+        },
+        {
+          "k": "detail.chooseCopy",
+          "v": "Choose a copy"
+        },
+        {
+          "k": "setup.attention",
+          "v": "Added — setup needs attention"
+        },
+        {
+          "k": "wear.action",
+          "v": "Wear action"
+        },
+        {
+          "k": "wear.apply",
+          "v": "Wear"
+        },
+        {
+          "k": "wear.replace",
+          "v": "Replace variant"
+        },
+        {
+          "k": "wear.copy",
+          "v": "Add another copy"
+        },
+        {
+          "k": "wear.replaceCopy",
+          "v": "Replace this copy"
+        },
+        {
+          "k": "wear.semantics",
+          "v": "New items apply with Wear. Existing menu and toggle changes save immediately; use Unity Undo to reverse them. Replacing preserves placement and menu position; material and body overrides need review."
         }
       ]
     },
@@ -1804,7 +1852,7 @@
         },
         {
           "k": "detail.compatibleOverride",
-          "v": "互換性ありとしてマーク"
+          "v": "このアバターと体型で適合を信頼する"
         },
         {
           "k": "detail.toggles",
@@ -2561,6 +2609,54 @@
         {
           "k": "update.hint",
           "v": "インストール済み: {0}。最新: {1}。ALCOM または VCC で更新してください。"
+        },
+        {
+          "k": "target.choose",
+          "v": "アバターを選択"
+        },
+        {
+          "k": "target.unsaved",
+          "v": "未保存のシーン"
+        },
+        {
+          "k": "target.label",
+          "v": "着せ替え対象"
+        },
+        {
+          "k": "detail.wornCopy",
+          "v": "着用中のインスタンス"
+        },
+        {
+          "k": "detail.chooseCopy",
+          "v": "インスタンスを選択"
+        },
+        {
+          "k": "setup.attention",
+          "v": "追加済み — セットアップの確認が必要"
+        },
+        {
+          "k": "wear.action",
+          "v": "着用操作"
+        },
+        {
+          "k": "wear.apply",
+          "v": "着用"
+        },
+        {
+          "k": "wear.replace",
+          "v": "バリエーションを置換"
+        },
+        {
+          "k": "wear.copy",
+          "v": "別のインスタンスを追加"
+        },
+        {
+          "k": "wear.replaceCopy",
+          "v": "置換するインスタンス"
+        },
+        {
+          "k": "wear.semantics",
+          "v": "新規アイテムは「着用」で適用されます。着用中のメニューとトグルの変更は即時保存され、Unity の元に戻すで復元できます。置換後のマテリアルと体型設定をご確認ください。"
         }
       ]
     }

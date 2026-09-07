@@ -1,0 +1,22 @@
+name: Development checks
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - run: node tests/updates.test.js && node tests/scene-upload.test.js && node tests/installed-sidebar.test.js
+      - run: dotnet run --project tests/EditPolicy/EditPolicy.csproj
+      - run: python3 scripts/build_release.py --version 1.0.0

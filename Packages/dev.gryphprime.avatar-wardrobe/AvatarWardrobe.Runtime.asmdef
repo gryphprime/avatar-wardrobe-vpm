@@ -1,3 +1,6 @@
 {
-  "name": "AvatarWardrobe.Runtime"
+  "name": "AvatarWardrobe.Runtime",
+  "references": [
+    "VRC.SDKBase"
+  ]
 }

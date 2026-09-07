@@ -213,7 +213,7 @@ namespace OutfitToggleGenerator
             {
                 if (!string.IsNullOrEmpty(expectedSession) && expectedSession != serverSession)
                     throw new OperationCanceledException("The Unity session changed. Refresh the wardrobe and retry.");
-                if (expectedAvatar != 0 && (SceneAvatar == null || SceneAvatar.GetInstanceID() != expectedAvatar))
+                if (writesAvatar && expectedAvatar != 0 && !WardrobeEditPolicy.ContextMatches(serverSession, expectedSession, SceneAvatar == null ? 0 : SceneAvatar.GetInstanceID(), expectedAvatar))
                     throw new OperationCanceledException("The target avatar changed. Review the selected avatar and retry.");
                 if (writesAvatar && SceneUploadActive)
                     throw new InvalidOperationException("Wait for the avatar build/upload to finish before editing through AW.");

@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using VRC.SDK3.Avatars.Components;
@@ -11,7 +12,6 @@ namespace OutfitToggleGenerator
     {
         [SerializeField] private VRCAvatarDescriptor sceneAvatar;
         [SerializeField] private string avatarGuid;
-        private GameObject lastSelected;
         internal static AvatarWardrobeWindow Instance { get; private set; }
         internal VRCAvatarDescriptor SceneAvatar
         {
@@ -33,7 +33,6 @@ namespace OutfitToggleGenerator
         private void OnEnable()
         {
             Instance = this;
-            lastSelected = null;
             FollowSelection();
             AvatarWardrobeServer.SceneAvatar = sceneAvatar;
         }
@@ -93,23 +92,19 @@ namespace OutfitToggleGenerator
                     MessageType.Warning);
             }
         }
-        // The install target follows the hierarchy selection: clicking (or
-        // dropping in) an avatar retargets immediately, no button needed.
-        // Only a selection containing a descriptor retargets, so poking at
-        // outfits or scene props never steals the current target.
-        private void FollowSelection()
+        internal void SetTarget(VRCAvatarDescriptor avatar)
         {
             if (AvatarWardrobeServer.UploadTargetLocked) return;
-            var selected = Selection.activeGameObject;
-            if (selected == lastSelected) return;
-            lastSelected = selected;
-            if (selected == null) return;
-            var avatar = selected.GetComponentInParent<VRCAvatarDescriptor>();
-            if (avatar != null && avatar != sceneAvatar && !AvatarWardrobeServer.IsStagingAvatar(avatar))
-            {
-                sceneAvatar = avatar;
-                UseSceneAvatarRecord();
-            }
+            sceneAvatar = avatar;
+            UseSceneAvatarRecord();
+            AvatarWardrobeServer.SceneAvatar = avatar;
+            Repaint();
+        }
+        private void FollowSelection()
+        {
+            if (sceneAvatar != null || AvatarWardrobeServer.UploadTargetLocked) return;
+            var candidates = AvatarWardrobeServer.SceneTargets();
+            if (candidates.Length == 1) SetTarget(candidates[0]);
         }
         private void UseSceneAvatarRecord()
         {

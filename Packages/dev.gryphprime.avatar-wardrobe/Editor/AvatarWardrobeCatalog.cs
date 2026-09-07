@@ -128,6 +128,13 @@ namespace OutfitToggleGenerator
     {
         public List<WardrobeAssetOverride> entries = new List<WardrobeAssetOverride>();
         public List<WardrobeAvatarOverride> avatarOverrides = new List<WardrobeAvatarOverride>();
+        public List<WardrobeFitTrust> fitTrust = new List<WardrobeFitTrust>();
+    }
+
+    [Serializable]
+    internal sealed class WardrobeFitTrust
+    {
+        public string assetGuid, avatarGuid, assetVersion, avatarVersion, fitProfile;
     }
 
     [Serializable]
@@ -814,7 +821,7 @@ namespace OutfitToggleGenerator
         internal static WardrobeCompatibility Compatibility(WardrobeAssetRecord outfit, string avatarGuid)
         {
             LoadOverrides();
-            if (outfit != null && GetOverride(outfit.guid)?.compatibleOverride == true)
+            if (HasFitTrust(outfit, avatarGuid))
                 return new WardrobeCompatibility
                 {
                     state = WardrobeCompatibilityState.Compatible,
@@ -969,6 +976,54 @@ namespace OutfitToggleGenerator
                 : record == null ? WardrobeAssetKind.Ignored : record.kind;
         }
 
+        internal static string CaptureOverrides() => File.Exists(OverridesPath) ? File.ReadAllText(OverridesPath) : null;
+        internal static void RestoreOverrides(string text)
+        {
+            if (text == null) { if (File.Exists(OverridesPath)) File.Delete(OverridesPath); }
+            else WardrobeAtomicFile.WriteText(OverridesPath, text);
+            overrides = null;
+            overridesLoaded = false;
+            overridesVersion++;
+        }
+        private static string FitProfile()
+        {
+            var avatar = AvatarWardrobeServer.SceneAvatar;
+            if (avatar == null) return "";
+            var text = GlobalObjectId.GetGlobalObjectIdSlow(avatar).ToString() + "|" + avatar.transform.localScale;
+            foreach (var renderer in avatar.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                if (renderer.sharedMesh == null) continue;
+                text += "|" + AnimationUtility.CalculateTransformPath(renderer.transform, avatar.transform) + "|" + renderer.sharedMesh.name;
+                for (var i = 0; i < renderer.sharedMesh.blendShapeCount; i++)
+                    text += "|" + renderer.sharedMesh.GetBlendShapeName(i) + ":" + renderer.GetBlendShapeWeight(i).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+            }
+            return Hash128.Compute(text).ToString();
+        }
+        private static string FitVersion(WardrobeAssetRecord record) => record == null ? "" :
+            (!string.IsNullOrEmpty(record.assetPath) ? AssetDatabase.GetAssetDependencyHash(record.assetPath).ToString() : record.dependencyFingerprint ?? "");
+        private static bool HasFitTrust(WardrobeAssetRecord outfit, string avatarGuid)
+        {
+            if (outfit == null || string.IsNullOrEmpty(avatarGuid) || overrides.fitTrust == null) return false;
+            var entries = overrides.fitTrust.Where(t => t.assetGuid == outfit.guid && t.avatarGuid == avatarGuid).ToList();
+            if (entries.Count == 0) return false;
+            var profile = FitProfile();
+            return profile != "" && entries.Any(t => WardrobeEditPolicy.FitMatches(t.assetVersion, FitVersion(outfit), t.avatarVersion, FitVersion(GetRecord(avatarGuid)), t.fitProfile, profile));
+        }
+        internal static void SetFitTrust(string guid, string avatarGuid, bool enabled)
+        {
+            LoadOverrides();
+            var asset = GetRecord(guid);
+            if (asset == null || AvatarWardrobeServer.SceneAvatar == null || string.IsNullOrEmpty(FitVersion(GetRecord(avatarGuid))))
+                throw new InvalidOperationException("Choose an avatar and its base before trusting a fit.");
+            if (overrides.fitTrust == null) overrides.fitTrust = new List<WardrobeFitTrust>();
+            var profile = FitProfile();
+            overrides.fitTrust.RemoveAll(t => t.assetGuid == guid && t.avatarGuid == avatarGuid && t.fitProfile == profile);
+            if (enabled) overrides.fitTrust.Add(new WardrobeFitTrust { assetGuid = guid, avatarGuid = avatarGuid,
+                assetVersion = FitVersion(asset), avatarVersion = FitVersion(GetRecord(avatarGuid)), fitProfile = profile });
+            SaveOverrides();
+            overridesVersion++;
+        }
+
         internal static WardrobeAssetOverride OverrideFor(string guid)
         {
             LoadOverrides();
@@ -1034,7 +1089,7 @@ namespace OutfitToggleGenerator
             bool allowIncompatible,
             bool createToggles,
             bool ownUndoGroup = true,
-            string presetTarget = null)
+            string presetTarget = null, bool addCopy = false)
         {
             if (avatar == null) return WardrobeInstallResult.Failure(WardrobeStrings.T("msg.noavatar"));
             if (EditorUtility.IsPersistent(avatar.gameObject))
@@ -1060,8 +1115,8 @@ namespace OutfitToggleGenerator
             try
             {
                 GameObject installed = null;
-                if (presetTarget == null) TryFindInstalled(avatar, outfit, out installed);
-                else installed = AvatarWardrobePresets.PrefabInstances(avatar, outfit.guid)
+                if (!addCopy && presetTarget == null) TryFindInstalled(avatar, outfit, out installed);
+                else if (!addCopy) installed = AvatarWardrobePresets.PrefabInstances(avatar, outfit.guid)
                     .FirstOrDefault(item => AvatarWardrobePresets.ItemPreset(item, avatar) == presetTarget);
                 if (installed != null)
                 {
@@ -1076,6 +1131,7 @@ namespace OutfitToggleGenerator
                 }
                 var instance = PrefabUtility.InstantiatePrefab(source, avatar.transform) as GameObject;
                 if (instance == null) throw new InvalidOperationException(WardrobeStrings.T("msg.nocreate"));
+                instance.name = GameObjectUtility.GetUniqueNameForSibling(avatar.transform, source.name);
                 Undo.RegisterCreatedObjectUndo(instance, "Install wardrobe outfit");
                 Undo.RegisterFullObjectHierarchyUndo(instance, "Configure wardrobe outfit");
 
@@ -1095,7 +1151,10 @@ namespace OutfitToggleGenerator
                     }
                 }
 
-                if (createToggles)
+                var status = Undo.AddComponent<WardrobeSetupStatus>(instance);
+                status.sourceGuid = outfit.guid;
+                status.warning = warning;
+                if (createToggles && !creatorSetup)
                     OutfitToggleGenerator.CreateOrUpdateWardrobeToggle(avatar, instance, InstallationLabel(outfit));
                 succeeded = true;
                 Selection.activeGameObject = instance;
@@ -1129,7 +1188,10 @@ namespace OutfitToggleGenerator
                 throw new InvalidOperationException("Wardrobe will not remove an avatar root or source asset.");
             var avatar = instance.GetComponentInParent<VRCAvatarDescriptor>();
             if (avatar == null) throw new InvalidOperationException("The outfit is not inside an avatar.");
-            if (avatar != null) OutfitToggleGenerator.RemoveWardrobeOutfit(avatar, instance);
+            var path = AnimationUtility.CalculateTransformPath(instance.transform, avatar.transform);
+            var sharedPath = avatar.GetComponentsInChildren<Transform>(true).Any(t => t != instance.transform &&
+                AnimationUtility.CalculateTransformPath(t, avatar.transform) == path);
+            if (!sharedPath) OutfitToggleGenerator.RemoveWardrobeOutfit(avatar, instance);
             Undo.DestroyObjectImmediate(instance);
         }
 
@@ -1476,7 +1538,10 @@ namespace OutfitToggleGenerator
 
         private static bool HasCreatorSetup(GameObject instance)
         {
-            return instance.GetComponentInChildren<ModularAvatarMergeArmature>(true) != null ||
+            return instance.GetComponentsInChildren<Component>(true).Any(component => component != null &&
+                       ((component.GetType().Namespace ?? "").StartsWith("VF.", StringComparison.Ordinal) ||
+                        (component.GetType().Namespace ?? "").StartsWith("lilycalInventory", StringComparison.Ordinal))) ||
+                   instance.GetComponentInChildren<ModularAvatarMergeArmature>(true) != null ||
                    instance.GetComponentInChildren<ModularAvatarOutfitRoot>(true) != null ||
                    instance.GetComponentInChildren<ModularAvatarObjectToggle>(true) != null ||
                    instance.GetComponentInChildren<ModularAvatarMenuItem>(true) != null;
