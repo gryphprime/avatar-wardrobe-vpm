@@ -1,7 +1,7 @@
 name: Development checks
 on:
   push:
-    branches: [main, dev]
+    branches: [main, 'dev/**']
   pull_request:
 permissions:
   contents: read
@@ -17,6 +17,6 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
-      - run: node tests/updates.test.js && node tests/scene-upload.test.js && node tests/installed-sidebar.test.js
+      - run: for test in tests/*.test.js; do node "$test" || exit; done
       - run: dotnet run --project tests/EditPolicy/EditPolicy.csproj
       - run: python3 scripts/build_release.py --version 1.0.0

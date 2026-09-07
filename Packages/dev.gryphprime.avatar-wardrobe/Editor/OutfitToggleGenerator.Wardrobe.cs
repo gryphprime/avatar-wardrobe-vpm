@@ -76,7 +76,7 @@ namespace OutfitToggleGenerator
 
         internal static void RegeneratePresetToggles(VRCAvatarDescriptor avatar)
         {
-            SyncPresetSelection(avatar, AvatarWardrobePresets.SeparateAvatarUploads);
+            SyncPresetSelection(avatar);
             SyncMenuGroups(avatar);
             if (avatar != null)
                 foreach (var marker in avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
@@ -86,7 +86,7 @@ namespace OutfitToggleGenerator
 
         // Compatibility entry point for existing callers. Presets organize content;
         // only explicit menu groups generate outfit/hair switching controls.
-        internal static void SyncPresetSelection(VRCAvatarDescriptor avatar, bool separate)
+        internal static void SyncPresetSelection(VRCAvatarDescriptor avatar)
         {
             if (avatar == null) return;
             foreach (var marker in avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
@@ -110,7 +110,7 @@ namespace OutfitToggleGenerator
         internal static void MigrateMenuGroups(VRCAvatarDescriptor avatar)
         {
             if (avatar == null) return;
-            SyncPresetSelection(avatar, AvatarWardrobePresets.SeparateAvatarUploads);
+            SyncPresetSelection(avatar);
             foreach (var marker in avatar.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true))
             {
                 if (!string.IsNullOrEmpty(marker.generatedKind)) continue;
@@ -305,10 +305,17 @@ namespace OutfitToggleGenerator
             return host != null && host.GetComponent<OutfitToggleGeneratedMenu>() != null;
         }
 
+        private static void RequireOwnedPartTree(Transform host)
+        {
+            var conflict = host.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.GetComponent<OutfitToggleGeneratedMenu>() == null);
+            if (conflict != null) throw new InvalidOperationException("Part toggles contain user content: " + AnimationUtility.CalculateTransformPath(conflict, host.parent));
+        }
+
         internal static void RemovePartToggles(GameObject prefab)
         {
             if (!HasPartToggles(prefab)) return;
             var host = FindGeneratedHost(prefab.transform, "part-toggles", PartTogglesHost);
+            RequireOwnedPartTree(host);
             foreach (var item in host.GetComponentsInChildren<ModularAvatarMenuItem>(true))
             {
                 var toggle = item.GetComponent<ModularAvatarObjectToggle>();
@@ -333,6 +340,7 @@ namespace OutfitToggleGenerator
             var previous = new Dictionary<GameObject, ModularAvatarMenuItem>();
             if (old != null)
             {
+                RequireOwnedPartTree(old);
                 if (old.GetComponent<OutfitToggleGeneratedMenu>() == null)
                     throw new InvalidOperationException("Rename the existing " + PartTogglesHost + " object first.");
                 foreach (var item in old.GetComponentsInChildren<ModularAvatarMenuItem>(true))
@@ -349,6 +357,9 @@ namespace OutfitToggleGenerator
             var parts = new List<GameObject>();
             foreach (Transform child in prefab.transform)
                 if (child != old && !IsArmaturePart(child.name) && child.GetComponent<OutfitToggleGeneratedMenu>() == null) parts.Add(child.gameObject);
+            foreach (var item in previous.Values)
+                if (item.Control?.parameter == null || string.IsNullOrEmpty(item.Control.parameter.name))
+                    throw new InvalidOperationException("An existing part toggle has no parameter. Repair it before regenerating.");
             var parameters = parts.ToDictionary(part => part, part => previous.ContainsKey(part)
                 ? previous[part].Control.parameter.name : GeneratedParameterPrefix + "Part_" + Guid.NewGuid().ToString("N"));
             var defaults = parts.ToDictionary(part => part, part => previous.ContainsKey(part) ? previous[part].isDefault : part.activeSelf);

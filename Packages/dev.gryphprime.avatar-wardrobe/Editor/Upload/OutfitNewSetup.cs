@@ -425,10 +425,14 @@ namespace ShiroTools
         //  Express / new-avatar creation flow
         // ============================================================
         private bool _isExpressBusy;
+        private bool _expressSucceeded;
+        private string _expressRemoteId;
         private bool _expressQuietMode;   // true while the Upload-All gate runs several Express setups (one sound at the end instead of one per preset)
 
         private async Task ExpressSetupAsync(OutfitEntry entry, AdvancedDraft draft = null, bool skipConfirm = false)
         {
+            _expressSucceeded = false;
+            _expressRemoteId = null;
             _expressQuietMode = skipConfirm;
             // Another live instance owns a running batch/express: never touch
             // the shared avatar state or resume record underneath it.
@@ -604,6 +608,7 @@ namespace ShiroTools
 
                 if (!string.IsNullOrWhiteSpace(newId))
                 {
+                    _expressRemoteId = newId;
                     // Persist straight into the project store — works even if the preset list
                     // was rebuilt in the meantime and the UI entry object is stale/gone.
                     var entry = _outfits.FirstOrDefault(o => o.Name == outfitName);
@@ -615,6 +620,7 @@ namespace ShiroTools
                     {
                         data.blueprintId = newId;
                         OutfitProjectData.MarkUploaded(data, GetCurrentPlatform().ToString());
+                        _expressSucceeded = true;
                     }
                     LogUpload($"OK    {outfitName} (Express new avatar) → {newId}");
                     SetStatus($"✓ Created new avatar for '{outfitName}'  →  {newId}", MessageType.Info);

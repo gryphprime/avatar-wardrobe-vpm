@@ -66,6 +66,15 @@ namespace OutfitToggleGenerator
             SaveFile(file);
         }
 
+        private static string AllocateHolderName(Transform parent, string label, Transform exclude = null)
+        {
+            string name = label.Replace('/', '-');
+            string unique = name;
+            var siblings = parent.Cast<Transform>().Where(t => t != exclude).Select(t => t.name).ToHashSet();
+            for (int n = 2; siblings.Contains(unique); n++) unique = name + " (" + n + ")";
+            return unique;
+        }
+
         private static void EnsureSceneHolder(WardrobePreset preset)
         {
             var avatar = AvatarWardrobeServer.SceneAvatar;
@@ -79,9 +88,7 @@ namespace OutfitToggleGenerator
                 folder.transform.SetParent(avatar.transform, false);
                 parent = folder.transform;
             }
-            string name = preset.name.Replace('/', '-');
-            string unique = name;
-            for (int n = 2; parent.Find(unique) != null; n++) unique = name + " (" + n + ")";
+            string unique = AllocateHolderName(parent, preset.name);
             var holder = new GameObject(unique);
             Undo.RegisterCreatedObjectUndo(holder, "Create preset folder");
             holder.transform.SetParent(parent, false);
@@ -232,6 +239,14 @@ namespace OutfitToggleGenerator
                     : "scene-object:" + GlobalObjectId.GetGlobalObjectIdSlow(avatar.gameObject);
             }
             baseKey = lookup.key;
+        }
+
+        internal static void MigrateCurrentOwner()
+        {
+            CurrentBase(out var baseKey, out var baseName);
+            var avatar = AvatarWardrobeServer.SceneAvatar;
+            if (avatar == null) return;
+            var lookup = scopeLookups[avatar];
             string previousScope;
             var sessionKey = "AvatarWardrobe.OwnerScope:" + Application.dataPath + ":" + avatar.GetInstanceID();
             if (!instanceScopes.TryGetValue(avatar, out previousScope))
@@ -339,14 +354,10 @@ namespace OutfitToggleGenerator
                 avatar.transform.Find(preset.legacyPath) != null;
         }
 
-        internal static bool SeparateAvatarUploads => LoadFile().separateAvatarUploads;
+        internal static bool LegacySeparateAvatarUploads => LoadFile().separateAvatarUploads;
+        internal static bool SeparateAvatarUploads => AvatarWardrobeServer.SeparateAvatarUploads;
 
-        internal static void SetSeparateAvatarUploads(bool enabled)
-        {
-            var file = CloneFile(LoadFile());
-            file.separateAvatarUploads = enabled;
-            SaveFile(file);
-        }
+
 
         internal static List<GameObject> PrefabInstances(VRCAvatarDescriptor avatar, string guid)
         {
@@ -553,7 +564,7 @@ namespace OutfitToggleGenerator
                 {
                     var oldPath = preset.legacyPath;
                     Undo.RecordObject(holder.gameObject, "Rename wardrobe preset");
-                    holder.name = preset.name.Replace('/', '-');
+                    holder.name = AllocateHolderName(holder.parent, preset.name, holder);
                     PrefabUtility.RecordPrefabInstancePropertyModifications(holder.gameObject);
                     preset.legacyPath = AnimationUtility.CalculateTransformPath(holder, avatar.transform);
                     foreach (var g in preset.menuGroups ?? new List<MenuGroup>())
@@ -565,7 +576,7 @@ namespace OutfitToggleGenerator
                 // Staging keys stay fixed so Blueprint IDs and upload configuration survive renames.
             }
             SaveFile(file);
-            OutfitToggleGenerator.SyncPresetSelection(AvatarWardrobeServer.SceneAvatar, SeparateAvatarUploads);
+            OutfitToggleGenerator.SyncPresetSelection(AvatarWardrobeServer.SceneAvatar);
             OutfitToggleGenerator.SyncMenuGroups(AvatarWardrobeServer.SceneAvatar);
             return new PresetSaveResult { ok = true, preset = preset };
         }
@@ -630,7 +641,7 @@ namespace OutfitToggleGenerator
             file.presets.Remove(preset);
             file.assignments.RemoveAll(a => a != null && a.target == id);
             SaveFile(file);
-            OutfitToggleGenerator.SyncPresetSelection(AvatarWardrobeServer.SceneAvatar, SeparateAvatarUploads);
+            OutfitToggleGenerator.SyncPresetSelection(AvatarWardrobeServer.SceneAvatar);
             OutfitToggleGenerator.SyncMenuGroups(AvatarWardrobeServer.SceneAvatar);
             return new PresetSaveResult { ok = true, preset = preset };
         }

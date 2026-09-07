@@ -59,7 +59,7 @@ namespace OutfitToggleGenerator
                 var beforeName = root.name;
                 var changed = EditAvatar("Validate coherent Undo", () => {
                     Undo.RecordObject(root, "Rename test avatar"); root.name = "Edited validation avatar";
-                    AvatarWardrobePresets.SetSeparateAvatarUploads(!AvatarWardrobePresets.SeparateAvatarUploads);
+                    AvatarWardrobePresets.UpdateMenuGroup("common", "", Guid.NewGuid().ToString("N"), null, null, "save");
                     return new ResultDto { ok = 1 };
                 });
                 Undo.FlushUndoRecordObjects();
@@ -71,7 +71,7 @@ namespace OutfitToggleGenerator
                 Check(root.name == "Edited validation avatar" && AvatarWardrobePresets.CaptureSettings() == after, "Redo must restore both scene and settings.");
                 var failed = EditAvatar("Validate failed edit", () => {
                     Undo.RecordObject(root, "Test failure"); root.name = "Must roll back";
-                    AvatarWardrobePresets.SetSeparateAvatarUploads(!AvatarWardrobePresets.SeparateAvatarUploads);
+                    AvatarWardrobePresets.UpdateMenuGroup("common", "", Guid.NewGuid().ToString("N"), null, null, "save");
                     return new ResultDto { ok = 0, message = "Expected validation failure" };
                 });
                 Check(failed.ok == 0 && root.name == "Edited validation avatar" && AvatarWardrobePresets.CaptureSettings() == after,

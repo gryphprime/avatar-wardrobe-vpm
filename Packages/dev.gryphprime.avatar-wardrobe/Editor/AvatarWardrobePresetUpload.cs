@@ -76,7 +76,7 @@ namespace OutfitToggleGenerator
                 if (!EditorSceneManager.SaveScene(stagingScene, staging.scenePath))
                     throw new InvalidOperationException("Could not save the generated upload scene.");
                 AssetDatabase.Refresh();
-                var bridge = await ShiroTools.OutfitBatchUploader.UploadOutfitHeadless(staging.avatarRootName, staging.outfitName);
+                var bridge = await ShiroTools.OutfitBatchUploader.UploadOutfitHeadless(staging.root, staging.outfitName);
                 WardrobeLog.Write("upload", (bridge.ok ? "Completed " : "Failed ") + "preset=" + presetId + " " + bridge.message);
                 var outcome = new AvatarWardrobeUpload.WardrobeUploadOutcome
                 {
@@ -173,7 +173,7 @@ namespace OutfitToggleGenerator
                 legacyHolder.SetParent(FindOrCreate(root.transform, "Outfits").transform, true);
                 legacyHolder.gameObject.SetActive(true);
             }
-            OutfitToggleGenerator.SyncPresetSelection(desc, true);
+            OutfitToggleGenerator.SyncPresetSelection(desc);
             var wanted = new HashSet<string>(StringComparer.Ordinal);
             var presetGuids = new List<string>();
             var commonGuids = new List<string>();
@@ -223,9 +223,7 @@ namespace OutfitToggleGenerator
                 var record = AvatarWardrobeCatalog.GetRecord(guid);
                 if (record == null) continue;
                 GameObject instance;
-                if (legacyHolder != null)
-                    instance = PrefabInstances(desc, guid).FirstOrDefault(item => item.transform.IsChildOf(legacyHolder));
-                else AvatarWardrobeCatalog.TryFindInstalled(desc, record, out instance);
+                AvatarWardrobeCatalog.TryFindInstalled(desc, record, out instance);
                 if (instance == null) continue;
                 if (instance.transform.parent != holder.transform) instance.transform.SetParent(holder.transform, true);
                 instance.SetActive(true);
@@ -267,6 +265,7 @@ namespace OutfitToggleGenerator
             if (string.IsNullOrEmpty(scenePath)) scenePath = preset.scenePath;
             return new AvatarWardrobeUpload.StagingInfo
             {
+                root = root,
                 scenePath = scenePath,
                 avatarRootName = avatarRootName,
                 outfitName = preset.outfitName,
@@ -282,7 +281,7 @@ namespace OutfitToggleGenerator
             {
                 // GetOutfit would create and persist entries for presets that
                 // never uploaded, so scan the avatar record instead.
-                var avatar = ShiroTools.OutfitProjectData.GetAvatar(preset.avatarRootName);
+                var avatar = ShiroTools.OutfitProjectData.FindAvatar(preset.avatarRootName);
                 if (avatar != null && avatar.outfits != null)
                 {
                     var data = avatar.outfits.FirstOrDefault(o => o != null && o.name == preset.outfitName);

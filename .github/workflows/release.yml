@@ -15,7 +15,10 @@ concurrency:
   group: vpm-release
   cancel-in-progress: false
 jobs:
+  validation:
+    uses: ./.github/workflows/validate.yml
   release:
+    needs: validation
     if: github.ref == 'refs/heads/main' && inputs.unity_smoke_verified
     runs-on: ubuntu-latest
     environment:

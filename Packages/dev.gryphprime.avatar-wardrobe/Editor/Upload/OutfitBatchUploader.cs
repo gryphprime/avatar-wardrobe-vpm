@@ -175,6 +175,18 @@ namespace ShiroTools
         }
 
         // Read-only state for the Wardrobe Upload view and web Upload page.
+        private const string SESSION_BATCH_RUN_ID = "Shiro_BatchRunId";
+        private static readonly Dictionary<string, string> batchOutcomes = new Dictionary<string, string>();
+        internal static void RecordBatchOutcome(string outcome)
+        {
+            var id = SessionState.GetString(SESSION_BATCH_RUN_ID, "");
+            if (string.IsNullOrEmpty(id)) return;
+            if (!batchOutcomes.ContainsKey(id) && batchOutcomes.Count >= 64) batchOutcomes.Clear();
+            batchOutcomes[id] = outcome;
+        }
+        internal static bool BatchRunSucceeded(string id) => !string.IsNullOrEmpty(id) &&
+            batchOutcomes.TryGetValue(id, out var outcome) && outcome == "success";
+
         internal static bool BatchActiveNow
         {
             get { return SessionState.GetBool(SESSION_BATCH_ACTIVE, false) || OutfitToggleGenerator.AvatarWardrobeServer.SceneUploadActive; }
@@ -1489,6 +1501,8 @@ namespace ShiroTools
                 return;
             }
             ClaimResumeOwnership();
+            SessionState.SetString(SESSION_BATCH_RUN_ID, Guid.NewGuid().ToString("N"));
+            RecordBatchOutcome( "running");
             SaveBlendshapeSnapshot();
 
             // Save queue into Domain-Reload-proof SessionState
@@ -1715,6 +1729,7 @@ namespace ShiroTools
             int total = SessionState.GetInt(SESSION_BATCH_TOTAL, 0);
             var failedList = LoadQueue(SESSION_FAILED);
 
+            RecordBatchOutcome( failedList.Count == 0 && total > 0 ? "success" : "failed");
             int succeeded = total - failedList.Count;
             if (succeeded < 0) succeeded = 0;
 
@@ -1765,6 +1780,7 @@ namespace ShiroTools
 
         private void CancelBatch()
         {
+            RecordBatchOutcome( "cancelled");
             LogUpload("Batch cancelled.");
             SessionState.SetBool(SESSION_BATCH_ACTIVE, false);
             SessionState.EraseString(SESSION_BATCH_QUEUE);

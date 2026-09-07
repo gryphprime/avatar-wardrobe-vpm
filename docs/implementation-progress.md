@@ -39,3 +39,7 @@ Wardrobe's assertions still passed. Fresh-project build validation remains requi
 
 Stable publishing now requires a manual workflow and fresh-project/build attestation;
 development pushes do not publish stable VPM releases.
+
+## Review branch integration
+
+Merged `dev/code-review-fixes` into `dev/ux-plan`, preserving upload outcomes, job recovery, read-only state reads, corrupt-file handling, parser fixes and Unity CI gating. Consolidated overlapping Undo and instance-removal implementations. The merged package passed 13 Unity EditMode tests in a new isolated Unity 2022.3.22f1 fixture, including the ten scene-editing assertions, seven Python tests, all five browser suites and 13 pure C# policy assertions. The local legacy Tools indexer wrapper still points at the removed Assets package; the VPM package regression tests exercise its actual packaged indexer.

@@ -56,8 +56,8 @@ Fresh Unity installation smoke testing remains pending.
 
 ## Release
 
-Development pushes to `dev` and pull requests run checks without publishing.
-Stable release publication is a manual workflow on `main`. The maintainer must
+Development pushes to `dev/**` and pull requests run checks without publishing.
+Stable release publication is a manual workflow on `main`, gated on fast tests and the supported Unity EditMode suite. The maintainer must
 confirm that a fresh-project installation and representative avatar build were
 validated for that source commit. Documentation changes do not publish releases.
 
@@ -69,3 +69,5 @@ For a local packaging check, run `python3 scripts/build_release.py --version 1.0
 
 See [implementation progress](docs/implementation-progress.md) for this development
 branch's delivered features and remaining validation gates.
+
+See [development validation](DEVELOPMENT.md) for the imported review fixes, isolated Unity fixture, and required CI runner provisioning.

@@ -306,10 +306,10 @@
         group.innerHTML='<summary><span></span><small></small></summary><div class="installed-preset-items"></div>';return group;
       },function(group,data){
         R.text(group.querySelector("summary span"),data.name);R.text(group.querySelector("summary small"),data.items.length);
-        R.reconcile(group.querySelector(".installed-preset-items"),data.items,function(it){return it.guid+"|"+(it.path||"");},function(){
+        R.reconcile(group.querySelector(".installed-preset-items"),data.items,function(it){return it.guid+"|"+it.instanceId+"|"+(it.path||"");},function(){
           var el=document.createElement("button");el.type="button";el.className="inst";
           el.innerHTML='<span class="inst-thumb"></span><span class="inst-copy"><span class="t"></span><span class="s"></span></span><span class="inst-arrow" aria-hidden="true">›</span>';
-          el.onclick=function(){openDetail(el._item.familyId,el._item.guid,el._item.instanceId);};return el;
+          el.onclick=function(){openDetail(el._item.familyId,el._item.guid,el._item);};return el;
         },function(el,it){
           el._item=it;var variant=it.variant&&it.variant.toLowerCase()!=="default"?it.variant:T("variant.default");
           R.text(el.querySelector(".t"),it.family);R.text(el.querySelector(".s"),it.setupWarning?T("setup.attention")+" — "+it.setupWarning:variant);el.title=it.family+" · "+variant;
@@ -421,23 +421,23 @@
   function closeDetail(){closeModal();}
   $("modalClose").onclick=closeDetail;sideBackdrop.onclick=closeDetail;
   var detailInstanceId=0;
-  function openDetail(id,selGuid,instanceId){
-    detailInstanceId=instanceId||0;
+  function openDetail(id,selGuid,instance){
+    detailInstanceId=instance?instance.instanceId||0:0;
     if(detailBusy()) return;
     inspectorMode="selected";selectedFamilyId=id;modal.classList.add("on");sideBackdrop.classList.add("on");
     modal.scrollTop=0;R.text(modalMode,T(filter==="unknown"?"side.review":"side.selected"));
     grid.querySelectorAll(".card").forEach(function(card){card.classList.toggle("selected",card.dataset.family===id);});
     var token=++detailLoadToken;
-    if(detailCache.has(id)){renderDetail(detailCache.get(id),selGuid);R.openDialog(modal);return;}
+    if(detailCache.has(id)){renderDetail(detailCache.get(id),selGuid,instance);R.openDialog(modal);return;}
     R.text(modalTitle,T("detail.loading"));modalContent.innerHTML='<div class="inspector-loading">'+spinner(24)+'<span>'+esc(T("detail.loading"))+'</span></div>';R.openDialog(modal);
     api("/api/family?id="+encodeURIComponent(id)+"&target="+encodeURIComponent(effectivePreset()),{method:"GET"}).then(function(d){
       if(token!==detailLoadToken) return;
       if(!d||!d.variants) throw new Error((d&&d.message)||T("err.notfound"));
-      cacheSet(detailCache,id,d,96);renderDetail(d,selGuid);
+      cacheSet(detailCache,id,d,96);renderDetail(d,selGuid,instance);
     }).catch(function(error){if(token===detailLoadToken){toast(error.message||T("err.notfound"),"err");closeModal();}});
   }
 
-  function renderDetail(d,selGuid){
+  function renderDetail(d,selGuid,instance){
     // The compatible-only grid admits a family when any variant is compatible.
     // Keep the modal consistent with that promise: show only the compatible
     // (or probably-compatible) variants in its filmstrip and navigation.
@@ -603,7 +603,7 @@
       n.value="__new";
       n.textContent=T("detail.newPreset");
       sel.appendChild(n);
-      var cur=effectivePreset();
+      var cur=instance?instance.target||"common":effectivePreset();
       var has=false;
       for(var k=0;k<sel.options.length;k++) if(sel.options[k].value===cur){ has=true; break; }
       sel.value=has?cur:"common";
@@ -681,7 +681,7 @@
       if(!preset||!wrap)return;
       wrap.hidden=!preset.value||preset.value==='__new';
       if(wrap.hidden){select.value='';return;}
-      var id=effectivePreset(preset.value);
+      var id=instance&&instance.guid===v.guid?instance.target||'common':effectivePreset(preset.value);
       var remove=document.getElementById('dRemove'),present=installedPresets.some(function(p){return p.id===id;});
       if(remove){remove.hidden=!present;remove.textContent=avatarMode?'Remove from '+(id==='common'?T('preset.common'):presetNameOf(id)):'Remove Outfit';}
       var copy=document.getElementById('dInstance');
@@ -848,7 +848,7 @@
       };
       var rem=document.getElementById("dRemove");
       if(rem) rem.onclick=function(){
-        var target=effectivePreset(document.getElementById('dPreset').value);
+        var target=instance&&instance.guid===v.guid?instance.target||'common':effectivePreset(document.getElementById('dPreset').value);
         var name=avatarMode?(target==='common'?T('preset.common'):presetNameOf(target)):'avatar';
         var membership=installedPresets.find(function(p){return p.id===target;}),copy=document.getElementById('dInstance');
         var copyId=copy?Number(copy.value):0,index=membership?membership.instanceIds.indexOf(copyId):-1;
@@ -968,6 +968,12 @@
     }catch(error){toast(error.message,"err");this.disabled=false;}
   };
   $("indexFull").onclick=function(){fullIndex(this);};$("settingsReindex").onclick=function(){fullIndex(this);};
+  $('migrateAvatar').onclick=function(){
+    api('/api/migrate_avatar').then(function(r){
+      if(!r||!r.ok)throw new Error(r&&r.message||'Migration failed.');
+      toast('Legacy presets migrated.','ok');dropCaches();refreshState();
+    }).catch(function(e){toast(e.message,'err');});
+  };
   $('regenerateToggles').onclick=function(){
     var button=this;
     if(button.dataset.busy==='1')return;
