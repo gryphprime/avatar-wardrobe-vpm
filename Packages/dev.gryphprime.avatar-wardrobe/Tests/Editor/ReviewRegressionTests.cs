@@ -23,9 +23,7 @@ namespace OutfitToggleGenerator
         {
             presets = AvatarWardrobePresets.CaptureSettings();
             uploads = OutfitProjectData.CaptureSettings();
-            previous = SceneManager.GetActiveScene();
-            if (string.IsNullOrEmpty(previous.path))
-                EditorSceneManager.SaveScene(previous, "Assets/ReviewPrevious.unity");
+            previous = WardrobeTestSceneFixture.RequireSavedActiveScene();
             scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
             root = new GameObject("Review fixture");
             SceneManager.MoveGameObjectToScene(root, scene);

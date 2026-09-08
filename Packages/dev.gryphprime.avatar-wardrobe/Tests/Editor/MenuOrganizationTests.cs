@@ -23,21 +23,13 @@ namespace OutfitToggleGenerator
         private ModularAvatarMenuItem first, second;
         private string presets, overrides, uploads, folder;
         private Object selection;
-        private bool savedEmptyDefault;
 
         [SetUp] public void SetUp()
         {
-            previousScene = SceneManager.GetActiveScene(); previousAvatar = AvatarWardrobeServer.SceneAvatar; selection = Selection.activeObject;
+            previousScene = WardrobeTestSceneFixture.RequireSavedActiveScene(); previousAvatar = AvatarWardrobeServer.SceneAvatar; selection = Selection.activeObject;
             presets = AvatarWardrobePresets.CaptureSettings(); overrides = AvatarWardrobeCatalog.CaptureOverrides(); uploads = ShiroTools.OutfitProjectData.CaptureSettings();
             folder = "Assets/MenuOrganizationFixture_" + Guid.NewGuid().ToString("N");
             System.IO.Directory.CreateDirectory(folder);
-            savedEmptyDefault = false;
-            if (string.IsNullOrEmpty(previousScene.path))
-            {
-                Assert.AreEqual(0, previousScene.rootCount, "Run these tests in the disposable fixture, or save the active scene first.");
-                EditorSceneManager.SaveScene(previousScene, folder + "/EmptyDefault.unity");
-                savedEmptyDefault = true;
-            }
             scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
             root = new GameObject("Menu fixture"); SceneManager.MoveGameObjectToScene(root, scene);
             avatar = root.AddComponent<VRCAvatarDescriptor>(); root.AddComponent<Animator>();
@@ -57,7 +49,6 @@ namespace OutfitToggleGenerator
             Undo.ClearAll(); AvatarWardrobeServer.SceneAvatar = previousAvatar; Selection.activeObject = selection;
             if (previousScene.IsValid()) SceneManager.SetActiveScene(previousScene);
             if (scene.IsValid()) EditorSceneManager.CloseScene(scene, true);
-            if (savedEmptyDefault) EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             if (!string.IsNullOrEmpty(folder)) AssetDatabase.DeleteAsset(folder);
             AvatarWardrobePresets.RestoreSettings(presets); AvatarWardrobeCatalog.RestoreOverrides(overrides); ShiroTools.OutfitProjectData.RestoreSettings(uploads);
         }
@@ -109,10 +100,11 @@ namespace OutfitToggleGenerator
         [Test] public void CycleInvalidInsertionAndNonemptyDeletionRollback()
         {
             var layout = Initialize(); var a = AddFolder(layout, "A"); var b = AddFolder(layout, "B", a.id);
+            var aId = a.id; var bId = b.id;
             var before = EditorJsonUtility.ToJson(layout);
-            var cycle = Command("move"); cycle.nodeId = a.id; cycle.parentId = b.id;
+            var cycle = Command("move"); cycle.nodeId = aId; cycle.parentId = bId;
             Assert.AreEqual(0, WardrobeMenuOrganization.Execute(cycle).ok); Assert.AreEqual(before, EditorJsonUtility.ToJson(layout));
-            var deletion = Command("deleteFolder"); deletion.nodeId = a.id;
+            var deletion = Command("deleteFolder"); deletion.nodeId = aId;
             Assert.AreEqual(0, WardrobeMenuOrganization.Execute(deletion).ok); Assert.AreEqual(before, EditorJsonUtility.ToJson(layout));
             var bad = Command("folder"); bad.label = "Lost"; bad.beforeId = "missing";
             Assert.AreEqual(0, WardrobeMenuOrganization.Execute(bad).ok); Assert.AreEqual(before, EditorJsonUtility.ToJson(layout));

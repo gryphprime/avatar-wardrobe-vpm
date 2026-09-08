@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import socket
 from pathlib import Path
 import sys
 import tempfile
@@ -14,7 +15,7 @@ from unittest.mock import patch
 import urllib.error
 import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'Packages/dev.gryphprime.avatar-wardrobe/Desktop'))
-from wardrobe_desktop import Host
+from wardrobe_desktop import Host, Handler
 from wardrobe_library import Library
 
 class DesktopTests(unittest.TestCase):
@@ -81,7 +82,9 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(state['avatarInstanceId'], 0)
         self.assertEqual(state['session'], 'offline')
         self.assertEqual(self.request('/api/library')[1]['items'], [])
-        self.assertEqual(self.request('/api/desktop_identity')[1]['project'], str(self.project))
+        identity=self.request('/api/desktop_identity')[1]
+        self.assertEqual(identity['project'], str(self.project))
+        self.assertEqual(identity['protocol'], 3)
 
     def test_cold_offline_cache_and_mutation_no_retry(self):
         path='/api/families?lang=en&search=blue'
@@ -94,6 +97,33 @@ class DesktopTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as result:
             self.request('/api/install?guid=missing', 'POST', {'X-Wardrobe-Request':'1'})
         self.assertEqual(result.exception.code, 503)
+
+    def test_python39_socket_timeout_uses_offline_state_and_cached_reads(self):
+        path = '/api/families?lang=en&search=timeout'
+        key = hashlib.sha256((str(self.project) + '|' + path).encode()).hexdigest()
+        (self.host.cache / (key + '.json')).write_text(json.dumps({
+            'project': str(self.project), 'route': '/api/families', 'path': path, 'mime': 'application/json',
+            'body': base64.b64encode(b'{"items":[{"name":"Cached"}]}').decode()}))
+        with patch.object(Handler, '_bridge_request', side_effect=socket.timeout('timed out')):
+            status, state = self.request('/api/state')
+            self.assertEqual(200, status); self.assertTrue(state['desktop']); self.assertFalse(state['bridgeOnline'])
+            self.assertEqual('Cached', self.request(path)[1]['items'][0]['name'])
+
+    def test_history_routes_are_local_reads_and_export_exact_owned_bytes(self):
+        from unittest.mock import Mock
+        service = Mock(); service.history.return_value = {'ok': 1, 'projectId': str(self.project), 'items': [], 'nextOffset': None}
+        service.photo.return_value = {'snapshotKey': 'a' * 64, 'target': {'projectId': str(self.project)}}
+        service.image_bytes.return_value = b'owned PNG bytes'
+        with patch.object(self.host, 'shadow_service', return_value=service):
+            self.assertEqual([], self.request('/api/shadow/history?pinned=0&limit=2&scopeId=common')[1]['items'])
+            service.history.assert_called_once_with(pinned=False, limit=2, offset=0, avatar_id=None, scene_guid=None, scope_id='common')
+            self.assertEqual('a' * 64, self.request('/api/shadow/photo?key=' + 'a' * 64)[1]['snapshotKey'])
+            with urllib.request.urlopen(self.url + '/api/shadow/export?key=' + 'a' * 64) as response:
+                self.assertEqual(b'owned PNG bytes', response.read()); self.assertEqual('image/png', response.headers.get_content_type())
+                self.assertEqual('attachment; filename="wardrobe-photo-aaaaaaaaaaaa.png"', response.headers['Content-Disposition'])
+            with self.assertRaises(urllib.error.HTTPError) as wrong:
+                self.request('/api/shadow/history', 'POST', {'X-Wardrobe-Request': '1'})
+            self.assertEqual(405, wrong.exception.code)
 
     def test_origin_and_method_boundaries(self):
         for headers in [{'Origin':'https://external.example'}, {'Host':'external.example'}]:
@@ -235,3 +265,17 @@ class DesktopTests(unittest.TestCase):
             self.assertEqual(calls, [])
 
 if __name__ == '__main__': unittest.main()
+
+
+class DesktopConstructionTests(unittest.TestCase):
+    def test_bind_failure_closes_socket_and_preserves_original_error(self):
+        sockets = []
+        def denied(server):
+            sockets.append(server.socket)
+            raise PermissionError('fixture bind denial')
+        with tempfile.TemporaryDirectory() as folder:
+            with patch('wardrobe_desktop.ThreadingHTTPServer.server_bind', denied):
+                with self.assertRaisesRegex(PermissionError, 'fixture bind denial'):
+                    Host(0, Library(Path(folder) / 'library'), folder, 'http://localhost:8929')
+        self.assertEqual(len(sockets), 1)
+        self.assertEqual(sockets[0].fileno(), -1)

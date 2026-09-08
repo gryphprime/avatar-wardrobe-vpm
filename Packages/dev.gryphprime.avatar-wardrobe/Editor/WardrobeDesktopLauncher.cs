@@ -39,7 +39,7 @@ namespace OutfitToggleGenerator
                     launching = false;
                     Identity parsed = null;
                     try { if (identity != null) parsed = JsonUtility.FromJson<Identity>(identity); } catch (ArgumentException) { }
-                    if (parsed != null && parsed.project == project && parsed.protocol == 2) { AvatarWardrobeServer.Start(); Application.OpenURL(previous); }
+                    if (parsed != null && parsed.project == project && parsed.protocol == 3) { AvatarWardrobeServer.Start(); Application.OpenURL(previous); }
                     else StartNew();
                 });
             });

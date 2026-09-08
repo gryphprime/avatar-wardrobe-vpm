@@ -214,7 +214,7 @@ class OperationHttpTests(unittest.TestCase):
 
     def test_redirects_are_rejected_and_identity_advertises_protocol(self):
         identity = self.request('/api/desktop_identity')[1]
-        self.assertEqual(2, identity['protocol']); self.assertEqual('/owned/Unity', identity['unity'])
+        self.assertEqual(3, identity['protocol']); self.assertEqual('/owned/Unity', identity['unity'])
         self.redirect_context = True
         self.assertEqual(502, self.request('/api/operation_context')[0])
         for name in ('operations', 'snapshots', 'drag-drop', 'menu-organizer'):

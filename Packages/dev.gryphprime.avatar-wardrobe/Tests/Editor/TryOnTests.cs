@@ -85,6 +85,66 @@ namespace OutfitToggleGenerator
         }
 
         [Test]
+        public void LargeMeshFingerprintDoesNotWalkNumericPayload()
+        {
+            var mesh = new Mesh();
+            try
+            {
+                WardrobeTryOnWorker.SourceFingerprint(avatar);
+                mesh.vertices = new Vector3[1000000];
+                root.GetComponentInChildren<MeshFilter>().sharedMesh = mesh;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                var before = WardrobeTryOnWorker.SourceFingerprint(avatar);
+                Assert.Less(clock.Elapsed.TotalSeconds, 3, "Status must not walk one million vertex records.");
+                EditorUtility.SetDirty(mesh);
+                Assert.AreNotEqual(before, WardrobeTryOnWorker.SourceFingerprint(avatar));
+            }
+            finally { Object.DestroyImmediate(mesh); }
+        }
+
+        [Test]
+        public void FingerprintStillIncludesAnimationObjectCurveMaterials()
+        {
+            var clip = new AnimationClip { legacy = true };
+            var curveMaterial = new Material(Shader.Find("Standard"));
+            try
+            {
+                AnimationUtility.SetObjectReferenceCurve(clip,
+                    EditorCurveBinding.PPtrCurve("", typeof(Renderer), "m_Materials.Array.data[0]"),
+                    new[] { new ObjectReferenceKeyframe { time = 0, value = curveMaterial } });
+                root.AddComponent<Animation>().AddClip(clip, "fixture");
+                var before = WardrobeTryOnWorker.SourceFingerprint(avatar);
+                curveMaterial.color = Color.magenta;
+                Assert.AreNotEqual(before, WardrobeTryOnWorker.SourceFingerprint(avatar));
+            }
+            finally { Object.DestroyImmediate(clip); Object.DestroyImmediate(curveMaterial); }
+        }
+
+        [Test]
+        public void BuiltParameterDiagnosticsHandleMissingNamesConflictsAndCyclicMenus()
+        {
+            var menu = ScriptableObject.CreateInstance<VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionsMenu>();
+            var parameters = ScriptableObject.CreateInstance<VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionParameters>();
+            try
+            {
+                avatar.expressionsMenu = menu; avatar.expressionParameters = parameters;
+                parameters.parameters = new[] {
+                    new VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionParameters.Parameter { name="duplicate", valueType=VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionParameters.ValueType.Bool },
+                    new VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionParameters.Parameter { name="duplicate", valueType=VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionParameters.ValueType.Int }
+                };
+                menu.controls.Add(new VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionsMenu.Control { name="Missing", parameter=new VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionsMenu.Control.Parameter { name="absent" } });
+                menu.controls.Add(new VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionsMenu.Control { name="Puppet", subMenu=menu,
+                    subParameters=new[] { new VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionsMenu.Control.Parameter { name="duplicate" } } });
+                var result = string.Join("\n", WardrobeTryOnWorker.ParameterDiagnostics(avatar));
+                StringAssert.Contains("conflicting types", result);
+                StringAssert.Contains("missing parameter 'absent'", result);
+                StringAssert.Contains("requires Float", result);
+                StringAssert.Contains("Synced parameter budget:", result);
+            }
+            finally { avatar.expressionsMenu = null; avatar.expressionParameters = null; Object.DestroyImmediate(menu); Object.DestroyImmediate(parameters); }
+        }
+
+        [Test]
         public void UnpreparedSkinnedCandidateIsRejectedWithActionableSetupReason()
         {
             var candidate = new GameObject("Unprepared coat");
@@ -200,6 +260,19 @@ namespace OutfitToggleGenerator
                 var loadedState = loaded.layers[0].stateMachine.defaultState;
                 Assert.IsNotNull(loadedState, "A serialized controller must retain its state-machine references.");
                 Assert.AreSame(loadedState, loadedState.transitions[0].destinationState, "Self references must survive capture.");
+                var repeated = WardrobeShadowCapture.Capture(avatar);
+                try
+                {
+                    Assert.AreEqual(capture.visualRevision, repeated.visualRevision);
+                    Assert.AreEqual(capture.packages.Count, repeated.packages.Count);
+                    for (var index = 0; index < capture.packages.Count; index++)
+                    {
+                        Assert.AreEqual(capture.packages[index].sourcePath, repeated.packages[index].sourcePath, "Unchanged package inputs must reuse their immutable content snapshot.");
+                        if (!capture.packages[index].builtIn) StringAssert.Contains("package-snapshots", capture.packages[index].sourcePath);
+                    }
+                }
+                finally { System.IO.Directory.Delete(System.IO.Path.GetDirectoryName(repeated.manifestPath), true); }
+
                 Assert.AreEqual(fingerprint, WardrobeTryOnWorker.SourceFingerprint(avatar));
             }
             finally
@@ -251,6 +324,7 @@ namespace OutfitToggleGenerator
             { Object = new nadena.dev.modular_avatar.core.AvatarObjectReference(root.transform.GetChild(0).gameObject), Active = false });
             var recipe = new WardrobeAppearanceRecipe.Recipe { scopeId = "common" };
             recipe.scopeRules.Add(new WardrobeAppearanceRecipe.Rule { path = WardrobeTryOnWorker.SiblingPath(root.transform, scope.transform), active = false });
+            recipe.scopeRules.Add(new WardrobeAppearanceRecipe.Rule { path = new[] { 0 }, active = true });
             var fingerprint = WardrobeTryOnWorker.SourceFingerprint(avatar);
             var clone = Object.Instantiate(root);
             try
@@ -279,6 +353,52 @@ namespace OutfitToggleGenerator
             recipe.createToggles = true;
             Assert.AreNotEqual(identity, recipe.Identity);
             StringAssert.Contains("cannot yet reproduce", Assert.Throws<InvalidOperationException>(() => WardrobeAppearanceRecipe.CheckSupported(recipe)).Message);
+        }
+
+        [Test]
+        public void LogicalMenuLabelChangesPreservePhotoIdentityButInvalidateOperationIdentity()
+        {
+            var layout = root.AddComponent<WardrobeMenuLayout>();
+            layout.nodes.Add(new WardrobeMenuLayout.Node { id = "folder", label = "Old label", folder = true });
+            var full = WardrobeTryOnWorker.SourceFingerprint(avatar);
+            var visual = WardrobeTryOnWorker.VisualFingerprint(avatar);
+            layout.nodes[0].label = "New label with \"quotes\" and\nline";
+            EditorUtility.SetDirty(layout);
+            Assert.AreNotEqual(full, WardrobeTryOnWorker.SourceFingerprint(avatar));
+            Assert.AreEqual(visual, WardrobeTryOnWorker.VisualFingerprint(avatar));
+            layout.nodes[0].parentId = "Different structural parent";
+            Assert.AreNotEqual(visual, WardrobeTryOnWorker.VisualFingerprint(avatar));
+        }
+
+        [Test]
+        public void InterruptedCaptureCleanupOnlyRemovesJournalOwnedStaging()
+        {
+            var id = Guid.NewGuid().ToString("N");
+            var untrackedId = Guid.NewGuid().ToString("N");
+            var project = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, ".."));
+            var journal = System.IO.Path.Combine(project, "Library", "AvatarWardrobe", "capture-staging", id + ".json");
+            var partial = System.IO.Path.Combine(project, "Library", "AvatarWardrobe", "captures", id);
+            var owned = "Assets/__WardrobeCapture_" + id;
+            var untracked = "Assets/__WardrobeCapture_" + untrackedId;
+            AssetDatabase.CreateFolder("Assets", System.IO.Path.GetFileName(owned));
+            AssetDatabase.CreateFolder("Assets", System.IO.Path.GetFileName(untracked));
+            System.IO.Directory.CreateDirectory(partial);
+            WardrobeShadowCapture.WriteJson(journal, new WardrobeShadowCapture.StagingRecord { captureId = id, projectPath = project });
+            try
+            {
+                WardrobeShadowCapture.CleanupInterruptedCaptures();
+                Assert.IsFalse(AssetDatabase.IsValidFolder(owned));
+                Assert.IsFalse(System.IO.Directory.Exists(partial));
+                Assert.IsTrue(AssetDatabase.IsValidFolder(untracked));
+                Assert.IsFalse(System.IO.File.Exists(journal));
+            }
+            finally
+            {
+                if (AssetDatabase.IsValidFolder(owned)) AssetDatabase.DeleteAsset(owned);
+                if (AssetDatabase.IsValidFolder(untracked)) AssetDatabase.DeleteAsset(untracked);
+                if (System.IO.Directory.Exists(partial)) System.IO.Directory.Delete(partial, true);
+                if (System.IO.File.Exists(journal)) System.IO.File.Delete(journal);
+            }
         }
     }
 }

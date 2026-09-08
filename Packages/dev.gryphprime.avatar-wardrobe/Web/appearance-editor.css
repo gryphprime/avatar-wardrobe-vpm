@@ -1,0 +1,41 @@
+/* Uses the established Wardrobe panel and form tokens. */
+.appearance-part{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;min-height:52px;padding:10px;text-align:start;border:1px solid transparent;background:transparent;border-radius:5px}
+.appearance-part[aria-pressed=true]{border-color:var(--accent);background:var(--panel-raised);color:var(--accent)}
+.appearance-part small{display:block;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
+.appearance-slot{padding:14px 0;border-bottom:1px solid var(--line)}
+.appearance-slot>summary{display:list-item;font-weight:600;cursor:pointer}
+.appearance-slot>p{margin:10px 0;font-size:12px;overflow-wrap:anywhere}
+.appearance-property{padding:16px 0;border-top:1px solid var(--line)}
+.appearance-property h4{font-size:14px;margin:0 0 12px}
+.appearance-property>.btn{margin-top:12px}
+.appearance-property>.scene-editor-field{margin:10px 0}
+.appearance-property>input[type=range]{width:100%}
+.appearance-tint,.appearance-texture-search{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.appearance-tint .scene-editor-field{flex:1}
+.appearance-tint input[type=color]{height:40px;min-width:64px;padding:3px}
+.appearance-tint input[type=number]{max-width:100px}
+.appearance-texture-search input{flex:1;min-width:150px}
+.appearance-shape{display:flex;align-items:center;gap:12px;margin:12px 0}
+.appearance-shape .scene-editor-field{flex:1;justify-content:space-between}
+.appearance-shape .scene-editor-field>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.appearance-shape input{flex:0 0 86px!important;width:86px!important}
+.appearance-slot>input[type=search]{width:100%;margin-top:12px}
+.appearance-review{margin:8px 0 28px;padding:20px 0;border-block:1px solid var(--line)}
+.appearance-review h3{font-size:22px;margin:0 0 12px}
+.appearance-review p{max-width:75ch;overflow-wrap:anywhere}
+.appearance-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.appearance-compare h4{margin:0 0 10px}
+.appearance-compare p{margin:10px 0;font-variant-numeric:tabular-nums}
+.appearance-compare img{display:block;width:100%;max-width:380px;border-radius:8px}
+.appearance-swatch{height:48px;border:1px solid var(--line);border-radius:5px}
+.appearance-tools{margin-top:28px;padding:20px 0;border-top:1px solid var(--line)}
+.appearance-tools>summary{display:list-item;cursor:pointer;font-weight:600}
+.appearance-tool{padding:18px 0;border-bottom:1px solid var(--line);max-width:75ch}
+.appearance-tool h4{font-size:15px;margin:0 0 10px}
+.appearance-tool p{margin:0 0 12px}
+.appearance-tool a{display:inline-block;margin:8px 0 8px 12px;text-underline-offset:3px}
+.appearance-tool a:first-of-type{margin-left:0}
+@media(max-width:680px){.appearance-editor .scene-editor-field{flex-wrap:wrap}.appearance-editor .scene-editor-field>span{max-width:100%;overflow-wrap:anywhere}.appearance-shape{flex-wrap:wrap}.appearance-shape .scene-editor-field{flex-basis:100%}.appearance-property>.scene-editor-field{display:grid;gap:6px}.appearance-compare{gap:10px}.appearance-review{padding:16px 0}.appearance-tint .scene-editor-field{flex-basis:100%}}
+
+body[data-view="appearanceEditor"]{grid-template-columns:var(--rail) minmax(0,1fr)}
+body[data-view="appearanceEditor"] #side,body[data-view="appearanceEditor"] .base-picker,body[data-view="appearanceEditor"] #workflowPresetWrap{display:none}

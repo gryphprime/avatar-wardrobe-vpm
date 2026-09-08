@@ -9,6 +9,7 @@ import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import sqlite3
+import socket
 from pathlib import Path
 import tempfile
 import threading
@@ -25,7 +26,7 @@ STATIC = {'/': 'wardrobe.html', '/wardrobe.html': 'wardrobe.html', '/lang.json':
           '/wardrobe.css': 'wardrobe.css', '/wardrobe.js': 'wardrobe.js', '/runtime.js': 'runtime.js',
           '/upload.js': 'upload.js', '/previews.js': 'previews.js', '/library.js': 'library.js', '/reporting.js': 'reporting.js',
           '/scene-editor.js': 'scene-editor.js', '/operations.js': 'operations.js',
-          '/snapshots.js': 'snapshots.js', '/drag-drop.js': 'drag-drop.js', '/menu-organizer.js': 'menu-organizer.js'}
+          '/snapshots.js': 'snapshots.js', '/photo-history.js': 'photo-history.js', '/photo-history.css': 'photo-history.css', '/drag-drop.js': 'drag-drop.js', '/menu-organizer.js': 'menu-organizer.js', '/preset-appearance.js': 'preset-appearance.js', '/appearance-editor.js': 'appearance-editor.js', '/appearance-editor.css': 'appearance-editor.css'}
 READ_CACHE = {'/api/state', '/api/families', '/api/family', '/api/installed', '/api/thumb', '/api/snapshot'}
 LEASE_RENEW_SECONDS = 30
 BUILD_ROUTES = {'/api/scene_upload_review', '/api/scene_upload', '/api/upload', '/api/batch_upload_one',
@@ -125,11 +126,19 @@ class Host(ThreadingHTTPServer):
             self._operation_queue.close()
 
     def server_close(self):
-        self._operation_stop.set()
-        self._operation_thread.join(timeout=2 * self.operation_bridge.timeout + 2)
-        if not self._operation_thread.is_alive():
-            self._operation_queue.close()
-        super().server_close()
+        # TCPServer calls this override when binding fails, before queue fields exist.
+        try:
+            stop = getattr(self, '_operation_stop', None)
+            thread = getattr(self, '_operation_thread', None)
+            queue = getattr(self, '_operation_queue', None)
+            if stop is not None:
+                stop.set()
+            if thread is not None and thread.ident is not None:
+                thread.join(timeout=2 * self.operation_bridge.timeout + 2)
+            if queue is not None and (thread is None or not thread.is_alive()):
+                queue.close()
+        finally:
+            super().server_close()
 
 
     def shadow_service(self):
@@ -151,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # Do not log local archive names, paths or user query text.
 
-    def send(self, status, value, mime='application/json'):
+    def send(self, status, value, mime='application/json', headers=None):
         data = json.dumps(value).encode() if mime == 'application/json' else value
         self.send_response(status)
         self.send_header('Content-Type', mime)
@@ -160,6 +169,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('X-Frame-Options', 'DENY')
         self.send_header('Referrer-Policy', 'no-referrer')
+        for name, value in (headers or {}).items(): self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 
@@ -199,7 +209,7 @@ class Handler(BaseHTTPRequestHandler):
                 if name in ('header-portrait.webp', 'rail-landscape.webp', 'avatar-placeholder.webp'):
                     return self.send(200, (WEB / 'assets' / name).read_bytes(), 'image/webp')
             if route == '/api/desktop_identity' and self.command == 'GET':
-                return self.send(200, {'ok': 1, 'protocol': 2, 'project': self.server.project, 'session': self.server.session, 'unity': self.server.unity})
+                return self.send(200, {'ok': 1, 'protocol': 3, 'project': self.server.project, 'session': self.server.session, 'unity': self.server.unity})
             if route in ('/api/operations', '/api/operations/cancel'):
                 return self.operation_route(route, query)
             if route == '/api/library' and self.command == 'GET':
@@ -223,6 +233,8 @@ class Handler(BaseHTTPRequestHandler):
                             remaining -= len(block)
                     result = self.server.library.add(source, query.get('creator', ''), query.get('product', ''), query.get('source', ''))
                 return self.send(200, dict(result, ok=1))
+            if route == '/api/library/metadata' and self.command == 'POST':
+                return self.send(200, self.server.library.update_metadata(query.get('hash', ''), query.get('creator', ''), query.get('product', ''), query.get('source', '')))
             if route == '/api/library/import_review' and self.command == 'POST':
                 if not self.server.project:
                     raise ValueError('Start the desktop host with --project to review a project import.')
@@ -288,7 +300,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def shadow_route(self, route, query):
         methods = {'/api/shadow/submit': 'POST', '/api/shadow/result': 'GET', '/api/shadow/image': 'GET',
-                   '/api/shadow/pin': 'POST', '/api/shadow/cancel': 'POST'}
+                   '/api/shadow/pin': 'POST', '/api/shadow/cancel': 'POST', '/api/shadow/history': 'GET',
+                   '/api/shadow/photo': 'GET', '/api/shadow/export': 'GET'}
         if route not in methods:
             return self.send(404, {'ok': 0, 'message': 'Unknown shadow snapshot route.'})
         if self.command != methods[route]:
@@ -339,20 +352,29 @@ class Handler(BaseHTTPRequestHandler):
             before = payload.get('before', False)
             if not isinstance(before, bool): raise ValueError('The comparison side must be a boolean.')
             receipt = service.submit(path, payload.get('view', 'front'), before=before, zoom=payload.get('zoom', 1.0),
-                                     confirmed_revision=result.get('confirmedRevision', ''), target=target)
+                                     confirmed_revision=result.get('confirmedRevision', ''), target=target, operation_id=operation_id,
+                                     source_input=dict(operation.get('command', {}).get('payload', {}), scopeId=target.get('scopeId', 'common')))
             return self.send(202, dict(self.snapshot_public(receipt), ok=1, operationId=operation_id))
         if route == '/api/shadow/result':
             result = service.get(query.get('id', ''))
             if result is None: return self.send(404, {'ok': 0, 'message': 'Unknown snapshot request.'})
             return self.send(200, dict(self.snapshot_public(result), ok=1))
-        if route == '/api/shadow/image':
+        if route == '/api/shadow/history':
+            if query.get('pinned', '1') not in ('0', '1'): raise ValueError('Choose kept photos or all recent photos.')
+            return self.send(200, service.history(pinned=query.get('pinned', '1') == '1', limit=int(query.get('limit', '50')),
+                             offset=int(query.get('offset', '0')), avatar_id=query.get('avatarId'), scene_guid=query.get('sceneGuid'), scope_id=query.get('scopeId')))
+        if route == '/api/shadow/photo':
+            result = service.photo(query.get('key', ''))
+            if result is None: return self.send(404, {'ok': 0, 'message': 'This photograph is no longer available.'})
+            return self.send(200, dict(result, ok=1))
+        if route in ('/api/shadow/image', '/api/shadow/export'):
             key = query.get('key', '')
             if len(key) != 64 or any(character not in '0123456789abcdef' for character in key):
                 raise ValueError('Invalid snapshot identity.')
-            result = service._cached(key)
-            if result is None or result.get('project') != self.server.project:
-                return self.send(404, {'ok': 0, 'message': 'This photograph is no longer cached.'})
-            return self.send(200, Path(result['imagePath']).read_bytes(), 'image/png')
+            data = service.image_bytes(key)
+            if data is None: return self.send(404, {'ok': 0, 'message': 'This photograph is no longer available or its bytes changed.'})
+            headers = {'Content-Disposition': 'attachment; filename="wardrobe-photo-' + key[:12] + '.png"'} if route.endswith('/export') else None
+            return self.send(200, data, 'image/png', headers=headers)
         if route == '/api/shadow/pin':
             if set(payload) - {'key', 'snapshotKey', 'pinned'} or not isinstance(payload.get('pinned', True), bool):
                 raise ValueError('Invalid pin request.')
@@ -368,6 +390,7 @@ class Handler(BaseHTTPRequestHandler):
     @staticmethod
     def snapshot_public(value):
         value = dict(value)
+        value.pop('captureManifestPath', None)
         if value.pop('imagePath', None):
             value['imageUrl'] = '/api/shadow/image?key=' + value['snapshotKey']
         return value
@@ -511,6 +534,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.bridge_project = str(Path(reported).resolve()) if reported else None
                 if self.server.project and self.server.bridge_project != self.server.project:
                     return self.send(409, {'ok': 0, 'message': 'The Unity bridge belongs to another project. Open the project selected for this library host.'})
+            if route == '/api/installed' and self.command == 'GET' and status == 200:
+                self.server.library.reconcile_usage(self.server.project, json.loads(data))
             if route in READ_CACHE and self.command == 'GET' and status == 200:
                 # Cache includes project identity and exact request including version parameters.
                 record = {'project': self.server.project, 'route': route, 'path': self.path,
@@ -534,7 +559,7 @@ class Handler(BaseHTTPRequestHandler):
             if 300 <= error.code < 400:
                 return self.send(502, {'ok': 0, 'message': 'The Unity bridge returned a redirect, which is not allowed.'})
             return self.send(error.code, {'ok': 0, 'message': error.read(8000).decode(errors='replace')[:2000]})
-        except (urllib.error.URLError, TimeoutError, ConnectionError):
+        except (urllib.error.URLError, TimeoutError, socket.timeout, ConnectionError):
             if self.command != 'GET':
                 return self.send(503, {'ok': 0, 'message': 'Unity is unavailable. Open this project and Tools > Avatar Wardrobe, then review the edit again.'})
             value = None

@@ -34,6 +34,8 @@ namespace OutfitToggleGenerator
             public string legacyPath = "";
             public string legacyObjectId = "";
             public List<MenuGroup> menuGroups = new List<MenuGroup>();
+            // Optional versioned appearance metadata; legacy presets remain valid without it.
+            public WardrobePresetAppearance.Recipe appearance;
         }
 
         [Serializable]

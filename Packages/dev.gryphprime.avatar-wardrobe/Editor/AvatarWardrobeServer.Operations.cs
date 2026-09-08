@@ -15,7 +15,7 @@ namespace OutfitToggleGenerator
     {
         [Serializable] internal sealed class OperationContext
         {
-            public string projectId, session, sceneGuid, avatarId, scopeId, revision, waitingReason;
+            public string projectId, session, sceneGuid, avatarId, scopeId, revision, visualRevision, waitingReason;
             public int avatarInstanceId;
             public bool unsaved;
         }
@@ -24,9 +24,45 @@ namespace OutfitToggleGenerator
         private static string operationContextJson = "{}", snapshotDirectory;
         private static double nextOperationContext;
         private static string activeOperationId;
+        private sealed class OperationUndoCheckpoint
+        {
+            internal string token, operationId, label, afterRevision, sceneStructure;
+            internal int group;
+            internal WardrobeOperation.Target target;
+            internal string presets, overrides, uploads, afterPresets, afterOverrides, afterUploads;
+            internal WardrobeOperationReceipt.Outcome outcome;
+        }
+        // Native Undo is session-local. Only the latest proven operation group is eligible.
+        private static OperationUndoCheckpoint lastOperationUndo;
+
+        [InitializeOnLoadMethod]
+        private static void ObserveOperationUndoChanges()
+        {
+            Undo.postprocessModifications -= InvalidateOperationUndo;
+            Undo.postprocessModifications += InvalidateOperationUndo;
+        }
+        private static UndoPropertyModification[] InvalidateOperationUndo(UndoPropertyModification[] changes)
+        {
+            if (changes != null && changes.Length > 0) lastOperationUndo = null;
+            return changes;
+        }
+        private static string OperationSceneStructure()
+        {
+            var objects = new System.Collections.Generic.List<int>();
+            for (var index = 0; index < UnityEngine.SceneManagement.SceneManager.sceneCount; index++)
+            {
+                var scene = UnityEngine.SceneManagement.SceneManager.GetSceneAt(index);
+                if (!scene.isLoaded) continue;
+                foreach (var root in scene.GetRootGameObjects())
+                    foreach (var component in root.GetComponentsInChildren<Component>(true))
+                        if (component != null) { objects.Add(component.GetInstanceID()); objects.Add(component.gameObject.GetInstanceID()); }
+            }
+            return string.Join(",", objects.Distinct().OrderBy(value => value));
+        }
 
         private static void InitializeOperations()
         {
+            lastOperationUndo = null;
             operationLedger = new WardrobeOperationLedger(Path.Combine(serverProjectPath, "UserSettings", "AvatarWardrobeOperations.json"), serverProjectPath, serverSession);
             snapshotDirectory = Path.Combine(serverProjectPath, "Library", "AvatarWardrobe", "snapshots");
             PublishOperationContext(true);
@@ -74,9 +110,12 @@ namespace OutfitToggleGenerator
                 projectId = serverProjectPath, session = serverSession, scopeId = "common", waitingReason = OperationWaitingReason(),
                 avatarId = StableObjectId(avatar), avatarInstanceId = avatar == null ? 0 : avatar.GetInstanceID(),
                 sceneGuid = avatar == null ? "" : AssetDatabase.AssetPathToGUID(avatar.gameObject.scene.path),
-                revision = Revision(avatar), unsaved = avatar != null && avatar.gameObject.scene.isDirty
+                revision = Revision(avatar), visualRevision = avatar == null ? "" : WardrobeTryOnWorker.VisualFingerprint(avatar), unsaved = avatar != null && avatar.gameObject.scene.isDirty
             };
             Volatile.Write(ref operationContextJson, JsonUtility.ToJson(context));
+            // Space polls from completion: a large avatar must not make the next update
+            // immediately repeat an expensive revision calculation and starve the queue.
+            nextOperationContext = EditorApplication.timeSinceStartup + 2;
         }
         private static bool HandleOperations(HttpListenerContext context, string path)
         {
@@ -150,6 +189,7 @@ namespace OutfitToggleGenerator
         private static WardrobeOperationReceipt ExecuteOperation(WardrobeOperation c)
         {
             if (operationLedger.Get(c.id).state != "queued") return operationLedger.Get(c.id);
+            OperationUndoCheckpoint checkpoint = null;
             try
             {
                 var wait = OperationWaitingReason();
@@ -179,10 +219,15 @@ namespace OutfitToggleGenerator
                 if (operationLedger.Change(c.id, "running").state != "running") return operationLedger.Get(c.id);
                 activeOperationId = c.id;
                 var outcome = new WardrobeOperationReceipt.Outcome { sourceRevision = expected, affectedInstanceIds = new string[0] };
-                if (c.type == "capture-source")
+                if (c.type == "undo-operation")
+                {
+                    UndoOperation(c, outcome);
+                }
+                else if (c.type == "capture-source")
                 {
                     var captured = WardrobeShadowCapture.Capture(avatar, c.payload.variantId, exact, recipe: WardrobeAppearanceRecipe.Resolve(avatar, c.target.scopeId, c.payload.createToggles, c.payload.menuGroup));
                     outcome.captureManifestPath = captured.manifestPath;
+                    outcome.visualRevision = captured.visualRevision;
                     outcome.sourceRevision = captured.sourceRevision;
                     outcome.recipeRevision = captured.recipeRevision;
                     outcome.environmentRevision = captured.environmentRevision;
@@ -208,10 +253,18 @@ namespace OutfitToggleGenerator
                 }
                 else
                 {
+                    checkpoint = new OperationUndoCheckpoint
+                    {
+                        token = Guid.NewGuid().ToString(), operationId = c.id,
+                        target = JsonUtility.FromJson<WardrobeOperation.Target>(JsonUtility.ToJson(c.target)),
+                        presets = AvatarWardrobePresets.CaptureSettings(), overrides = AvatarWardrobeCatalog.CaptureOverrides(),
+                        uploads = ShiroTools.OutfitProjectData.CaptureSettings()
+                    };
                     var before = avatar.GetComponentsInChildren<Transform>(true).Select(x => x.gameObject.GetInstanceID()).ToArray();
-                    var removedId = StableObjectId(exact);
-                    var removedInstanceId = exact == null ? 0 : exact.GetInstanceID();
-                    var removedVariantId = exact == null ? "" : AssetDatabase.AssetPathToGUID(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(exact));
+                    var removesExact = exact != null && (c.type == "replace-outfit" || c.type == "remove-outfit");
+                    var removedId = removesExact ? StableObjectId(exact) : "";
+                    var removedInstanceId = removesExact ? exact.GetInstanceID() : 0;
+                    var removedVariantId = removesExact ? AssetDatabase.AssetPathToGUID(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(exact)) : "";
                     ResultDto result;
                     if (c.type == "remove-outfit") result = RemovePresetItem(c.payload.variantId, c.target.scopeId,
                         AnimationUtility.CalculateTransformPath(exact.transform, avatar.transform), exact.GetInstanceID().ToString());
@@ -230,10 +283,59 @@ namespace OutfitToggleGenerator
                     outcome.affectedInstanceIds = new[] { outcome.addedGlobalObjectId, removedId }.Where(x => !string.IsNullOrEmpty(x)).ToArray();
                 }
                 outcome.confirmedRevision = Revision(avatar); outcome.unsaved = avatar.gameObject.scene.isDirty;
-                return operationLedger.Change(c.id, "succeeded", outcome);
+                if (checkpoint != null)
+                {
+                    Undo.FlushUndoRecordObjects();
+                    checkpoint.group = Undo.GetCurrentGroup(); checkpoint.label = "Wardrobe operation " + c.id;
+                    Undo.SetCurrentGroupName(checkpoint.label);
+                    checkpoint.afterRevision = outcome.confirmedRevision; checkpoint.outcome = outcome;
+                    checkpoint.sceneStructure = OperationSceneStructure();
+                    checkpoint.afterPresets = AvatarWardrobePresets.CaptureSettings();
+                    checkpoint.afterOverrides = AvatarWardrobeCatalog.CaptureOverrides();
+                    checkpoint.afterUploads = ShiroTools.OutfitProjectData.CaptureSettings();
+                    outcome.undoToken = checkpoint.token;
+                }
+                var completed = operationLedger.Change(c.id, "succeeded", outcome);
+                if (checkpoint != null && completed.state == "succeeded") lastOperationUndo = checkpoint;
+                return completed;
             }
             catch (Exception e) { return operationLedger.Change(c.id, "needs-review", error: e.Message); }
             finally { activeOperationId = null; PublishOperationContext(true); }
+        }
+        private static void UndoOperation(WardrobeOperation command, WardrobeOperationReceipt.Outcome outcome)
+        {
+            // Flush delayed native property edits before trusting the captured group.
+            Undo.FlushUndoRecordObjects();
+            var checkpoint = lastOperationUndo;
+            if (checkpoint == null || checkpoint.token != command.payload.undoToken ||
+                JsonUtility.ToJson(checkpoint.target) != JsonUtility.ToJson(command.target))
+                throw new InvalidOperationException("This Undo belongs to an expired or different scene operation. Review the current avatar.");
+            if (Revision(SceneAvatar) != checkpoint.afterRevision ||
+                AvatarWardrobePresets.CaptureSettings() != checkpoint.afterPresets ||
+                AvatarWardrobeCatalog.CaptureOverrides() != checkpoint.afterOverrides ||
+                ShiroTools.OutfitProjectData.CaptureSettings() != checkpoint.afterUploads)
+                throw new InvalidOperationException("The avatar or settings changed after this operation. Nothing was undone.");
+            if (Undo.GetCurrentGroup() != checkpoint.group || Undo.GetCurrentGroupName() != checkpoint.label ||
+                OperationSceneStructure() != checkpoint.sceneStructure)
+                throw new InvalidOperationException("Unity's latest Undo group changed. Nothing was undone; use Unity's history to review later edits.");
+            // No await, callback or other mutation is allowed between these ownership guards and the exact group revert.
+            lastOperationUndo = null;
+            Undo.RevertAllDownToGroup(checkpoint.group);
+            try { AvatarWardrobePresets.RestoreSettings(checkpoint.presets); }
+            finally
+            {
+                try { AvatarWardrobeCatalog.RestoreOverrides(checkpoint.overrides); }
+                finally { ShiroTools.OutfitProjectData.RestoreSettings(checkpoint.uploads); }
+            }
+            WardrobeEditHistory.Capture();
+            outcome.undidOperationId = checkpoint.operationId;
+            outcome.addedInstanceId = checkpoint.outcome.removedInstanceId;
+            outcome.addedGlobalObjectId = checkpoint.outcome.removedGlobalObjectId;
+            outcome.removedInstanceId = checkpoint.outcome.addedInstanceId;
+            outcome.removedGlobalObjectId = checkpoint.outcome.addedGlobalObjectId;
+            outcome.affectedInstanceIds = checkpoint.outcome.affectedInstanceIds;
+            outcome.message = "Undid this operation and restored its wardrobe settings. Undo is available only during the same Unity session.";
+            InvalidateInstalled();
         }
     }
 }

@@ -16,7 +16,7 @@ namespace OutfitToggleGenerator
         [Serializable] internal sealed class Precondition { public string observedRevision, afterOperationId; }
         [Serializable] internal sealed class Payload
         {
-            public string variantId, assetVersion, instanceId, previewToken, view, menuGroup, itemPath;
+            public string variantId, assetVersion, instanceId, previewToken, undoToken, view, menuGroup, itemPath;
             public bool addCopy, allowUnverified, createToggles, before;
             public float zoom = 1;
         }
@@ -29,11 +29,11 @@ namespace OutfitToggleGenerator
         public Outcome result;
         [Serializable] internal sealed class Outcome
         {
-            public string confirmedRevision, snapshotKey, message, sourceRevision, captureManifestPath, recipeRevision, environmentRevision;
+            public string confirmedRevision, snapshotKey, message, sourceRevision, visualRevision, captureManifestPath, recipeRevision, environmentRevision;
             public bool unsaved;
             public string[] affectedInstanceIds;
             public int addedInstanceId, removedInstanceId;
-            public string addedGlobalObjectId, removedGlobalObjectId, removedVariantId;
+            public string addedGlobalObjectId, removedGlobalObjectId, removedVariantId, undoToken, undidOperationId;
             public WardrobeTryOnWorker.Prepared preview;
         }
     }
@@ -49,7 +49,7 @@ namespace OutfitToggleGenerator
         internal string Error { get; private set; }
         internal bool HasPendingMutations { get { lock (gate) return store.receipts.Any(x =>
             (x.state == "queued" || x.state == "running") &&
-            (x.command.type == "wear-outfit" || x.command.type == "replace-outfit" || x.command.type == "remove-outfit")); } }
+            (x.command.type == "wear-outfit" || x.command.type == "replace-outfit" || x.command.type == "remove-outfit" || x.command.type == "undo-operation")); } }
         internal WardrobeOperationLedger(string path, string project, string session)
         {
             this.path = path; this.project = project; this.session = session;
@@ -134,19 +134,21 @@ namespace OutfitToggleGenerator
         {
             if (c == null || !Guid.TryParseExact(c.id, "D", out _) || c.target == null || c.precondition == null || c.payload == null)
                 throw new ArgumentException("A typed command, UUID, target, precondition and payload are required.");
-            if (c.type != "wear-outfit" && c.type != "replace-outfit" && c.type != "remove-outfit" && c.type != "prepare-preview" && c.type != "capture-source" && c.type != "render-snapshot")
+            if (c.type != "wear-outfit" && c.type != "replace-outfit" && c.type != "remove-outfit" && c.type != "prepare-preview" && c.type != "capture-source" && c.type != "render-snapshot" && c.type != "undo-operation")
                 throw new ArgumentException("Unsupported operation type.");
             if (c.target.projectId != project || string.IsNullOrEmpty(c.target.session) || c.target.avatarInstanceId == 0 ||
                 string.IsNullOrEmpty(c.target.avatarId) || string.IsNullOrEmpty(c.target.scopeId) || string.IsNullOrEmpty(c.precondition.observedRevision))
                 throw new ArgumentException("The command target and observed revision are incomplete or belong to another project.");
             if (!string.IsNullOrEmpty(c.precondition.afterOperationId) && (!Guid.TryParseExact(c.precondition.afterOperationId, "D", out _) || c.precondition.afterOperationId == c.id))
                 throw new ArgumentException("Invalid predecessor identity.");
-            if (c.type != "render-snapshot" && c.type != "prepare-preview" && c.type != "capture-source" && string.IsNullOrEmpty(c.payload.variantId))
+            if (c.type != "render-snapshot" && c.type != "prepare-preview" && c.type != "capture-source" && c.type != "undo-operation" && string.IsNullOrEmpty(c.payload.variantId))
                 throw new ArgumentException("Choose a resolved outfit variant.");
             if ((c.type == "replace-outfit" || c.type == "remove-outfit") && string.IsNullOrEmpty(c.payload.instanceId))
                 throw new ArgumentException("Choose the exact worn instance.");
             if (!string.IsNullOrEmpty(c.payload.variantId) && !System.Text.RegularExpressions.Regex.IsMatch(c.payload.variantId, "\\A[0-9a-fA-F]{32}\\z"))
                 throw new ArgumentException("Invalid variant identity.");
+            if (c.type == "undo-operation" && !Guid.TryParseExact(c.payload.undoToken, "D", out _))
+                throw new ArgumentException("A session-only undo token is required.");
             if (c.type == "render-snapshot" && (string.IsNullOrEmpty(c.payload.previewToken) ||
                 (c.payload.view != "front" && c.payload.view != "three-quarter" && c.payload.view != "back")))
                 throw new ArgumentException("Choose a prepared snapshot and supported view.");

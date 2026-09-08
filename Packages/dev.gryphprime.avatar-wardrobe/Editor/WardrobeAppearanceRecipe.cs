@@ -22,7 +22,17 @@ namespace OutfitToggleGenerator
         internal sealed class Bound
         {
             private readonly Dictionary<GameObject, bool> values = new Dictionary<GameObject, bool>();
-            internal void Set(GameObject target, bool active) { values[target] = active; }
+            internal void SetDefault(GameObject target, bool active)
+            {
+                if (values.TryGetValue(target, out var prior) && prior != active)
+                    throw new InvalidOperationException("Generated wardrobe controls disagree about an object's default visibility. Repair the controls before previewing.");
+                values[target] = active;
+            }
+            internal void SetScope(GameObject target, bool active)
+            {
+                // Selecting a preset admits its items; it must not enable every menu alternative.
+                if (!active || !values.ContainsKey(target)) values[target] = active;
+            }
             internal void Apply()
             {
                 foreach (var pair in values)
@@ -72,7 +82,21 @@ namespace OutfitToggleGenerator
         }
         internal static void PlaceCandidate(GameObject root, GameObject candidate, Recipe recipe, bool replacement)
         {
-            if (candidate == null || replacement) return;
+            if (candidate == null) return;
+            var partHosts = candidate.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
+                .Where(marker => marker.generatedKind == "part-toggles").ToArray();
+            if (partHosts.Length > 0)
+            {
+                // Wear with createToggles=false removes these generated controls and restores their defaults.
+                Bind(candidate, null);
+                foreach (var host in partHosts)
+                {
+                    if (host.GetComponentsInChildren<Transform>(true).Any(child => child.GetComponent<OutfitToggleGeneratedMenu>() == null))
+                        throw new InvalidOperationException("Generated part controls contain user content and cannot be removed from this preview safely.");
+                    UnityEngine.Object.DestroyImmediate(host.gameObject);
+                }
+            }
+            if (replacement) return;
             var parent = WardrobeTryOnWorker.AtSiblingPath(root.transform, recipe?.candidateParent ?? new int[0]);
             // Match explicit install placement while retaining the prefab's avatar-relative position.
             candidate.transform.SetParent(parent, true);
@@ -94,12 +118,12 @@ namespace OutfitToggleGenerator
                     var target = entry.Object?.Get(toggle);
                     if (target == null || (target != root && !target.transform.IsChildOf(root.transform)))
                         throw new InvalidOperationException("A generated wardrobe control refers outside the captured avatar.");
-                    result.Set(target, item.isDefault);
+                    result.SetDefault(target, item.isDefault);
                 }
             }
             if (recipe != null)
                 foreach (var rule in recipe.scopeRules)
-                    result.Set(WardrobeTryOnWorker.AtSiblingPath(root.transform, rule.path).gameObject, rule.active);
+                    result.SetScope(WardrobeTryOnWorker.AtSiblingPath(root.transform, rule.path).gameObject, rule.active);
             result.Apply();
             return result;
         }

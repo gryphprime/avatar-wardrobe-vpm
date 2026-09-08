@@ -9,6 +9,10 @@ assert.throws(()=>O.normalize('replace-outfit',input,context),/exact worn copy/)
 assert.throws(()=>O.normalize('wear-outfit',{variantId:'../file'},context),/specific outfit/);
 assert.throws(()=>O.normalize('wear-outfit',input,{}),/Pin an avatar/);
 assert.throws(()=>O.normalize('render-snapshot',{zoom:Infinity},context),/zoom/);
+const undoToken='00000000-0000-4000-8000-000000000123';
+assert.equal(O.normalize('undo-operation',{undoToken},context).payload.undoToken,undoToken);
+assert.equal(O.isMutation('undo-operation'),true);
+assert.throws(()=>O.normalize('undo-operation',{undoToken:'expired'},context),/session-only/);
 let release,posts=0,changes=[],serverRecords=[],currentContext={...context};
 const client=O.create({api:async(path,options)=>{
  if(path==='/api/operation_context')return currentContext;
@@ -29,5 +33,62 @@ const client=O.create({api:async(path,options)=>{
  const independent=client.build('wear-outfit',input);assert.equal(independent.precondition.afterOperationId,'','a later observed edit is checked as a new base');
  currentContext={...context,avatarInstanceId:22,avatarId:'new-target'};await client.refresh();
  await assert.rejects(()=>client.submit(independent),/target changed/);assert.equal(posts,1,'stale target never posted');
- client.close();console.log('operations: normalization, immediate projection, ordered revisions, terminal wait and target checks passed');
+ client.close();
+ const local=new Map();window.localStorage={getItem:key=>local.get(key)||null,setItem:(key,value)=>local.set(key,value)};
+ const failedCommand=O.normalize('replace-outfit',{...input,instanceId:'exact-copy'},context,'00000000-0000-4000-8000-000000000401','prior-failed');
+ const reviewCommand=O.normalize('wear-outfit',input,context,'00000000-0000-4000-8000-000000000402');
+ let receipts=[{id:failedCommand.id,type:failedCommand.type,command:failedCommand,state:'failed',error:'Earlier change failed'},
+   {id:reviewCommand.id,type:reviewCommand.type,command:reviewCommand,state:'needs-review',error:'Receipt is uncertain'}];
+ let freshContext={...context,revision:'fresh-revision'},posted=[],receiptOverride=null,postError=false;
+ const recoveryApi=async(path,options)=>{
+   if(path==='/api/operation_context')return freshContext;
+   if(path.startsWith('/api/operations?id='))return receiptOverride||receipts.find(record=>record.id===decodeURIComponent(path.split('=')[1]));
+   if(options.method==='GET')return {items:receipts};
+   const command=JSON.parse(options.body);posted.push(command);
+   if(postError)throw Error('Lost acceptance response');
+   const receipt={id:command.id,type:command.type,command,state:'queued'};receipts.push(receipt);return receipt;
+ };
+ const start=async()=>{const value=O.create({api:recoveryApi});value.setHost(true);await new Promise(resolve=>setImmediate(resolve));return value;};
+ let recovery=await start();
+ assert.equal(recovery.pending().length,0,'failed/review notices are not pending mutations');
+ assert.equal(recovery.notices('common').length,2,'failed and Needs review remain beside Wearing');
+ assert.equal(recovery.notices('another-preset').length,0,'notices respect the selected preset');
+ const immutable=JSON.stringify(receipts[0]);recovery.dismiss(failedCommand.id);
+ assert.equal(recovery.notices('common').length,1);assert.equal(recovery.list().length,2,'dismiss does not erase activity outcome');
+ assert.equal(JSON.stringify(receipts[0]),immutable,'dismiss never changes the durable receipt');
+ recovery.close();recovery=await start();assert.equal(recovery.notices('common').length,1,'dismissal survives reload');
+ receipts[0]={...receipts[0],error:'A newly discovered failure detail'};await recovery.refresh();
+ assert.equal(recovery.notices('common').length,2,'changed failure information resurfaces for review');
+ recovery.dismiss(failedCommand.id);recovery.restore(failedCommand.id);assert.equal(recovery.notices('common').length,2);
+ await assert.rejects(()=>recovery.retry(reviewCommand.id,'common'),/Uncertain or accepted/);assert.equal(posted.length,0);
+ await assert.rejects(()=>recovery.retry(failedCommand.id,'other-preset'),/original preset/);assert.equal(posted.length,0);
+ const retry1=recovery.retry(failedCommand.id,'common'),retry2=recovery.retry(failedCommand.id,'common');assert.equal(retry1,retry2,'double retry clicks share one in-flight action');
+ const retried=await retry1;assert.equal(posted.length,1);assert.notEqual(retried.id,failedCommand.id,'known failure retries have a new immutable identity');
+ assert.equal(posted[0].precondition.observedRevision,'fresh-revision');assert.equal(posted[0].precondition.afterOperationId,'','a retry does not inherit a failed predecessor');
+ assert.equal(posted[0].payload.instanceId,'exact-copy');assert.equal(posted[0].payload.assetVersion,'hash','retry never silently updates asset identity');
+ assert.equal(recovery.list().find(record=>record.id===failedCommand.id).state,'failed');
+ assert.equal(recovery.list().find(record=>record.id===failedCommand.id).dismissed,true);
+ assert.throws(()=>recovery.dismiss(retried.id),/settled change/,'pending work cannot be dismissed as finished');
+ recovery.close();recovery=await start();recovery.restore(failedCommand.id);
+ assert.equal(recovery.canRetry(recovery.list().find(record=>record.id===failedCommand.id)),false,'a prior retry link survives reload and prevents another copy');
+ recovery.close();
+ // A server that accepted or completed the same ID since the last poll must never
+ // receive a new ID, even when the old client projection still says Failed.
+ const old=O.normalize('wear-outfit',input,context,'00000000-0000-4000-8000-000000000403');
+ receipts=[{id:old.id,type:old.type,command:old,state:'failed',error:'Old result'}];recovery=await start();
+ receiptOverride={...receipts[0],state:'queued'};
+ await assert.rejects(()=>recovery.retry(old.id,'common'),/durable result changed/);assert.equal(posted.length,1);
+ assert.equal(recovery.list()[0].state,'queued','fresh receipt replaces stale failure projection');
+ recovery.close();receiptOverride=null;
+ receipts=[{id:old.id,type:old.type,command:old,state:'failed',error:'Old result'}];freshContext={...context,revision:'latest'};recovery=await start();
+ freshContext={...context,avatarInstanceId:22,avatarId:'another-avatar',revision:'new'};
+ await assert.rejects(()=>recovery.retry(old.id,'common'),/pinned project, scene or avatar changed/);assert.equal(posted.length,1);
+ recovery.close();freshContext={...context,session:'new-session',avatarInstanceId:22,revision:'new'};recovery=await start();
+ assert.equal(recovery.notices('common').length,1,'a saved-avatar notice remains visible after restart');
+ await assert.rejects(()=>recovery.retry(old.id,'common'),/original pinned avatar/);assert.equal(posted.length,1);
+ recovery.close();freshContext={...context,revision:'latest'};recovery=await start();postError=true;
+ await assert.rejects(()=>recovery.retry(old.id,'common'),/Lost acceptance/);assert.equal(posted.length,2);
+ assert.equal(recovery.list().find(record=>record.id===posted[1].id).state,'acceptance-unknown');
+ await assert.rejects(()=>recovery.retry(old.id,'common'),/Uncertain or accepted/);assert.equal(posted.length,2,'an ambiguous retry cannot create another new ID');
+ recovery.close();console.log('operations: normalization, ordered revisions, persistent failure notices, safe fresh retry, exact targets and ambiguous acceptance passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

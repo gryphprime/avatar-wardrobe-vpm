@@ -1771,6 +1771,54 @@
         {
           "k": "scene.enableHint",
           "v": "Inspect the pinned avatar hierarchy, edit objects and component fields, and use Unity Undo."
+        },
+        {
+          "k": "library.batchResult",
+          "v": "{0} files accepted; {1} failed. Review the file results below."
+        },
+        {
+          "k": "library.editDetails",
+          "v": "Edit product details"
+        },
+        {
+          "k": "library.creator",
+          "v": "Creator"
+        },
+        {
+          "k": "library.product",
+          "v": "Product name"
+        },
+        {
+          "k": "library.source",
+          "v": "Creator or product page"
+        },
+        {
+          "k": "library.saveDetails",
+          "v": "Save product details"
+        },
+        {
+          "k": "grid.chooseAvatar",
+          "v": "Choose avatar"
+        },
+        {
+          "k": "grid.chooseAvatarHint",
+          "v": "Choose the scene avatar you want to dress."
+        },
+        {
+          "k": "grid.addFilesHint",
+          "v": "No outfits are available in this project yet. Add your purchased files to get started."
+        },
+        {
+          "k": "grid.offlineHint",
+          "v": "Unity is offline. Your local library is still available."
+        },
+        {
+          "k": "grid.clearFilters",
+          "v": "Clear filters"
+        },
+        {
+          "k": "grid.openLibrary",
+          "v": "Open local library"
         }
       ]
     },
@@ -3377,6 +3425,54 @@
         {
           "k": "scene.ready",
           "v": "確認・編集するオブジェクトを選択してください。"
+        },
+        {
+          "k": "library.batchResult",
+          "v": "{0} 件のファイルを受け付けました。失敗: {1} 件。下の結果を確認してください。"
+        },
+        {
+          "k": "library.editDetails",
+          "v": "商品情報を編集"
+        },
+        {
+          "k": "library.creator",
+          "v": "制作者"
+        },
+        {
+          "k": "library.product",
+          "v": "商品名"
+        },
+        {
+          "k": "library.source",
+          "v": "制作者または商品のページ"
+        },
+        {
+          "k": "library.saveDetails",
+          "v": "商品情報を保存"
+        },
+        {
+          "k": "grid.chooseAvatar",
+          "v": "アバターを選択"
+        },
+        {
+          "k": "grid.chooseAvatarHint",
+          "v": "着せ替えるシーン内のアバターを選択してください。"
+        },
+        {
+          "k": "grid.addFilesHint",
+          "v": "このプロジェクトにはまだ衣装がありません。購入済みのファイルを追加して始めましょう。"
+        },
+        {
+          "k": "grid.offlineHint",
+          "v": "Unity はオフラインです。ローカルライブラリは引き続き利用できます。"
+        },
+        {
+          "k": "grid.clearFilters",
+          "v": "絞り込みを解除"
+        },
+        {
+          "k": "grid.openLibrary",
+          "v": "ローカルライブラリを開く"
         }
       ]
     }

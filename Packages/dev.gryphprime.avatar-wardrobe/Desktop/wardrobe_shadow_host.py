@@ -10,6 +10,9 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
+import re
+import itertools
+import math
 from pathlib import Path
 import shutil
 import threading
@@ -17,6 +20,7 @@ import time
 import uuid
 
 from wardrobe_shadow import ShadowWorker, atomic_json, load_manifest, sha256
+from wardrobe_snapshot_cache import CaptureRetention
 
 
 class ShadowSnapshotService:
@@ -27,11 +31,13 @@ class ShadowSnapshotService:
         self.project = str(Path(project).resolve())
         self.timeout, self.history_bytes = timeout, history_bytes
         self.worker = ShadowWorker(self.cache / 'worker')
+        self.retention = CaptureRetention(self.project)
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='wardrobe-shadow')
         self.lock = threading.RLock()
         self.requests = {}
         self.closed = False
         for name in ('receipts', 'images'):
+            if (self.cache / name).is_symlink(): raise ValueError('Snapshot cache directories cannot be linked.')
             (self.cache / name).mkdir(exist_ok=True)
         # A host restart does not silently replay work whose previous worker outcome is unknown.
         for path in (self.cache / 'receipts').glob('*.json'):
@@ -43,7 +49,7 @@ class ShadowSnapshotService:
             except (OSError, ValueError):
                 continue
 
-    def submit(self, manifest_path, view='front', *, before=False, zoom=1.0, confirmed_revision='', target=None):
+    def submit(self, manifest_path, view='front', *, before=False, zoom=1.0, confirmed_revision='', target=None, operation_id='', source_input=None):
         path, manifest = load_manifest(manifest_path)
         if str(Path(manifest['projectPath']).resolve()) != self.project:
             raise ValueError('The capture belongs to another source project.')
@@ -51,15 +57,19 @@ class ShadowSnapshotService:
             raise ValueError('Choose a supported photograph view and zoom between 0.5 and 2.5.')
         specification = {'project': self.project, 'avatarId': manifest.get('avatarId'), 'sourceRevision': manifest['sourceRevision'],
                          'recipeRevision': manifest['recipeRevision'], 'environmentRevision': manifest['environmentRevision'],
+                         'visualRevision': manifest.get('visualRevision') or manifest['sourceRevision'],
                          'renderSpecification': manifest.get('renderSpecification', ''), 'view': view, 'before': bool(before), 'zoom': float(zoom)}
-        key = hashlib.sha256(json.dumps(specification, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        image_specification = dict(specification, sourceRevision=specification['visualRevision'])
+        key = hashlib.sha256(json.dumps(image_specification, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         with self.lock:
             if self.closed:
                 raise RuntimeError('The snapshot service is closed.')
             identifier = uuid.uuid4().hex
+            self.retention.acquire(path, identifier, max(3600, self.timeout * 3))
             receipt = {'id': identifier, 'state': 'queued', 'snapshotKey': key, 'captureId': manifest['captureId'],
-                       'created': time.time(), 'confirmedRevision': confirmed_revision,
-                       'target': dict(target or {'projectId': self.project, 'avatarInstanceId': manifest.get('avatarId')}), **specification}
+                       'created': time.time(), 'captureManifestPath': str(path), 'confirmedRevision': confirmed_revision,
+                       'target': dict(target or {'projectId': self.project, 'avatarInstanceId': manifest.get('avatarId')}),
+                       'operationId': operation_id, 'input': dict(source_input or {}), **specification}
             cancellation = threading.Event()
             self.requests[identifier] = {'receipt': receipt, 'cancel': cancellation}
             self._write(receipt)
@@ -85,16 +95,28 @@ class ShadowSnapshotService:
                 return dict(request['receipt'])
             request['cancel'].set()
             queued = request['future'].cancel()
+            if queued:
+                self.retention.release(request['receipt']['captureManifestPath'], identifier)
             self._set(identifier, state='cancelled' if queued else 'cancelling',
                       message='' if queued else 'Discarding this photograph when the current synchronous worker step finishes.')
             return dict(request['receipt'])
 
     def pin(self, snapshot_key, pinned=True):
-        if len(snapshot_key) != 64 or any(character not in '0123456789abcdef' for character in snapshot_key):
+        if not isinstance(snapshot_key, str) or not re.fullmatch('[a-f0-9]{64}', snapshot_key):
             raise ValueError('Invalid snapshot identity.')
         with self.lock:
             path = self.cache / 'images' / (snapshot_key + '.json')
-            value = json.loads(path.read_text())
+            value = self._cached(snapshot_key)
+            if value is None: raise ValueError('This photograph is unavailable or does not belong to this project.')
+            if pinned and not value.get('pinned') and sum(bool(item.get('pinned')) for item in self._history_metadata()) >= 100:
+                raise ValueError('Keep up to 100 photographs. Unkeep a photo before keeping another.')
+            capture_path = value.get('captureManifestPath')
+            if not capture_path and isinstance(value.get('captureId'), str) and len(value['captureId']) == 32:
+                capture_path = str(self.retention.captures / value['captureId'] / 'manifest.json')
+            if capture_path and Path(capture_path).exists():
+                retention_key = hashlib.sha256((str(self.cache) + ':' + snapshot_key).encode()).hexdigest()
+                self.retention.pin(capture_path, retention_key, bool(pinned))
+                value['captureRetained'] = bool(pinned)
             value['pinned'] = bool(pinned)
             atomic_json(path, value)
             return value
@@ -131,7 +153,7 @@ class ShadowSnapshotService:
             cached = self._cached(receipt['snapshotKey'])
             if cached:
                 self._set(identifier, state='succeeded', imagePath=cached['imagePath'], imageSha256=cached['imageSha256'],
-                          preview=cached.get('preview'), cached=True)
+                          preview=cached.get('preview'), imageSourceRevision=cached.get('sourceRevision'), cached=True)
                 return
             self._set(identifier, state='waiting-for-worker', message='Preparing the private Unity snapshot worker.')
             self._ensure_capture(path, manifest)
@@ -175,18 +197,98 @@ class ShadowSnapshotService:
             self._prune(receipt['snapshotKey'])
         except Exception as error:
             self._set(identifier, state='cancelled' if cancellation.is_set() else 'failed', message=str(error))
+        finally:
+            try:
+                self.retention.release(path, identifier)
+                self.retention.prune()
+            except (OSError, ValueError, RuntimeError):
+                pass  # Retention never changes a successful photograph into a failed request.
+
+    def _metadata(self, key, verify=False):
+        if not isinstance(key, str) or not re.fullmatch('[a-f0-9]{64}', key): return None
+        directory = self.cache / 'images'
+        metadata, image = directory / (key + '.json'), directory / (key + '.png')
+        try:
+            if (directory.is_symlink() or metadata.is_symlink() or image.is_symlink() or
+                    not metadata.is_file() or not image.is_file() or metadata.stat().st_size > 2 * 1024 * 1024 or
+                    image.stat().st_size > 64 * 1024 * 1024): return None
+            with metadata.open('r', encoding='utf-8') as stream: raw = stream.read(2 * 1024 * 1024 + 1)
+            if len(raw) > 2 * 1024 * 1024: return None
+            value = json.loads(raw)
+            if (not isinstance(value, dict) or value.get('snapshotKey') != key or value.get('project') != self.project or
+                    value.get('state') != 'succeeded' or not isinstance(value.get('imageSha256'), str) or
+                    not re.fullmatch('[a-f0-9]{64}', value['imageSha256']) or not isinstance(value.get('target'), dict) or
+                    value['target'].get('projectId') != self.project): return None
+            for field in ('created', 'completed'):
+                stamp = value.get(field, 0)
+                if not isinstance(stamp, (int, float)) or isinstance(stamp, bool) or not math.isfinite(stamp) or stamp < 0: return None
+            if not isinstance(value.get('pinned', False), bool): return None
+            if value.get('view') not in ('front', 'three-quarter', 'back') or not isinstance(value.get('before'), bool): return None
+            for field in ('sourceRevision', 'visualRevision', 'confirmedRevision', 'recipeRevision', 'environmentRevision'):
+                if not isinstance(value.get(field, ''), str) or len(value.get(field, '')) > 4096: return None
+            if verify and value['imageSha256'] != sha256(image): return None
+            value['imagePath'] = str(image)
+            return value
+        except (OSError, ValueError, TypeError): return None
 
     def _cached(self, key):
-        metadata = self.cache / 'images' / (key + '.json')
-        image = metadata.with_suffix('.png')
-        if not metadata.exists() or not image.exists(): return None
-        try:
-            value = json.loads(metadata.read_text())
-            if value.get('snapshotKey') == key and value.get('imageSha256') == sha256(image):
-                value['imagePath'] = str(image)
-                return value
-        except (OSError, ValueError): pass
-        return None
+        return self._metadata(key, verify=True)
+
+    def _history_metadata(self):
+        # Generated metadata is bounded per file and cache retention caps new entries.
+        # Unexpected extra files are left untouched rather than followed or deleted.
+        result = []
+        for path in itertools.islice((self.cache / 'images').glob('*.json'), 4096):
+            value = self._metadata(path.stem)
+            if value is not None: result.append(value)
+        return sorted(result, key=lambda value: (value.get('completed', value.get('created', 0)), value['snapshotKey']), reverse=True)
+
+    @staticmethod
+    def public_photo(value, preview=False):
+        fields = ('snapshotKey', 'pinned', 'completed', 'created', 'view', 'before', 'zoom', 'target',
+                  'sourceRevision', 'visualRevision', 'confirmedRevision', 'recipeRevision', 'environmentRevision',
+                  'operationId', 'input', 'captureRetained')
+        result = {field: value[field] for field in fields if field in value}
+        result['target'] = {key: item for key, item in value.get('target', {}).items()
+                            if key in ('projectId', 'sceneGuid', 'avatarId', 'avatarInstanceId', 'session', 'scopeId') and
+                            (isinstance(item, int) or isinstance(item, str) and len(item) <= 4096)}
+        result['input'] = {key: item for key, item in value.get('input', {}).items()
+                           if key in ('variantId', 'assetVersion', 'instanceId', 'scopeId', 'addCopy', 'allowUnverified', 'createToggles') and
+                           (isinstance(item, bool) or isinstance(item, str) and len(item) <= 4096)} if isinstance(value.get('input'), dict) else {}
+        if not isinstance(value.get('input'), dict): result.pop('input', None)
+        if not isinstance(result.get('operationId'), str) or len(result.get('operationId', '')) > 36: result.pop('operationId', None)
+        result['imageUrl'] = '/api/shadow/image?key=' + value['snapshotKey']
+        result['exportUrl'] = '/api/shadow/export?key=' + value['snapshotKey']
+        if preview: result['preview'] = value.get('preview')
+        return result
+
+    def history(self, *, pinned=True, limit=50, offset=0, avatar_id=None, scene_guid=None, scope_id=None):
+        if not isinstance(limit, int) or not 1 <= limit <= 100 or not isinstance(offset, int) or not 0 <= offset <= 4096:
+            raise ValueError('Choose a history page of 1–100 photographs.')
+        with self.lock:
+            values = [value for value in self._history_metadata() if (not pinned or value.get('pinned')) and
+                      (avatar_id is None or value['target'].get('avatarId') == avatar_id) and
+                      (scene_guid is None or value['target'].get('sceneGuid') == scene_guid) and
+                      (scope_id is None or value['target'].get('scopeId') == scope_id)]
+            selected = values[offset:offset + limit]
+            next_offset = offset + len(selected)
+            return {'ok': 1, 'projectId': self.project, 'items': [self.public_photo(value) for value in selected],
+                    'nextOffset': next_offset if next_offset < len(values) else None, 'truncated': len(values) > offset + limit}
+
+    def photo(self, key):
+        with self.lock:
+            value = self._cached(key)
+            return self.public_photo(value, preview=True) if value else None
+
+    def image_bytes(self, key):
+        with self.lock:
+            value = self._metadata(key)
+            if value is None: return None
+            # Verify the exact bytes returned; never use a path supplied in metadata.
+            with Path(value['imagePath']).open('rb') as stream:
+                data = stream.read(64 * 1024 * 1024 + 1)
+            if len(data) > 64 * 1024 * 1024 or hashlib.sha256(data).hexdigest() != value['imageSha256']: return None
+            return data
 
     def _ensure_capture(self, path, manifest):
         current = self.worker._owner() if self.worker.project.exists() else None
@@ -219,13 +321,16 @@ class ShadowSnapshotService:
         raise TimeoutError('The prior shadow editor has not stopped. The source project has not been changed.')
 
     def _prune(self, keep):
+        with self.lock: self._prune_locked(keep)
+
+    def _prune_locked(self, keep):
         entries = []
         for path in (self.cache / 'images').glob('*.json'):
             image = path.with_suffix('.png')
             if not image.exists(): continue
             try:
-                value = json.loads(path.read_text())
-                entries.append((value, path, image, image.stat().st_size))
+                value = self._metadata(path.stem)
+                if value is not None: entries.append((value, path, image, image.stat().st_size))
             except (OSError, ValueError): continue
         # Preserve one latest photo per avatar/view/before combination, plus explicitly pinned photos.
         latest = {}
@@ -235,6 +340,8 @@ class ShadowSnapshotService:
         protected = {value.get('snapshotKey') for value in latest.values()} | {keep}
         total = sum(entry[3] for entry in entries)
         for value, path, image, size in sorted(entries, key=lambda entry: entry[0].get('completed', 0)):
-            if total <= self.history_bytes: break
-            if value.get('pinned') or value.get('snapshotKey') in protected: continue
+            if total <= self.history_bytes and len(entries) <= 1000: break
+            if value.get('pinned') or value.get('snapshotKey') == keep: continue
+            if len(entries) <= 1000 and value.get('snapshotKey') in protected: continue
             image.unlink(missing_ok=True); path.unlink(missing_ok=True); total -= size
+            entries.remove((value, path, image, size))

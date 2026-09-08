@@ -11,7 +11,7 @@
   var indexing=0,indexDone=0,indexTotal=0,indexAction=null,diagInFlight=false,initialGridPending=true;
   var installInFlight=false,removeInFlight=false,uploadInFlight=false,aiInFlight=false;
   var inspectorMode="installed",selectedFamilyId="",installedItems=[],detailLoadToken=0,detailToken=0;
-  var detailSelect=null,detailCount=0,detailIndex=0;
+  var detailSelect=null,detailCount=0,detailIndex=0,detailVariantGuid="";
   var grid=$("grid"),status=$("status"),avatar=$("avatar"),pageinfo=$("pageinfo"),emptyGridState=$("emptyGridState");
   var side=$("side"),sideContent=$("sideContent"),modal=$("modal"),modalContent=$("modalContent"),modalTitle=$("modalTitle"),modalMode=$("modalMode");
   var sideBackdrop=$("sideBackdrop"),hideBtn=$("hideEmpty"),avatarModeChip=$("workflowMulti");
@@ -78,38 +78,52 @@
   avatarModeChip.onchange=saveMode;$("workflowOne").onchange=saveMode;
   $("workflowPreset").onchange=async function(){
     var select=this,previous=selectedPreset;select.disabled=true;modeSaving=true;workflowRevision++;
-    try{var result=await api('/api/workflow?selected='+encodeURIComponent(select.value));if(!result.ok)throw new Error(result.message);selectedPreset=select.value;sideContent.dataset.signature="";loadInstalled();dropCaches();load();}
+    try{var result=await api('/api/workflow?selected='+encodeURIComponent(select.value));if(!result.ok)throw new Error(result.message);selectedPreset=select.value;if(currentView==='appearanceEditor')window.WardrobeAppearanceEditor.show();if(snapshots)snapshots.contextChanged();sideContent.dataset.signature="";loadInstalled();dropCaches();load();}
     catch(error){select.value=previous;toast(error.message,'err');}
     finally{select.disabled=false;modeSaving=false;}
   };
   function paintWorkflowState(s){
     if(modeSaving)return;
-    var previousPreset=selectedPreset;
+    var previousPreset=selectedPreset,previousScope=effectivePreset();
     selectedPreset=s.selectedPreset||'common';
     var select=$("workflowPreset"),items=[{id:'common',name:T('preset.common')}].concat(s.workflowPresets||[]);
     R.reconcile(select,items,function(p){return p.id;},function(){return document.createElement('option');},function(option,p){option.value=p.id;R.text(option,p.name);});
     if(!items.some(function(p){return p.id===selectedPreset;}))selectedPreset='common';
     select.value=selectedPreset;applyAvatarMode(s.wardrobeMode==='multi-avatar');
     if(previousPreset!==selectedPreset&&avatarMode){dropCaches();load();}
+    if(previousScope!==effectivePreset()){if(snapshots)snapshots.contextChanged();if(currentView==='appearanceEditor')window.WardrobeAppearanceEditor.show();}
   }
   function paintEmptyGrid(){
     var empty=listItems.length===0;
     emptyGridState.classList.toggle("on",empty);
     if(!empty) return;
-    var mode=(initialGridPending||indexing||listInflight||indexAction)?"loading":gridNotice==="error"?"error":"empty";
-    var message=mode==="loading"?T(indexing?(indexPhase==="discovery"?"index.discovery":indexPhase==="dependencies"?"index.dependencies":"banner.indexing"):"grid.loading",indexDone,indexTotal):T(mode==="error"?"grid.error":"grid.empty");
+    var state=lastState||{},filtered=!!(search||shop||category||hideEmpty||filter!=="all");
+    var mode=!connected&&state.desktop?"offline":(initialGridPending||indexing||listInflight||indexAction)?"loading":connected&&lastState&&!state.avatarInstanceId?"target":gridNotice==="error"?"error":state.desktop&&state.outfits===0?"files":filtered?"filters":"empty";
+    var message=mode==="loading"?T(indexing?(indexPhase==="discovery"?"index.discovery":indexPhase==="dependencies"?"index.dependencies":"banner.indexing"):"grid.loading",indexDone,indexTotal):T({target:"grid.chooseAvatarHint",error:"grid.error",offline:"grid.offlineHint",files:"grid.addFilesHint",filters:"grid.empty",empty:"grid.empty"}[mode]);
     if(message==="grid.loading")message="Loading wardrobe…";
-    if(emptyGridState.dataset.mode!==mode){
-      emptyGridState.dataset.mode=mode;
-      emptyGridState.innerHTML=(mode==="loading"?spinner(36):'<svg class="icon empty-icon" aria-hidden="true"><use href="#icon-wardrobe"></use></svg>')+'<strong class="empty-grid-label"></strong>'+(mode==="error"?'<button type="button" id="gridRetry">'+esc(T("grid.retry"))+'</button>':"");
+    var actions=mode==="target"?[["gridChooseAvatar","grid.chooseAvatar"]]:mode==="files"?[["gridAddFiles","library.add"]]:mode==="filters"?[["gridClearFilters","grid.clearFilters"]]:mode==="error"||mode==="offline"?[["gridRetry","grid.retry"]]:[];
+    if(state.desktop&&(mode==="offline"||mode==="error"))actions.push(["gridAddFiles","grid.openLibrary"]);
+    var signature=JSON.stringify([mode,langCode,actions]);
+    if(emptyGridState.dataset.mode!==signature){
+      emptyGridState.dataset.mode=signature;
+      emptyGridState.innerHTML=(mode==="loading"?spinner(36):'<svg class="icon empty-icon" aria-hidden="true"><use href="#icon-wardrobe"></use></svg>')+'<strong class="empty-grid-label"></strong>'+actions.map(function(action){return '<button type="button" id="'+action[0]+'">'+esc(T(action[1]))+'</button>';}).join('');
     }
     R.text(emptyGridState.querySelector(".empty-grid-label"),message);
+  }
+  function emptyGridAction(id){
+    if(id==="gridRetry"){load();return;}
+    if(id==="gridChooseAvatar"){$("wardrobeTarget").focus();return;}
+    if(id==="gridAddFiles"){setBatchView("library");$("libraryFiles").focus();return;}
+    if(id==="gridClearFilters"){
+      search=shop=category="";hideEmpty=0;$("search").value=$("shop").value=$("category").value="";
+      R.store("wardrobeHideEmpty","0");paintHide();selectFilter("all");$("search").focus();
+    }
   }
 
   var langCode="en", langTable={}, langList=[];
   function T(key){
     // Empty/loading states can render before the language request completes.
-    var gridFallback={"grid.empty":"No items match your filters.","grid.loading":"Loading wardrobe…","grid.error":"Could not load items.","grid.retry":"Try again"};
+    var gridFallback={"grid.empty":"No items match your filters.","grid.loading":"Loading wardrobe…","grid.error":"Could not load items.","grid.retry":"Try again","grid.chooseAvatar":"Choose avatar","grid.chooseAvatarHint":"Choose the scene avatar you want to dress.","grid.addFilesHint":"No outfits are available in this project yet. Add your purchased files to get started.","grid.offlineHint":"Unity is offline. Your local library is still available.","grid.clearFilters":"Clear filters","grid.openLibrary":"Open local library","library.add":"Add purchased files"};
     var v=(langTable[key]!=null)?langTable[key]:(gridFallback[key]||key);
     for(var a=1;a<arguments.length;a++) v=v.split("{"+(a-1)+"}").join(arguments[a]==null?"":arguments[a]);
     return v;
@@ -386,6 +400,7 @@
       catalogEpoch=s.epoch||""; contextKey=nextContext;
       if(avatarChanged||expectedWorkflow===workflowRevision)paintWorkflowState(s);
       if(avatarChanged&&uploadUI&&currentView==="upload")uploadUI.show();
+      if(avatarChanged&&currentView==="appearanceEditor")window.WardrobeAppearanceEditor.show();
       if(avatarChanged&&currentView==="menuOrganizer")window.WardrobeMenuOrganizer.show();
       if(avatarChanged&&currentView==="advancedScene"&&window.WardrobeSceneEditor)window.WardrobeSceneEditor.show();
       var nextPreviews=[s.session||"",s.epoch||"",s.previewEpoch||0].join("|");
@@ -536,7 +551,7 @@
     }
     function selectVariant(n){
       if(detailBusy()) return;
-      i=n; v=variants[n]; detailIndex=n; detailSelect=selectVariant;
+      i=n; v=variants[n]; detailVariantGuid=v.guid;detailIndex=n; detailSelect=selectVariant;
       var count=document.getElementById("dVariantCount");
       if(count) count.textContent=variants.length>1?T("detail.variant.count",n+1,variants.length):"";
       var single=document.getElementById("dSingleVariant");
@@ -905,7 +920,11 @@
 
 
   var operations=window.WardrobeOperations.create({api:api,onChange:paintOperations,onSettled:function(record){
-    if(window.WardrobeOperations.isMutation(record.type)&&record.state==='succeeded'){dropCaches();sideContent.dataset.signature='';loadInstalled();load(false,true);refreshState();}
+    if(window.WardrobeOperations.isMutation(record.type)&&record.state==='succeeded'){
+      if(snapshots)snapshots.mutationSettled(record);
+      dropCaches();sideContent.dataset.signature='';loadInstalled();load(false,true);refreshState();
+      if(inspectorMode==='selected'&&selectedFamilyId){var selectedCopy=record.command.payload.variantId===detailVariantGuid&&record.result&&record.result.addedInstanceId||detailInstanceId;openDetail(selectedFamilyId,detailVariantGuid,{instanceId:selectedCopy});}
+    }
   }});
   var snapshots=window.WardrobeSnapshots.create({operations:operations,api:api,root:$('dressing'),scope:function(){return effectivePreset();}});
   function queueOutfit(type,input,label){try{var command=operations.build(type,input);operations.submit(command,label).catch(function(error){toast(error.message,'err');});}catch(error){toast(error.message,'err');}}
@@ -924,26 +943,50 @@
     }catch(error){toast(error.message,'err');}
   }
   function paintOperations(records,context){
+    function reviewChange(){refreshState();operations.refresh();setBatchView('wardrobe');}
+    function retryChange(row){operations.retry(row._record.id,effectivePreset()).then(function(){$('operationSummary').focus();}).catch(function(error){toast(error.message,'err');});}
+    function dismissChange(row){operations.dismiss(row._record.id);var restore=row.querySelector('[data-op-restore]');if(restore&&!restore.hidden)restore.focus();else $('operationSummary').focus();}
+    function retryTargetMatches(record){return context&&record.command&&record.command.target.scopeId===effectivePreset()&&window.WardrobeOperations.targetKey(record.command.target)===window.WardrobeOperations.targetKey(Object.assign({},context,{scopeId:effectivePreset()}));}
+    $('sceneUnsaved').hidden=!(context&&context.unsaved&&lastState&&lastState.session===context.session&&lastState.avatarInstanceId===context.avatarInstanceId);
     var pending=records.filter(function(record){return window.WardrobeOperations.isMutation(record.type)&&!window.WardrobeOperations.isTerminal(record.state);});
+    var lastApplied=records.filter(function(record){return window.WardrobeOperations.isMutation(record.type)&&record.state==='succeeded';}).slice(-1)[0];
     var summary=$('operationSummary');summary.hidden=!operations.enabled();R.text(summary,pending.length?pending.length+(pending.length===1?' change pending':' changes pending'):'Changes');
     var recent=records.slice(-30).reverse();
     if(!recent.length)recent=[{id:'empty',label:'No outfit changes queued.',state:''}];
     R.reconcile($('operationsList'),recent,function(record){return record.id;},function(){
-      var row=document.createElement('li');row.innerHTML='<strong></strong><p></p><button data-op-cancel>Cancel</button><button data-op-retry>Check same request</button><button data-op-review>Review current scene</button>';
+      var row=document.createElement('li');row.innerHTML='<strong></strong><p></p><button data-op-undo>Undo this change</button><button data-op-cancel>Cancel</button><button data-op-retry>Check same request</button><button data-op-retry-failed>Retry change</button><button data-op-review>Review current avatar</button><button data-op-dismiss>Dismiss notice</button><button data-op-restore>Show notice in Wearing</button>';
+      row.querySelector('[data-op-undo]').onclick=function(){var record=row._record;try{var command=window.WardrobeOperations.normalize('undo-operation',{undoToken:record.result.undoToken,scopeId:record.command.target.scopeId},Object.assign({},record.command.target,{revision:record.result.confirmedRevision}));operations.submit(command,'Undo '+(record.label||record.type)).catch(function(error){toast(error.message,'err');});}catch(error){toast(error.message,'err');}};
       row.querySelector('[data-op-cancel]').onclick=function(){operations.cancel(row._record.id).catch(function(error){toast(error.message,'err');});};
       row.querySelector('[data-op-retry]').onclick=function(){operations.submit(row._record.command,row._record.label).catch(function(error){toast(error.message,'err');});};
-      row.querySelector('[data-op-review]').onclick=function(){refreshState();operations.refresh();setBatchView('wardrobe');};return row;
+      row.querySelector('[data-op-retry-failed]').onclick=function(){retryChange(row);};
+      row.querySelector('[data-op-review]').onclick=reviewChange;
+      row.querySelector('[data-op-dismiss]').onclick=function(){dismissChange(row);};
+      row.querySelector('[data-op-restore]').onclick=function(){operations.restore(row._record.id);row.querySelector('[data-op-dismiss]').focus();};return row;
     },function(row,record){
       row._record=record;R.text(row.querySelector('strong'),record.label||record.type);
-      R.text(row.querySelector('p'),record.state+(record.cancelRequested?' · cancellation requested':'')+(record.waitingReason?' · '+record.waitingReason:'')+(record.error?' · '+record.error:''));
+      R.text(row.querySelector('p'),record.state+(record.dismissed?' · notice dismissed; outcome retained':'')+(record.retryOperationId?' · a separate retry was requested':'')+(record.cancelRequested?' · cancellation requested':'')+(record.waitingReason?' · '+record.waitingReason:'')+(record.error?' · '+record.error:''));
+      row.querySelector('[data-op-undo]').hidden=record!==lastApplied||!record.result||!record.result.undoToken;
+      row.querySelector('[data-op-undo]').disabled=!context||!record.command||context.session!==record.command.target.session||context.avatarInstanceId!==record.command.target.avatarInstanceId||context.revision!==record.result?.confirmedRevision||pending.length>0;
       row.querySelector('[data-op-cancel]').hidden=!['queued','running','submitting','acceptance-unknown'].includes(record.state);
       row.querySelector('[data-op-cancel]').disabled=!!record.cancelRequested;
       row.querySelector('[data-op-retry]').hidden=record.state!=='acceptance-unknown';
-      row.querySelector('[data-op-review]').hidden=record.state!=='needs-review';
+      row.querySelector('[data-op-retry-failed]').hidden=record.state!=='failed'||record.dismissed||!!record.retryOperationId||record.type==='undo-operation';
+      row.querySelector('[data-op-retry-failed]').disabled=!operations.canRetry(record)||!retryTargetMatches(record)||pending.length>0;
+      row.querySelector('[data-op-review]').hidden=!['failed','needs-review'].includes(record.state);
+      row.querySelector('[data-op-dismiss]').hidden=!['failed','needs-review'].includes(record.state)||record.dismissed;
+      row.querySelector('[data-op-restore]').hidden=!record.dismissed;
     });
-    var visible=pending.filter(function(record){return context&&record.command.target.avatarInstanceId===context.avatarInstanceId&&record.command.target.session===context.session;});
-    R.reconcile($('pendingWearing'),visible,function(record){return record.id;},function(){var row=document.createElement('div');row.className='pending-wearing';row.innerHTML='<strong></strong><small></small>';return row;},function(row,record){
-      R.text(row.querySelector('strong'),record.label||record.type);R.text(row.querySelector('small'),(record.type==='remove-outfit'?'Removing':'Adding')+' · '+record.state+(context.waitingReason?' · '+context.waitingReason:''));
+    var visible=operations.notices(effectivePreset());
+    R.reconcile($('pendingWearing'),visible,function(record){return record.id;},function(){
+      var row=document.createElement('div');row.className='pending-wearing';row.style.overflowWrap='anywhere';row.innerHTML='<strong></strong><small></small><div class="snapshot-controls"><button data-op-retry-failed>Retry change</button><button data-op-review>Review current avatar</button><button data-op-dismiss>Dismiss notice</button><button data-op-cancel>Cancel change</button></div>';
+      row.querySelector('[data-op-retry-failed]').onclick=function(){retryChange(row);};row.querySelector('[data-op-review]').onclick=reviewChange;row.querySelector('[data-op-dismiss]').onclick=function(){dismissChange(row);};row.querySelector('[data-op-cancel]').onclick=function(){operations.cancel(row._record.id).catch(function(error){toast(error.message,'err');});};return row;
+    },function(row,record){
+      row._record=record;var attention=['failed','needs-review'].includes(record.state);
+      R.text(row.querySelector('strong'),record.label||record.type);
+      R.text(row.querySelector('small'),(record.state==='needs-review'?'Needs review — inspect the current avatar before another change':record.state==='failed'?'Change failed':(record.type==='remove-outfit'?'Removing':record.type==='undo-operation'?'Undoing':'Adding')+' · '+record.state)+(record.error?' · '+record.error:'')+(record.waitingReason?' · '+record.waitingReason:'')+(record.cancelRequested?' · cancellation requested':''));
+      row.querySelector('[data-op-retry-failed]').hidden=record.state!=='failed'||!!record.retryOperationId||record.type==='undo-operation';row.querySelector('[data-op-retry-failed]').disabled=!operations.canRetry(record)||!retryTargetMatches(record)||pending.length>0;
+      row.querySelector('[data-op-review]').hidden=!attention;row.querySelector('[data-op-dismiss]').hidden=!attention;
+      row.querySelector('[data-op-cancel]').hidden=attention;row.querySelector('[data-op-cancel]').disabled=!!record.cancelRequested;
     });
     if(snapshots)snapshots.contextChanged();
     $('sceneUpload').disabled=pending.length>0||!connected;
@@ -957,13 +1000,14 @@
   function setBatchView(view){
     if(detailBusy()) return;
     closeModal(); currentView=view;document.body.dataset.view=view;
-    ["layout","upload","activity","settings","library","advancedScene","menuOrganizer"].forEach(function(id){$(id).hidden=(id==="layout"?"wardrobe":id)!==view;});
+    ["layout","upload","activity","settings","library","advancedScene","menuOrganizer","appearanceEditor"].forEach(function(id){$(id).hidden=(id==="layout"?"wardrobe":id)!==view;});
     $("wardrobeToolbar").hidden=view!=="wardrobe";
     document.querySelectorAll("#navtabs button").forEach(function(button){
       var selected=button.dataset.view===view;button.classList.toggle("on",selected);
       if(selected) button.setAttribute("aria-current","page");else button.removeAttribute("aria-current");
     });
     if(view==="library") window.WardrobeLibrary.show();
+    if(view==="appearanceEditor")window.WardrobeAppearanceEditor.configure({api:api,T:T,root:$("appearanceEditor"),scope:function(){return effectivePreset();},onChange:refreshState}).show();
     if(view==="menuOrganizer")window.WardrobeMenuOrganizer.configure({api:api,T:T,root:$("menuOrganizer")}).show();
     if(view==="advancedScene"&&window.WardrobeSceneEditor)window.WardrobeSceneEditor.configure({api:api,T:T,root:$("advancedScene")}).show();
     if(view==="upload") uploadUI.show();
@@ -996,7 +1040,7 @@
       event.preventDefault();detailSelect((detailIndex+(event.key==="ArrowRight"?1:-1)+detailCount)%detailCount);
     }
   });
-  $("emptyGridState").onclick=function(event){if(event.target.id==="gridRetry") load();};
+  $("emptyGridState").onclick=function(event){emptyGridAction(event.target.id);};
   var searchTimer=null;
   function submitSearch(){var value=$("search").value.trim();if(value===search) return;search=value;load();}
   $("search").addEventListener("input",function(event){clearTimeout(searchTimer);if(listController) listController.abort();listToken++;listInflight=false;if(!event.isComposing) searchTimer=setTimeout(submitSearch,180);});

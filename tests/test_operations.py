@@ -310,6 +310,16 @@ class OperationTests(unittest.TestCase):
             self.bridge.receipts[value['id']] = dict(receipt, id=value['id'])
             self.assertEqual('needs-review', self.driver.step()['state'])
 
+    def test_undo_is_a_durable_mutation_and_requires_a_session_token(self):
+        invalid = command(self.root, 'undo-operation')
+        invalid['payload'] = {'zoom': 1}
+        with self.assertRaises(ValueError): self.queue.submit(invalid)
+        invalid['payload']['undoToken'] = str(uuid.uuid4())
+        self.queue.submit(invalid)
+        self.assertTrue(self.queue.has_pending_mutations())
+        self.driver.step()
+        self.assertEqual('undo-operation', self.bridge.submits[0][0]['type'])
+
     def test_full_queue_is_bounded(self):
         self.queue.max_active = 1
         self.submit()

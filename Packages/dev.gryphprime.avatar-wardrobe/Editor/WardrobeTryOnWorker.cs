@@ -44,11 +44,11 @@ namespace OutfitToggleGenerator
         internal sealed class Prepared
         {
             public string token, guid, sourceFingerprint, configurationId, previewFingerprint, scope, processorVersion;
-            public string sourceRevision, recipeRevision, environmentRevision, renderSpecification;
+            public string sourceRevision, visualRevision, recipeRevision, environmentRevision, renderSpecification;
             public int avatarId, replaceInstanceId;
             public bool processed;
             public long elapsedMilliseconds;
-            public string[] limitations, menuControls, parameters;
+            public string[] limitations, menuControls, parameters, parameterProblems;
             public WardrobeAppearanceRecipe.Recipe appearanceRecipe;
             public Metrics beforeMetrics, afterMetrics;
         }
@@ -171,9 +171,11 @@ namespace OutfitToggleGenerator
                 session.result.menuControls = MenuControls(descriptor?.expressionsMenu).ToArray();
                 session.result.parameters = descriptor?.expressionParameters?.parameters?.Where(parameter => parameter != null)
                     .Select(parameter => parameter.name + " (" + parameter.valueType + ")").ToArray() ?? new string[0];
+                session.result.parameterProblems = ParameterDiagnostics(descriptor);
                 if (session.result.sourceFingerprint != SourceFingerprint(avatar) || session.assetVersion != AssetVersion(path))
                     throw new InvalidOperationException("The avatar or candidate changed during preparation. Try On again before wearing it.");
                 session.result.sourceRevision = session.result.sourceFingerprint;
+                session.result.visualRevision = VisualFingerprint(avatar);
                 session.result.recipeRevision = Hash128.Compute(session.assetVersion + "|" + session.result.guid + "|" +
                     session.result.replaceInstanceId + "|" + session.result.configurationId + "|" + (recipe?.Identity ?? "")).ToString();
                 session.result.previewFingerprint = Hash128.Compute(session.result.sourceRevision + "|" + session.result.recipeRevision + "|" +
@@ -523,7 +525,9 @@ namespace OutfitToggleGenerator
                         if (!initial.Contains(obj) && obj != null && !EditorUtility.IsPersistent(obj)) view.owned.Add(obj);
             }
         }
-        internal static string SourceFingerprint(VRCAvatarDescriptor avatar)
+        internal static string SourceFingerprint(VRCAvatarDescriptor avatar) => Fingerprint(avatar, false);
+        internal static string VisualFingerprint(VRCAvatarDescriptor avatar) => Fingerprint(avatar, true);
+        private static string Fingerprint(VRCAvatarDescriptor avatar, bool visual)
         {
             if (avatar == null) return "";
             var text = new StringBuilder();
@@ -542,29 +546,59 @@ namespace OutfitToggleGenerator
             }
             for (var parent = avatar.transform.parent; parent != null; parent = parent.parent) Append(parent);
             foreach (var path in paths.OrderBy(path => path, StringComparer.Ordinal)) text.Append(path).Append('=').Append(AssetVersion(path));
+            if (visual)
+            {
+                // Preset assignments and processing settings can alter a scoped recipe without
+                // changing the hierarchy; keep those inputs conservative in the visual revision.
+                var project = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, ".."));
+                foreach (var name in new[] { "AvatarWardrobePresets.json", "AvatarWardrobeOverrides.json", "ShiroOutfitProjectData.json" })
+                {
+                    var settings = System.IO.Path.Combine(project, "ProjectSettings", name);
+                    if (System.IO.File.Exists(settings)) text.Append(name).Append('=').Append(Hash128.Compute(System.IO.File.ReadAllText(settings)));
+                }
+            }
             return Hash128.Compute(text.ToString()).ToString();
             void Append(Object obj)
             {
-                text.Append(obj.GetInstanceID()).Append(':').Append(EditorUtility.GetDirtyCount(obj)).Append(':')
-                    .Append(EditorJsonUtility.ToJson(obj)).Append(';');
+                var json = EditorJsonUtility.ToJson(obj);
+                var presentation = visual && obj is WardrobeMenuLayout;
+                // The supported Menu rename edits only these logical folder labels. Every other field
+                // remains in the photo identity, including control order, defaults and parameters.
+                if (presentation) json = System.Text.RegularExpressions.Regex.Replace(json,
+                    "\"label\"\\s*:\\s*\"(?:\\\\.|[^\"\\\\])*\"", "\"label\":\"\"");
+                text.Append(obj.GetInstanceID()).Append(':').Append(presentation ? 0 : EditorUtility.GetDirtyCount(obj)).Append(':')
+                    .Append(json).Append(';');
             }
             void References(Object obj)
             {
+                // Mesh/avatar numeric payloads have no referenced Unity assets. Walking their
+                // serialized vertex/bone arrays here stalls large avatars on every status poll.
+                // Identity, native dirty count and imported dependency hash are recorded by Visit.
+                if (obj is Mesh || obj is Avatar) return;
+                if (obj is AnimationClip clip)
+                {
+                    foreach (var binding in AnimationUtility.GetObjectReferenceCurveBindings(clip))
+                        foreach (var keyframe in AnimationUtility.GetObjectReferenceCurve(clip, binding)) Visit(keyframe.value);
+                    return;
+                }
                 using (var serialized = new SerializedObject(obj))
                 {
                     foreach (var property in serialized.ObjectProperties())
                     {
                         if (property.propertyType != SerializedPropertyType.ObjectReference) continue;
-                        var reference = property.objectReferenceValue;
-                        if (reference == null || reference is Component || reference is GameObject || !assets.Add(reference)) continue;
-                        text.Append(reference.GetInstanceID()).Append(':').Append(EditorUtility.GetDirtyCount(reference));
-                        var path = AssetDatabase.GetAssetPath(reference);
-                        if (!string.IsNullOrEmpty(path)) paths.Add(path);
-                        if (reference is Shader || reference is Texture || reference is MonoScript || reference is AudioClip || reference is ComputeShader) continue;
-                        if (!(reference is Mesh) && !(reference is AnimationClip) && !(reference is Avatar)) Append(reference);
-                        References(reference);
+                        Visit(property.objectReferenceValue);
                     }
                 }
+            }
+            void Visit(Object reference)
+            {
+                if (reference == null || reference is Component || reference is GameObject || !assets.Add(reference)) return;
+                text.Append(reference.GetInstanceID()).Append(':').Append(EditorUtility.GetDirtyCount(reference));
+                var path = AssetDatabase.GetAssetPath(reference);
+                if (!string.IsNullOrEmpty(path)) paths.Add(path);
+                if (reference is Shader || reference is Texture || reference is MonoScript || reference is AudioClip || reference is ComputeShader) return;
+                if (!(reference is Mesh) && !(reference is AnimationClip) && !(reference is Avatar)) Append(reference);
+                References(reference);
             }
         }
         private static string EnvironmentRevision()
@@ -618,6 +652,62 @@ namespace OutfitToggleGenerator
             result.expressionParameters = descriptor?.expressionParameters?.parameters?.Length ?? 0;
             result.expressionMenuControls = MenuControls(descriptor?.expressionsMenu).Count();
             return result;
+        }
+        internal static string[] ParameterDiagnostics(VRCAvatarDescriptor descriptor)
+        {
+            var findings = new List<string>();
+            if (descriptor == null) return new[] { "No avatar descriptor was produced." };
+            var asset = descriptor.expressionParameters;
+            var declared = (asset?.parameters ?? new VRCExpressionParameters.Parameter[0])
+                .Where(value => value != null && !string.IsNullOrEmpty(value.name)).ToArray();
+            var names = declared.GroupBy(value => value.name).ToDictionary(group => group.Key, group => group.First().valueType);
+            if (asset != null)
+            {
+                var cost = asset.CalcTotalCost();
+                findings.Add("Synced parameter budget: " + cost + "/" + VRCExpressionParameters.MAX_PARAMETER_COST + " bits" +
+                    (cost > VRCExpressionParameters.MAX_PARAMETER_COST ? " — over budget." : "."));
+                foreach (var group in declared.GroupBy(value => value.name).Where(group => group.Count() > 1))
+                    findings.Add("Duplicate parameter '" + group.Key + "'" + (group.Select(value => value.valueType).Distinct().Count() > 1 ? " has conflicting types." : "."));
+            }
+            else if (descriptor.expressionsMenu != null) findings.Add("The built menu has no expression parameter asset.");
+            var visited = new HashSet<VRCExpressionsMenu>();
+            var menus = new Queue<VRCExpressionsMenu>();
+            if (descriptor.expressionsMenu != null) menus.Enqueue(descriptor.expressionsMenu);
+            while (menus.Count > 0)
+            {
+                var menu = menus.Dequeue();
+                if (!visited.Add(menu) || menu.controls == null) continue;
+                if (menu.controls.Count > VRCExpressionsMenu.MAX_CONTROLS)
+                    findings.Add("Menu '" + menu.name + "' exceeds " + VRCExpressionsMenu.MAX_CONTROLS + " controls.");
+                foreach (var control in menu.controls.Where(value => value != null))
+                {
+                    Check(control.parameter?.name, control.name, false);
+                    if (control.subParameters != null)
+                        foreach (var parameter in control.subParameters) Check(parameter?.name, control.name, true);
+                    if (control.subMenu != null) menus.Enqueue(control.subMenu);
+                }
+            }
+            // Compare declared types with the actual generated animator parameter definitions.
+            foreach (var layer in (descriptor.baseAnimationLayers ?? new VRCAvatarDescriptor.CustomAnimLayer[0])
+                .Concat(descriptor.specialAnimationLayers ?? new VRCAvatarDescriptor.CustomAnimLayer[0]))
+            {
+                RuntimeAnimatorController runtime = layer.animatorController;
+                var seen = new HashSet<RuntimeAnimatorController>();
+                while (runtime is AnimatorOverrideController overrides && seen.Add(runtime)) runtime = overrides.runtimeAnimatorController;
+                if (!(runtime is UnityEditor.Animations.AnimatorController controller)) continue;
+                foreach (var parameter in controller.parameters)
+                    if (names.TryGetValue(parameter.name, out var kind) && !string.Equals(kind.ToString(), parameter.type.ToString(), StringComparison.Ordinal))
+                        findings.Add("Animator parameter '" + parameter.name + "' is " + parameter.type + " but the expression parameter is " + kind + ".");
+            }
+            findings.Add("These checks cover the processed menu and declared parameters. Use Test in Appearance for switching behavior and Build Check for full SDK validation.");
+            return findings.Distinct().Take(100).ToArray();
+            void Check(string name, string control, bool puppet)
+            {
+                if (string.IsNullOrEmpty(name)) return;
+                if (!names.TryGetValue(name, out var kind)) findings.Add("Control '" + control + "' references missing parameter '" + name + "'.");
+                else if (puppet && kind != VRCExpressionParameters.ValueType.Float)
+                    findings.Add("Puppet control '" + control + "' requires Float parameter '" + name + "', currently " + kind + ".");
+            }
         }
         private static IEnumerable<string> MenuControls(VRCExpressionsMenu root)
         {

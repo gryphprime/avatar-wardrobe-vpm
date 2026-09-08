@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 
-TYPES = {'wear-outfit', 'replace-outfit', 'remove-outfit', 'prepare-preview', 'capture-source', 'render-snapshot'}
+TYPES = {'wear-outfit', 'replace-outfit', 'remove-outfit', 'prepare-preview', 'capture-source', 'render-snapshot', 'undo-operation'}
 STATES = {'queued', 'running', 'succeeded', 'failed', 'cancelled', 'superseded', 'needs-review'}
 TERMINAL = STATES - {'queued', 'running'}
 PREVIEWS = {'prepare-preview', 'capture-source', 'render-snapshot'}
@@ -67,7 +67,7 @@ def validate_command(command, project_id):
         raise ValueError('Invalid predecessor operation id.')
     payload = command['payload']
     strings = {'variantId': 32, 'assetVersion': 256, 'instanceId': 256, 'previewToken': 256,
-               'view': 32, 'menuGroup': 512, 'itemPath': 4096}
+               'view': 32, 'menuGroup': 512, 'itemPath': 4096, 'undoToken': 64}
     booleans = {'addCopy', 'allowUnverified', 'createToggles', 'before'}
     if not isinstance(payload, dict) or set(payload) - (set(strings) | booleans | {'zoom'}):
         raise ValueError('Malformed operation payload.')
@@ -86,6 +86,8 @@ def validate_command(command, project_id):
         raise ValueError('An exact worn instance is required.')
     if 'view' in payload and payload['view'] not in {'front', 'three-quarter', 'back'}:
         raise ValueError('Unsupported snapshot view.')
+    if command['type'] == 'undo-operation' and not _UUID.fullmatch(payload.get('undoToken', '')):
+        raise ValueError('A session-only undo token is required.')
     if command['type'] == 'render-snapshot' and not payload.get('previewToken'):
         raise ValueError('A prepared preview token is required.')
     zoom = payload.get('zoom', 1)
@@ -233,7 +235,7 @@ class OperationQueue:
 
     def has_pending_mutations(self):
         with self.lock:
-            return self.db.execute("SELECT 1 FROM operations WHERE project=? AND state IN ('queued','running') AND type IN ('wear-outfit','replace-outfit','remove-outfit') LIMIT 1", (self.project_id,)).fetchone() is not None
+            return self.db.execute("SELECT 1 FROM operations WHERE project=? AND state IN ('queued','running') AND type IN ('wear-outfit','replace-outfit','remove-outfit','undo-operation') LIMIT 1", (self.project_id,)).fetchone() is not None
 
     def cancel(self, identifier):
         _string(identifier, 'receipt id', 256)
@@ -258,7 +260,7 @@ class OperationQueue:
                 return 0
             changed = 0
             error = 'Unity restarted after this unsaved edit. Review the scene to confirm whether it survived; this operation will not be replayed.'
-            rows = self.db.execute("SELECT * FROM operations WHERE project=? AND state='succeeded' AND type IN ('wear-outfit','replace-outfit','remove-outfit')", (self.project_id,)).fetchall()
+            rows = self.db.execute("SELECT * FROM operations WHERE project=? AND state='succeeded' AND type IN ('wear-outfit','replace-outfit','remove-outfit','undo-operation')", (self.project_id,)).fetchall()
             for row in rows:
                 result = json.loads(row['result']) if row['result'] else {}
                 if result.get('unsaved') is True and json.loads(row['target_key']).get('session') != session:
@@ -268,7 +270,7 @@ class OperationQueue:
             rows = self.db.execute('SELECT * FROM operation_tombstones WHERE project=?', (self.project_id,)).fetchall()
             for row in rows:
                 receipt = json.loads(row['receipt'])
-                if (receipt['state'] == 'succeeded' and receipt['type'] in {'wear-outfit', 'replace-outfit', 'remove-outfit'} and
+                if (receipt['state'] == 'succeeded' and receipt['type'] in {'wear-outfit', 'replace-outfit', 'remove-outfit', 'undo-operation'} and
                         (receipt.get('result') or {}).get('unsaved') is True and json.loads(row['target_key']).get('session') != session):
                     receipt.update(state='needs-review', error=error, waitingReason='', updatedAt=self.clock())
                     self.db.execute('UPDATE operation_tombstones SET receipt=? WHERE id=? AND project=?', (_json(receipt), row['id'], self.project_id))

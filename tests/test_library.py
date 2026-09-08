@@ -31,6 +31,53 @@ class LibraryTests(unittest.TestCase):
             z.writestr('Assets/Outfit.prefab.meta', 'fileFormatVersion: 2\nguid: ' + guid + '\n')
         return path
 
+    def test_live_usage_tracks_exact_instances_and_clears_only_observed_avatar(self):
+        version = self.library.add(self.archive())['hash']
+        import hashlib
+        item = {'instanceId': 'global-copy-one', 'path': 'Outfits/Coat', 'guid': 'a'*32,
+                'sourceSha256': hashlib.sha256(b'prefab').hexdigest(), 'dependencyHash': 'b'*32}
+        snapshot = {'projectId': str(self.project.resolve()), 'usageComplete': True,
+                    'avatarId': 'global-avatar-one', 'avatarName': 'Same name', 'scene': 'Assets/Test.unity',
+                    'session': 'session', 'usage': [item, dict(item, instanceId='global-copy-two')]}
+        self.assertTrue(self.library.reconcile_usage(self.project, snapshot))
+        uses = self.library.list()[0]['usage']
+        self.assertEqual(len(uses), 2)
+        self.assertTrue(all(use['match'] == 'prefab-bytes' for use in uses))
+        self.assertTrue(self.library.reconcile_usage(self.project, dict(snapshot, avatarId='global-avatar-two', usage=[dict(item, instanceId='global-copy-three')])))
+        self.assertTrue(self.library.reconcile_usage(self.project, dict(snapshot, usage=[snapshot['usage'][1]])))
+        self.assertEqual({u['instance_id'] for u in self.library.list()[0]['usage']}, {'global-copy-two', 'global-copy-three'})
+        self.assertFalse(self.library.reconcile_usage(self.project, dict(snapshot, usageComplete=False, usage=[])))
+        self.assertFalse(self.library.reconcile_usage(self.project, dict(snapshot, projectId='/wrong-project', usage=[])))
+        self.assertFalse(self.library.reconcile_usage(self.project, dict(snapshot, usage=[item,item])))
+        self.assertEqual(len(self.library.list()[0]['usage']), 2)
+        self.assertTrue(self.library.reconcile_usage(self.project, dict(snapshot, usage=[])))
+        self.assertEqual(self.library.list()[0]['usage'][0]['avatar_id'], 'global-avatar-two')
+        other = self.library.add(self.archive('update.zip', value='changed'))['hash']
+        impact = self.library.update_impact(version, other)
+        self.assertEqual(impact['usage'][0]['instance_id'], 'global-copy-three')
+
+    def test_matching_guid_does_not_claim_an_exact_library_version(self):
+        self.library.add(self.archive())
+        snapshot = {'projectId': str(self.project.resolve()), 'usageComplete': True, 'avatarId': 'avatar',
+                    'avatarName': 'Avatar', 'scene': '', 'session': 'session', 'usage': [{
+                    'instanceId': 'instance', 'path': 'Coat', 'guid': 'a'*32, 'sourceSha256': 'c'*64,
+                    'dependencyHash': 'b'*32}]}
+        self.assertTrue(self.library.reconcile_usage(self.project, snapshot))
+        self.assertEqual(self.library.list()[0]['usage'][0]['match'], 'guid-only')
+
+    def test_product_metadata_preserves_original_and_validates_source_url(self):
+        source = self.archive()
+        version = self.library.add(source)['hash']
+        original = self.library.root / 'versions' / version / 'original'
+        before = original.read_bytes()
+        self.library.update_metadata(version, 'Creator', 'Blue coat', 'https://example.com/coat')
+        record = self.library.record(version)
+        self.assertEqual((record['creator'], record['product'], record['source_url']), ('Creator', 'Blue coat', 'https://example.com/coat'))
+        self.assertEqual(original.read_bytes(), before)
+        for url in ('javascript:alert(1)', 'file:///private/avatar', 'https://user:password@example.com/'):
+            with self.assertRaises(ValueError): self.library.update_metadata(version, source_url=url)
+        self.assertEqual(self.library.record(version)['product'], 'Blue coat')
+
     def test_duplicate_archive_and_immutable_original(self):
         source = self.archive()
         before = source.read_bytes()

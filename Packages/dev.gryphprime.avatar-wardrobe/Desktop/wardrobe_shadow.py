@@ -255,8 +255,10 @@ class ShadowWorker:
         if (self.project / 'Temp/UnityLockfile').exists():
             raise ValueError('The private worker project is already open. Close that editor before restarting it.')
         executable = Path(unity).expanduser().resolve()
+        if executable.is_dir() and executable.suffix.lower() == '.app':
+            executable = (executable / 'Contents/MacOS/Unity').resolve()
         if not executable.is_file():
-            raise ValueError('Choose the Unity ' + UNITY_VERSION + ' executable.')
+            raise ValueError('Choose the Unity ' + UNITY_VERSION + ' executable or a Unity.app bundle containing Contents/MacOS/Unity.')
         command = [str(executable), '-batchmode', '-projectPath', str(self.project),
                    '-executeMethod', 'OutfitToggleGenerator.WardrobeShadowWorker.Start',
                    '-logFile', str(self.runtime / 'Unity.log'),

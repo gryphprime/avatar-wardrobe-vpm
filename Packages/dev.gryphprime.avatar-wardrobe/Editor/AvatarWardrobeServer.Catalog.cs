@@ -52,7 +52,16 @@ namespace OutfitToggleGenerator
         [Serializable]
         private sealed class InstalledListDto
         {
+            public string projectId, avatarId, avatarName, scene, session;
+            public bool usageComplete;
+            public List<LibraryUsageItemDto> usage = new List<LibraryUsageItemDto>();
             public List<InstalledItemDto> items = new List<InstalledItemDto>();
+        }
+
+        [Serializable]
+        private sealed class LibraryUsageItemDto
+        {
+            public string instanceId, path, guid, sourceSha256, dependencyHash;
         }
 
         private sealed class NameJobState
@@ -703,9 +712,86 @@ namespace OutfitToggleGenerator
             return key;
         }
 
+        private sealed class UsageHashEntry
+        {
+            internal string dependencyHash, sha;
+            internal long length, modifiedTicks, used;
+        }
+        private const long UsageHashFileLimit = 2L * 1024 * 1024;
+        private const long UsageHashReadLimit = 64L * 1024 * 1024;
+        private static readonly Dictionary<string, UsageHashEntry> usageHashes = new Dictionary<string, UsageHashEntry>(StringComparer.Ordinal);
+        private static long usageHashSequence;
+
+        // Called on Unity's main thread. Provenance is optional: a missing hash is
+        // a GUID-only match. Bound disk reads and reuse unchanged source hashes.
+        internal static string LibraryUsagePrefabHash(string assetPath, string dependencyHash, ref long bytesRemaining)
+        {
+            if (string.IsNullOrEmpty(assetPath) || !assetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)) return string.Empty;
+            try
+            {
+                var file = new FileInfo(assetPath);
+                if (!file.Exists) { usageHashes.Remove(assetPath); return string.Empty; }
+                var length = file.Length; var modified = file.LastWriteTimeUtc.Ticks;
+                if (usageHashes.TryGetValue(assetPath, out var cached) && cached.length == length && cached.modifiedTicks == modified && cached.dependencyHash == dependencyHash)
+                {
+                    cached.used = ++usageHashSequence;
+                    return cached.sha;
+                }
+                usageHashes.Remove(assetPath);
+                if (length > UsageHashFileLimit || length > bytesRemaining) return string.Empty;
+                bytesRemaining -= length;
+                string sha;
+                using (var hash = System.Security.Cryptography.SHA256.Create())
+                using (var stream = File.OpenRead(assetPath))
+                {
+                    var buffer = new byte[65536]; var remaining = length;
+                    while (remaining > 0)
+                    {
+                        var count = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, remaining));
+                        if (count == 0) return string.Empty;
+                        hash.TransformBlock(buffer, 0, count, null, 0); remaining -= count;
+                    }
+                    if (stream.Length != length) return string.Empty;
+                    hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    sha = BitConverter.ToString(hash.Hash).Replace("-", "").ToLowerInvariant();
+                }
+                file.Refresh();
+                if (!file.Exists || file.Length != length || file.LastWriteTimeUtc.Ticks != modified) return string.Empty;
+                if (usageHashes.Count >= 512) usageHashes.Remove(usageHashes.OrderBy(pair => pair.Value.used).First().Key);
+                usageHashes[assetPath] = new UsageHashEntry { dependencyHash = dependencyHash, length = length, modifiedTicks = modified, sha = sha, used = ++usageHashSequence };
+                return sha;
+            }
+            catch (IOException) { usageHashes.Remove(assetPath); return string.Empty; }
+            catch (UnauthorizedAccessException) { usageHashes.Remove(assetPath); return string.Empty; }
+        }
+
         private static InstalledListDto GetInstalled()
         {
-            var list = new InstalledListDto();
+            var list = new InstalledListDto { projectId = Path.GetFullPath(Path.Combine(Application.dataPath, "..")), session = serverSession };
+            if (SceneAvatar != null)
+            {
+                var avatar = SceneAvatar;
+                list.avatarId = string.IsNullOrEmpty(avatar.gameObject.scene.path) ? "session:" + serverSession + ":" + avatar.GetInstanceID() : GlobalObjectId.GetGlobalObjectIdSlow(avatar.gameObject).ToString();
+                list.avatarName = avatar.name;
+                list.scene = avatar.gameObject.scene.path;
+                var instances = avatar.GetComponentsInChildren<Transform>(true).Where(t => PrefabUtility.IsAnyPrefabInstanceRoot(t.gameObject)).Take(8193).ToArray();
+                list.usageComplete = instances.Length <= 8192;
+                var hashes = new Dictionary<string, string>();
+                var hashBytesRemaining = UsageHashReadLimit;
+                foreach (var transform in instances.Take(8192))
+                {
+                    var assetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(transform.gameObject);
+                    var guid = AssetDatabase.AssetPathToGUID(assetPath);
+                    if (string.IsNullOrEmpty(guid)) continue;
+                    var dependencyHash = AssetDatabase.GetAssetDependencyHash(assetPath).ToString();
+                    if (!hashes.TryGetValue(assetPath, out var sha)) hashes[assetPath] = sha = LibraryUsagePrefabHash(assetPath, dependencyHash, ref hashBytesRemaining);
+                    list.usage.Add(new LibraryUsageItemDto {
+                        instanceId = string.IsNullOrEmpty(list.scene) ? "session:" + serverSession + ":" + transform.GetInstanceID() : GlobalObjectId.GetGlobalObjectIdSlow(transform.gameObject).ToString(),
+                        path = AnimationUtility.CalculateTransformPath(transform, avatar.transform), guid = guid,
+                        sourceSha256 = sha, dependencyHash = dependencyHash
+                    });
+                }
+            }
             var installed = InstalledGuids();
             if (installed.Count == 0) return list;
             foreach (var family in CachedFamilies().Concat(CachedCandidates()))

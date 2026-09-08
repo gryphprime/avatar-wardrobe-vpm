@@ -18,8 +18,38 @@ using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 namespace OutfitToggleGenerator
 {
     // A data capture, not a build. Serialized copies are the only assets saved by this path.
+    [InitializeOnLoad]
     internal static class WardrobeShadowCapture
     {
+        [Serializable] internal sealed class StagingRecord { public string captureId, projectPath; }
+        private static bool capturing;
+        static WardrobeShadowCapture() { EditorApplication.delayCall += CleanupInterruptedCaptures; }
+        internal static void CleanupInterruptedCaptures()
+        {
+            if (capturing) return;
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            { EditorApplication.delayCall += CleanupInterruptedCaptures; return; }
+            var project = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var journal = Path.Combine(project, "Library", "AvatarWardrobe", "capture-staging");
+            if (!Directory.Exists(journal)) return;
+            foreach (var file in Directory.GetFiles(journal, "*.json"))
+            {
+                try
+                {
+                    var record = JsonUtility.FromJson<StagingRecord>(File.ReadAllText(file));
+                    var id = Path.GetFileNameWithoutExtension(file);
+                    if (!Guid.TryParseExact(id, "N", out _) || record?.captureId != id || record.projectPath != project) continue;
+                    var staging = "Assets/__WardrobeCapture_" + id;
+                    if (Directory.Exists(Path.Combine(project, staging))) RejectLinks(Path.Combine(project, staging), project);
+                    if (AssetDatabase.IsValidFolder(staging)) AssetDatabase.DeleteAsset(staging);
+                    var output = Path.Combine(project, "Library", "AvatarWardrobe", "captures", id);
+                    if (Directory.Exists(output) && !File.Exists(Path.Combine(output, "manifest.json")))
+                    { RejectLinks(output, project); Directory.Delete(output, true); }
+                    File.Delete(file);
+                }
+                catch (Exception) { /* Keep an unverified journal entry; never guess at paths to delete. */ }
+            }
+        }
         [Serializable] internal sealed class FileRecord { public string path, sha256; public long bytes; }
         [Serializable] internal sealed class PackageRecord
         {
@@ -30,7 +60,7 @@ namespace OutfitToggleGenerator
         [Serializable] internal sealed class Manifest
         {
             public int schemaVersion = 1;
-            public string captureId, projectPath, sourceRevision, recipeRevision, environmentRevision;
+            public string captureId, projectPath, sourceRevision, visualRevision, recipeRevision, environmentRevision;
             public string unityVersion, buildTarget, colorSpace, scenePath, avatarPrefabPath, candidateGuid, originalCandidateGuid;
             public string captureFormat = "serialized-avatar-prefab-v1";
             public string manifestPath, status = "captured", renderSpecification = "wardrobe-snapshot-v1; source-pose; neutral-light; 640px";
@@ -76,10 +106,11 @@ namespace OutfitToggleGenerator
             var id = Guid.NewGuid().ToString("N");
             var staging = "Assets/__WardrobeCapture_" + id;
             var output = Path.Combine(project, "Library", "AvatarWardrobe", "captures", id);
+            var journalPath = Path.Combine(project, "Library", "AvatarWardrobe", "capture-staging", id + ".json");
             var manifest = new Manifest
             {
                 captureId = id, projectPath = project, avatarId = avatar.GetInstanceID(), appearanceRecipe = recipe,
-                sourceRevision = WardrobeTryOnWorker.SourceFingerprint(avatar),
+                sourceRevision = WardrobeTryOnWorker.SourceFingerprint(avatar), visualRevision = WardrobeTryOnWorker.VisualFingerprint(avatar),
                 unityVersion = Application.unityVersion, buildTarget = EditorUserBuildSettings.activeBuildTarget.ToString(),
                 colorSpace = QualitySettings.activeColorSpace.ToString(), qualityLevel = QualitySettings.GetQualityLevel(),
                 originalCandidateGuid = candidateGuid ?? "", candidateGuid = "",
@@ -94,6 +125,8 @@ namespace OutfitToggleGenerator
             var succeeded = false;
             try
             {
+                capturing = true;
+                WriteJson(journalPath, new StagingRecord { captureId = id, projectPath = project });
                 AssetDatabase.CreateFolder("Assets", "__WardrobeCapture_" + id);
                 captureScene = EditorSceneManager.NewPreviewScene();
                 var host = new GameObject("Capture host");
@@ -156,23 +189,7 @@ namespace OutfitToggleGenerator
                 {
                     var entry = new PackageRecord { name = package.name, version = package.version,
                         sourcePath = package.resolvedPath, builtIn = package.source == UnityEditor.PackageManager.PackageSource.BuiltIn };
-                    if (!entry.builtIn)
-                    {
-                        var packageSource = entry.sourcePath;
-                        entry.sourcePath = Path.Combine(output, "packages", package.name);
-                        foreach (var file in PackageFiles(packageSource))
-                        {
-                            var relative = Relative(packageSource, file);
-                            var expectedFile = FileInfoFor(file, relative);
-                            var destination = Path.Combine(entry.sourcePath, relative);
-                            Directory.CreateDirectory(Path.GetDirectoryName(destination));
-                            File.Copy(file, destination, false);
-                            var capturedFile = FileInfoFor(destination, relative);
-                            if (expectedFile.sha256 != capturedFile.sha256)
-                                throw new InvalidOperationException("A package changed while it was being captured. Capture again: " + package.name);
-                            entry.files.Add(capturedFile);
-                        }
-                    }
+                    if (!entry.builtIn) SnapshotPackage(project, entry);
                     manifest.packages.Add(entry);
                 }
                 manifest.environmentRevision = HashText(manifest.unityVersion + "|" + manifest.buildTarget + "|" +
@@ -190,12 +207,14 @@ namespace OutfitToggleGenerator
             }
             finally
             {
+                capturing = false;
                 if (previous.IsValid() && previous.isLoaded) SceneManager.SetActiveScene(previous);
                 if (captureScene.IsValid()) EditorSceneManager.ClosePreviewScene(captureScene);
                 // No global SaveAssets or generated-asset cleanup: these paths belong solely to this capture.
                 if (AssetDatabase.IsValidFolder(staging)) AssetDatabase.DeleteAsset(staging);
                 foreach (var obj in owned) if (obj != null && !EditorUtility.IsPersistent(obj)) Object.DestroyImmediate(obj);
                 if (!succeeded && Directory.Exists(output)) Directory.Delete(output, true);
+                if (File.Exists(journalPath)) File.Delete(journalPath);
             }
         }
 
@@ -289,6 +308,96 @@ namespace OutfitToggleGenerator
                 }
             }
         }
+        [Serializable] private sealed class PackageSnapshot
+        {
+            public string kind = "wardrobe-package-snapshot-v1", key, name, version;
+            public long bytes, lastUsed;
+        }
+        [Serializable] private sealed class CacheLockOwner { public int pid; public long created; }
+        private sealed class SnapshotCacheLock : IDisposable
+        {
+            private readonly string path;
+            private FileStream stream;
+            internal SnapshotCacheLock(string project)
+            {
+                var folder = Path.Combine(project, "Library", "AvatarWardrobe");
+                Directory.CreateDirectory(folder);
+                path = Path.Combine(folder, "snapshot-retention.lock");
+                for (var attempt = 0; attempt < 200; attempt++)
+                {
+                    try
+                    {
+                        stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+                        var value = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new CacheLockOwner
+                        { pid = System.Diagnostics.Process.GetCurrentProcess().Id, created = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }));
+                        stream.Write(value, 0, value.Length); stream.Flush(); return;
+                    }
+                    catch (IOException)
+                    {
+                        if (stream != null) { stream.Dispose(); stream = null; if (File.Exists(path)) File.Delete(path); throw; }
+                        if (File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) > TimeSpan.FromMinutes(5))
+                        {
+                            try
+                            {
+                                var owner = JsonUtility.FromJson<CacheLockOwner>(File.ReadAllText(path));
+                                var process = System.Diagnostics.Process.GetProcessById(owner.pid);
+                                if (process.HasExited || process.StartTime.ToUniversalTime() > DateTimeOffset.FromUnixTimeSeconds(owner.created).UtcDateTime.AddSeconds(2)) File.Delete(path);
+                            }
+                            catch (ArgumentException) { File.Delete(path); }
+                            catch (Exception) { }
+                        }
+                        System.Threading.Thread.Sleep(10);
+                    }
+                }
+                throw new InvalidOperationException("Snapshot retention is busy. Try the capture again.");
+            }
+            public void Dispose() { stream?.Dispose(); if (stream != null && File.Exists(path)) File.Delete(path); }
+        }
+        private static void SnapshotPackage(string project, PackageRecord entry)
+        {
+            var source = entry.sourcePath;
+            entry.files = PackageFiles(source).Select(file => FileInfoFor(file, Relative(source, file))).ToList();
+            var key = HashText(entry.name + "@" + entry.version + "|" + string.Join(";", entry.files.Select(file => file.path + "=" + file.sha256)));
+            var cache = Path.Combine(project, "Library", "AvatarWardrobe", "package-snapshots");
+            Directory.CreateDirectory(cache);
+            var destination = Path.Combine(cache, entry.name + "-" + key);
+            var stamp = new PackageSnapshot { key = key, name = entry.name, version = entry.version,
+                bytes = entry.files.Sum(file => file.bytes), lastUsed = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
+            using (new SnapshotCacheLock(project))
+            {
+                if (Directory.Exists(destination))
+                {
+                    var marker = Path.Combine(destination, ".wardrobe-package-snapshot.json");
+                    if (!File.Exists(marker) || JsonUtility.FromJson<PackageSnapshot>(File.ReadAllText(marker))?.key != key)
+                        throw new InvalidOperationException("An unrecognized directory occupies the package snapshot cache.");
+                    WriteJson(marker, stamp); entry.sourcePath = destination; return;
+                }
+            }
+            var temporary = Path.Combine(cache, ".package-stage-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(temporary);
+            try
+            {
+                foreach (var file in entry.files)
+                {
+                    var target = Path.Combine(temporary, file.path);
+                    Directory.CreateDirectory(Path.GetDirectoryName(target));
+                    File.Copy(Path.Combine(source, file.path), target, false);
+                    if (HashFile(target) != file.sha256)
+                        throw new InvalidOperationException("A package changed while it was being captured. Capture again: " + entry.name);
+                }
+                WriteJson(Path.Combine(temporary, ".wardrobe-package-snapshot.json"), stamp);
+                using (new SnapshotCacheLock(project))
+                {
+                    if (!Directory.Exists(destination)) Directory.Move(temporary, destination);
+                    else if (!File.Exists(Path.Combine(destination, ".wardrobe-package-snapshot.json")))
+                        throw new InvalidOperationException("An unrecognized directory occupies the package snapshot cache.");
+                    WriteJson(Path.Combine(destination, ".wardrobe-package-snapshot.json"), stamp);
+                    entry.sourcePath = destination;
+                }
+            }
+            finally { if (Directory.Exists(temporary)) Directory.Delete(temporary, true); }
+        }
+
         private static IEnumerable<string> PackageFiles(string root)
         {
             if (!Directory.Exists(root)) throw new InvalidOperationException("Package source is unavailable: " + root);

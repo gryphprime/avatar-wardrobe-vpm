@@ -4,6 +4,7 @@ import json
 import os
 import re
 import threading
+import time
 from pathlib import Path, PurePosixPath
 import shutil
 import sqlite3
@@ -205,6 +206,11 @@ class Library:
                 CREATE TABLE IF NOT EXISTS usage (
                     hash TEXT, project TEXT, avatar TEXT, instance TEXT, paths TEXT,
                     PRIMARY KEY(hash, project, avatar, instance));
+                CREATE TABLE IF NOT EXISTS instance_usage (
+                    hash TEXT, project TEXT, avatar_id TEXT, instance_id TEXT,
+                    avatar TEXT, instance TEXT, scene TEXT, session TEXT,
+                    guid TEXT, source_sha256 TEXT, dependency_hash TEXT, match TEXT,
+                    observed REAL, PRIMARY KEY(hash, project, avatar_id, instance_id));
             ''')
 
     def connect(self):
@@ -212,11 +218,34 @@ class Library:
         connection.row_factory = sqlite3.Row
         return connection
 
+    @staticmethod
+    def metadata(creator, product, source_url):
+        for value, limit in ((creator, 200), (product, 200), (source_url, 2048)):
+            if not isinstance(value, str) or len(value) > limit or any(ord(c) < 32 for c in value):
+                raise ValueError('Product details exceed their text limits or contain control characters.')
+        from urllib.parse import urlsplit
+        if source_url:
+            url = urlsplit(source_url)
+            if url.scheme not in ('https', 'http') or not url.hostname or url.username or url.password:
+                raise ValueError('Use an HTTP or HTTPS creator page without embedded credentials.')
+        return creator.strip(), product.strip(), source_url.strip()
+
+    def update_metadata(self, sha, creator='', product='', source_url=''):
+        creator, product, source_url = self.metadata(creator, product, source_url)
+        with self.write_lock, self.connect() as db:
+            row = db.execute('SELECT filename FROM products WHERE hash=?', (sha,)).fetchone()
+            if row is None:
+                raise ValueError('Library version not found. Refresh your library.')
+            db.execute('UPDATE products SET creator=?,product=?,source_url=? WHERE hash=?',
+                       (creator, product or row['filename'], source_url, sha))
+        return {'ok': 1, 'message': 'Product details saved locally. Original files are unchanged.'}
+
     def add(self, source, creator='', product='', source_url=''):
         with self.write_lock:
             return self._add(source, creator, product, source_url)
 
     def _add(self, source, creator='', product='', source_url=''):
+        creator, product, source_url = self.metadata(creator, product, source_url)
         source = Path(source).expanduser().resolve()
         if not source.is_file() or source.stat().st_size > MAX_BYTES:
             raise ValueError('Select a product archive smaller than 4 GiB.')
@@ -268,6 +297,7 @@ class Library:
                 value = dict(row)
                 value['files'] = json.loads(value.pop('manifest'))
                 value['usage'] = [dict(x) for x in db.execute('SELECT project,avatar,instance,paths FROM usage WHERE hash=?', (row['hash'],))]
+                value['usage'].extend(dict(x) for x in db.execute('SELECT * FROM instance_usage WHERE hash=?', (row['hash'],)))
                 result.append(value)
             return result
 
@@ -459,12 +489,58 @@ class Library:
                 break
             destination.write(block)
 
+    def reconcile_usage(self, project, snapshot):
+        """Record only a complete live bridge observation, never a cached browser claim.
+
+        Matching prefab bytes establish prefab provenance, not the entire product's
+        dependency version. GUID-only matches remain explicitly unconfirmed.
+        """
+        project = str(Path(project).resolve())
+        if not isinstance(snapshot, dict) or snapshot.get('projectId') != project:
+            return False
+        if snapshot.get('usageComplete') is not True:
+            return False
+        def text(value, limit=2048):
+            return isinstance(value, str) and len(value) <= limit and not any(ord(c) < 32 for c in value)
+        avatar_id = snapshot.get('avatarId')
+        if not text(avatar_id) or not avatar_id or not text(snapshot.get('avatarName')) or not text(snapshot.get('scene')) or not text(snapshot.get('session'), 128):
+            return False
+        items = snapshot.get('usage')
+        if not isinstance(items, list) or len(items) > 8192:
+            return False
+        seen = set()
+        for item in items:
+            if (not isinstance(item, dict) or not text(item.get('instanceId')) or not item['instanceId'] or
+                    item['instanceId'] in seen or not text(item.get('path')) or
+                    not isinstance(item.get('guid'), str) or not re.fullmatch('[a-f0-9]{32}', item['guid']) or
+                    not isinstance(item.get('sourceSha256'), str) or not re.fullmatch('(?:[a-f0-9]{64})?', item['sourceSha256']) or
+                    not isinstance(item.get('dependencyHash'), str) or not re.fullmatch('[a-f0-9]{32}', item['dependencyHash'])):
+                return False
+            seen.add(item['instanceId'])
+        with self.write_lock, self.connect() as db:
+            candidates = {}
+            for row in db.execute('SELECT hash,manifest FROM products'):
+                for asset in json.loads(row['manifest']):
+                    if asset['guid'] and asset['path'].lower().endswith('.prefab'):
+                        candidates.setdefault(asset['guid'], set()).add((row['hash'], asset['sha256']))
+            rows = []
+            observed = time.time()
+            for item in items:
+                for archive, sha in candidates.get(item['guid'], ()):
+                    match = 'prefab-bytes' if sha == item['sourceSha256'] else 'guid-only'
+                    rows.append((archive, project, avatar_id, item['instanceId'], snapshot['avatarName'], item['path'],
+                                 snapshot['scene'], snapshot['session'], item['guid'], item['sourceSha256'], item['dependencyHash'], match, observed))
+            db.execute('DELETE FROM instance_usage WHERE project=? AND avatar_id=?', (project, avatar_id))
+            db.executemany('INSERT OR REPLACE INTO instance_usage VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+        return True
+
     def update_impact(self, old_hash, new_hash):
         old, new = self.record(old_hash), self.record(new_hash)
         before = {x['path']: x for x in old['files']}
         after = {x['path']: x for x in new['files']}
         with self.connect() as db:
             usage = [dict(x) for x in db.execute('SELECT * FROM usage WHERE hash=?', (old_hash,))]
+            usage.extend(dict(x) for x in db.execute('SELECT * FROM instance_usage WHERE hash=?', (old_hash,)))
         return {'changed': sorted(p for p in before.keys() & after.keys() if before[p]['sha256'] != after[p]['sha256']),
                 'removed': sorted(before.keys() - after.keys()), 'added': sorted(after.keys() - before.keys()),
                 'guidChanges': sorted(p for p in before.keys() & after.keys() if before[p]['guid'] != after[p]['guid']),

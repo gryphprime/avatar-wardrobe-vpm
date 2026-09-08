@@ -50,7 +50,8 @@ class ShadowHttpTests(unittest.TestCase):
         self.assertEqual(202, status, body)
         self.assertEqual(self.operation_id, json.loads(body)['operationId'])
         self.service.submit.assert_called_once_with(self.manifest, 'front', before=False, zoom=1.0,
-            confirmed_revision='', target={'projectId': str(self.project)})
+            confirmed_revision='', target={'projectId': str(self.project)}, operation_id=self.operation_id,
+            source_input={'scopeId': 'common'})
 
     def test_browser_path_and_foreign_capture_are_rejected(self):
         status, body, _ = self.request('/api/shadow/submit', {'manifestPath': '/private/file'})
@@ -71,14 +72,16 @@ class ShadowHttpTests(unittest.TestCase):
         self.assertNotIn('imagePath', result)
         self.assertEqual('/api/shadow/image?key=' + self.key, result['imageUrl'])
 
-    def test_image_has_fixed_key_and_project_scope(self):
+    def test_image_has_fixed_key_and_requires_verified_owned_bytes(self):
         status, _, _ = self.request('/api/shadow/image?key=../secret')
-        self.assertEqual(400, status); self.service._cached.assert_not_called()
-        image = self.root / 'photo.png'; image.write_bytes(b'owned snapshot')
-        self.service._cached.return_value = {'imagePath': str(image), 'project': str(self.project)}
+        self.assertEqual(400, status); self.service.image_bytes.assert_not_called()
+        self.service.image_bytes.return_value = b'owned snapshot'
         status, body, mime = self.request('/api/shadow/image?key=' + self.key)
         self.assertEqual((200, b'owned snapshot', 'image/png'), (status, body, mime))
-        self.service._cached.return_value['project'] = str(self.root / 'other')
+        self.service.image_bytes.assert_called_once_with(self.key)
+        # The service verifies ownership and checksum; missing/foreign/corrupt
+        # content returns None rather than a caller-supplied filesystem path.
+        self.service.image_bytes.return_value = None
         self.assertEqual(404, self.request('/api/shadow/image?key=' + self.key)[0])
 
 

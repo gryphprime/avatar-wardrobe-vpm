@@ -2,11 +2,15 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import shutil
+import sys
+import time
 import unittest
 from unittest.mock import Mock, patch
 import uuid
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / 'Packages/dev.gryphprime.avatar-wardrobe/Desktop/wardrobe_shadow.py'
+sys.path.insert(0, str(MODULE_PATH.parent))
 spec = importlib.util.spec_from_file_location('wardrobe_shadow', MODULE_PATH)
 shadow = importlib.util.module_from_spec(spec); spec.loader.exec_module(shadow)
 
@@ -91,7 +95,38 @@ class ShadowTests(unittest.TestCase):
         self.assertIn('-batchmode', command)
         self.assertNotIn('-nographics', command)
         self.assertNotIn('-quit', command)
+        self.assertEqual(str(executable.resolve()), command[0])
         self.assertEqual(str(self.worker.project), command[command.index('-projectPath') + 1])
+
+    def test_launch_resolves_native_macos_application_bundle(self):
+        self.worker.stage(self.path)
+        bundle = self.root / 'Unity Hub/Unity.app'
+        executable = bundle / 'Contents/MacOS/Unity'
+        executable.parent.mkdir(parents=True)
+        executable.write_text('owned mock')
+        process = Mock(pid=1234); process.poll.return_value = None
+        with patch.object(shadow.subprocess, 'Popen', return_value=process) as popen:
+            self.assertEqual('starting', self.worker.start(bundle)['state'])
+        command = popen.call_args.args[0]
+        self.assertEqual(str(executable.resolve()), command[0])
+        self.assertNotIn('-nographics', command)
+        self.assertNotIn('-quit', command)
+        self.assertEqual(command, json.loads((self.worker.runtime / 'launch.json').read_text())['command'])
+
+    def test_launch_rejects_invalid_bundles_and_unrelated_directories(self):
+        self.worker.stage(self.path)
+        missing_binary = self.root / 'MissingBinary.app'; missing_binary.mkdir()
+        directory_binary = self.root / 'DirectoryBinary.app'
+        (directory_binary / 'Contents/MacOS/Unity').mkdir(parents=True)
+        unrelated = self.root / 'NotAnApplication'
+        (unrelated / 'Contents/MacOS').mkdir(parents=True)
+        (unrelated / 'Contents/MacOS/Unity').write_text('owned mock')
+        with patch.object(shadow.subprocess, 'Popen') as popen:
+            for path in (missing_binary, directory_binary, unrelated, self.root / 'Missing.app'):
+                with self.subTest(path=path.name), self.assertRaisesRegex(ValueError, 'Contents/MacOS/Unity'):
+                    self.worker.start(path)
+            popen.assert_not_called()
+        self.assertEqual('not-started', self.worker.status()['state'])
 
     def test_render_protocol_is_typed_and_image_checksums_are_verified(self):
         self.worker.stage(self.path)
@@ -127,6 +162,10 @@ class ShadowHostTests(unittest.TestCase):
 
     def setUp(self):
         ShadowTests.setUp(self)
+        destination = self.source / 'Library/AvatarWardrobe/captures' / self.manifest['captureId']
+        destination.parent.mkdir(parents=True)
+        shutil.move(str(self.capture), destination)
+        self.capture = destination; self.path = destination / 'manifest.json'
         import sys
         sys.modules['wardrobe_shadow'] = shadow
         host_path = MODULE_PATH.with_name('wardrobe_shadow_host.py')
@@ -149,6 +188,36 @@ class ShadowHostTests(unittest.TestCase):
             time.sleep(0.01)
         self.fail('Snapshot facade did not finish its synthetic operation.')
 
+    def new_capture(self, revision):
+        self.manifest['captureId'] = uuid.uuid4().hex
+        destination = self.capture.parent / self.manifest['captureId']
+        shutil.copytree(self.capture, destination)
+        self.capture = destination; self.path = destination / 'manifest.json'
+        self.manifest['sourceRevision'] = revision; self.write_manifest()
+
+    def test_menu_label_visual_identity_reuses_image_with_current_operation_revision(self):
+        self.manifest['visualRevision'] = 'same-appearance'; self.write_manifest()
+        first = self.settled(self.service.submit(self.path, confirmed_revision='full-old'))
+        self.new_capture('source-menu-renamed')
+        second = self.settled(self.service.submit(self.path, confirmed_revision='full-new'))
+        self.assertEqual('succeeded', second['state'], second)
+        self.assertEqual(first['snapshotKey'], second['snapshotKey'])
+        self.assertEqual('source-menu-renamed', second['sourceRevision'])
+        self.assertEqual('full-new', second['confirmedRevision'])
+        self.assertEqual('source-v1', second['imageSourceRevision'])
+        self.assertTrue(second['cached'])
+        self.assertEqual(1, self.fake.calls.count('render'))
+
+    def test_completed_capture_releases_lease_and_pin_retains_manifest(self):
+        receipt = self.service.submit(self.path)
+        value = self.settled(receipt)
+        self.service.requests[receipt['id']]['future'].result(timeout=3)
+        self.assertEqual([], list(self.capture.glob('.wardrobe-lease-*')))
+        self.service.pin(value['snapshotKey'], True)
+        self.assertEqual(1, len(list(self.capture.glob('.wardrobe-pin-*'))))
+        self.service.pin(value['snapshotKey'], False)
+        self.assertEqual([], list(self.capture.glob('.wardrobe-pin-*')))
+
     def test_cache_reuses_completed_matching_capture(self):
         first = self.settled(self.service.submit(self.path))
         second = self.settled(self.service.submit(self.path))
@@ -159,7 +228,7 @@ class ShadowHostTests(unittest.TestCase):
 
     def test_changed_source_automatically_stops_restages_and_restarts(self):
         self.assertEqual('succeeded', self.settled(self.service.submit(self.path))['state'])
-        self.manifest['captureId'] = uuid.uuid4().hex; self.manifest['sourceRevision'] = 'source-v2'; self.write_manifest()
+        self.new_capture('source-v2')
         self.assertEqual('succeeded', self.settled(self.service.submit(self.path))['state'])
         self.assertEqual(['stage', 'start', 'render', 'stop', 'stage', 'start', 'render'], self.fake.calls)
 
@@ -170,6 +239,56 @@ class ShadowHostTests(unittest.TestCase):
         self.assertEqual('failed', failed['state'])
         self.assertIn('sourceRevision', failed['message'])
         self.assertTrue(Path(first['imagePath']).exists())
+
+    def test_kept_history_survives_restart_and_keeps_exact_source_identity(self):
+        target = {'projectId': str(self.source.resolve()), 'avatarId': 'saved-avatar', 'avatarInstanceId': 17,
+                  'sceneGuid': 'saved-scene', 'session': 'old-session', 'scopeId': 'common'}
+        operation = str(uuid.uuid4())
+        first = self.settled(self.service.submit(self.path, target=target, confirmed_revision='confirmed-one',
+                                                operation_id=operation, source_input={'scopeId': 'common'}))
+        self.service.pin(first['snapshotKey'], True)
+        self.new_capture('source-two')
+        second = self.settled(self.service.submit(self.path, 'back', target=dict(target, scopeId='evening')))
+        kept = self.service.history()
+        self.assertEqual([first['snapshotKey']], [item['snapshotKey'] for item in kept['items']])
+        self.assertEqual(target, kept['items'][0]['target']); self.assertEqual(operation, kept['items'][0]['operationId'])
+        self.assertNotIn('captureManifestPath', kept['items'][0]); self.assertNotIn('imagePath', kept['items'][0]); self.assertNotIn('preview', kept['items'][0])
+        self.assertEqual([second['snapshotKey']], [item['snapshotKey'] for item in self.service.history(pinned=False, limit=1)['items']])
+        self.assertEqual([first['snapshotKey']], [item['snapshotKey'] for item in self.service.history(pinned=False, scope_id='common')['items']])
+        self.assertEqual([], self.service.history(pinned=False, avatar_id='different-avatar')['items'])
+        self.service.close(); self.service.executor.shutdown(wait=True)
+        self.service = self.host.ShadowSnapshotService(self.root / 'service', self.root / 'Unity', self.source, timeout=3)
+        self.assertEqual(first['snapshotKey'], self.service.history()['items'][0]['snapshotKey'])
+        photo = self.service.photo(first['snapshotKey']); self.assertEqual('source-v1', photo['sourceRevision'])
+        self.assertEqual('confirmed-one', photo['confirmedRevision']); self.assertIn('preview', photo)
+        self.assertEqual(Path(first['imagePath']).read_bytes(), self.service.image_bytes(first['snapshotKey']))
+        self.service.pin(first['snapshotKey'], False)
+        self.assertEqual([], self.service.history()['items']); self.assertIsNotNone(self.service.photo(first['snapshotKey']))
+
+    def test_history_rejects_foreign_links_and_corrupt_image_bytes(self):
+        value = self.settled(self.service.submit(self.path)); key = value['snapshotKey']
+        image = Path(value['imagePath']); metadata = image.with_suffix('.json'); original = metadata.read_text()
+        item = json.loads(original); item['project'] = str(self.root / 'other'); metadata.write_text(json.dumps(item))
+        self.assertEqual([], self.service.history(pinned=False)['items']); self.assertIsNone(self.service.image_bytes(key))
+        with self.assertRaises(ValueError): self.service.pin(key)
+        metadata.write_text(original)
+        outside = self.root / 'outside.png'; outside.write_bytes(image.read_bytes()); image.unlink(); image.symlink_to(outside)
+        self.assertEqual([], self.service.history(pinned=False)['items']); self.assertIsNone(self.service.image_bytes(key))
+        image.unlink(); image.write_bytes(b'changed')
+        self.assertIsNone(self.service.photo(key)); self.assertIsNone(self.service.image_bytes(key))
+        self.assertEqual(b'changed', image.read_bytes()); self.assertTrue(outside.exists())
+
+    def test_history_bounds_and_pin_limit_preserve_existing_pins(self):
+        value = self.settled(self.service.submit(self.path)); key = value['snapshotKey']
+        for arguments in ({'limit': 0}, {'limit': 101}, {'offset': -1}, {'offset': 5000}):
+            with self.assertRaises(ValueError): self.service.history(**arguments)
+        with patch.object(self.service, '_history_metadata', return_value=[{'pinned': True}] * 100):
+            with self.assertRaisesRegex(ValueError, '100'): self.service.pin(key)
+        self.assertFalse(self.service.photo(key)['pinned'])
+        self.service.pin(key)
+        with patch.object(self.service, '_history_metadata', return_value=[{'pinned': True}] * 100):
+            self.assertTrue(self.service.pin(key)['pinned'])
+        self.assertTrue(self.service.photo(key)['pinned'])
 
     def test_cross_project_capture_is_rejected_before_dispatch(self):
         self.manifest['projectPath'] = str(self.root / 'other'); self.write_manifest()

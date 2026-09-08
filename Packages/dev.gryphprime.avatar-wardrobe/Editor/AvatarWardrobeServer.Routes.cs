@@ -72,7 +72,12 @@ namespace OutfitToggleGenerator
                 case "/library.js": uiFile = "library.js"; uiMime = "application/javascript"; break;
                 case "/operations.js": uiFile = "operations.js"; uiMime = "application/javascript"; break;
                 case "/snapshots.js": uiFile = "snapshots.js"; uiMime = "application/javascript"; break;
+                case "/photo-history.js": uiFile = "photo-history.js"; uiMime = "application/javascript"; break;
+                case "/photo-history.css": uiFile = "photo-history.css"; uiMime = "text/css"; break;
                 case "/drag-drop.js": uiFile = "drag-drop.js"; uiMime = "application/javascript"; break;
+                case "/preset-appearance.js": uiFile = "preset-appearance.js"; uiMime = "application/javascript"; break;
+                case "/appearance-editor.js": uiFile = "appearance-editor.js"; uiMime = "application/javascript"; break;
+                case "/appearance-editor.css": uiFile = "appearance-editor.css"; uiMime = "text/css"; break;
                 case "/menu-organizer.js": uiFile = "menu-organizer.js"; uiMime = "application/javascript"; break;
                 case "/scene-editor.js": uiFile = "scene-editor.js"; uiMime = "application/javascript"; break;
                 case "/wardrobe.js": uiFile = "wardrobe.js"; uiMime = "application/javascript"; break;
@@ -104,6 +109,63 @@ namespace OutfitToggleGenerator
             {
                 WriteJson(context, 200, RunOnMain(GetState, requestCode));
                 return;
+            }
+            if (path.StartsWith("/api/preset_appearance", StringComparison.Ordinal))
+            {
+                var appearanceQuery = Query(request.Url.Query);
+                appearanceQuery.TryGetValue("presetId", out var presetId);
+                presetId = string.IsNullOrEmpty(presetId) ? AvatarWardrobePresets.CommonTarget : presetId;
+                if (path == "/api/preset_appearance") WriteJson(context, 200, RunOnMain(() => WardrobePresetAppearance.Describe(SceneAvatar, presetId), requestCode));
+                else if (path == "/api/preset_appearance_save")
+                {
+                    appearanceQuery.TryGetValue("revision", out var revision);
+                    WriteJson(context, 200, RunOnMain(() => WardrobePresetAppearance.Save(SceneAvatar, presetId, revision), requestCode));
+                }
+                else if (path == "/api/preset_appearance_review") WriteJson(context, 200, RunOnMain(() => WardrobePresetAppearance.Review(SceneAvatar, presetId), requestCode));
+                else if (path == "/api/preset_appearance_apply")
+                {
+                    appearanceQuery.TryGetValue("token", out var token);
+                    WriteJson(context, 200, RunOnMain(() => WardrobePresetAppearance.Apply(SceneAvatar, presetId, token), requestCode));
+                }
+                else if (path == "/api/preset_appearance_export") WriteJson(context, 200, RunOnMain(() => WardrobePresetAppearance.Export(SceneAvatar, presetId), requestCode));
+                else WriteJson(context, 404, new ResultDto { message = "Unknown saved appearance action." });
+                return;
+            }
+            if (path == "/api/appearance_snapshot")
+            {
+                WriteJson(context, 200, RunOnMain(() => WardrobeAppearanceEditor.Snapshot(SceneAvatar), requestCode)); return;
+            }
+            if (path == "/api/appearance_textures")
+            {
+                Query(request.Url.Query).TryGetValue("search", out var search);
+                WriteJson(context, 200, RunOnMain(() => WardrobeAppearanceEditor.Textures(search ?? ""), requestCode)); return;
+            }
+            if (path == "/api/appearance_tools")
+            {
+                WriteJson(context, 200, RunOnMain(() => WardrobeAppearanceTools.Snapshot(SceneAvatar), requestCode)); return;
+            }
+            if (path == "/api/appearance_review")
+            {
+                Query(request.Url.Query).TryGetValue("command", out var commandJson);
+                WriteJson(context, 200, RunOnMain(() => WardrobeAppearanceEditor.Review(JsonUtility.FromJson<WardrobeAppearanceEditor.CommandDto>(commandJson ?? "{}")), requestCode)); return;
+            }
+            if (path == "/api/appearance_apply")
+            {
+                Query(request.Url.Query).TryGetValue("review", out var reviewJson);
+                WriteJson(context, 200, RunOnMain(() => WardrobeAppearanceEditor.Apply(JsonUtility.FromJson<WardrobeAppearanceEditor.ApplyDto>(reviewJson ?? "{}")), requestCode)); return;
+            }
+            if (path == "/api/appearance_tool" || path == "/api/appearance_optimizer_review")
+            {
+                Query(request.Url.Query).TryGetValue("command", out var commandJson);
+                if (path == "/api/appearance_tool")
+                    WriteJson(context, 200, RunOnMain(() => WardrobeAppearanceTools.Execute(JsonUtility.FromJson<WardrobeAppearanceTools.CommandDto>(commandJson ?? "{}")), requestCode));
+                else WriteJson(context, 200, RunOnMain(() => WardrobeAppearanceTools.ReviewOptimizer(JsonUtility.FromJson<WardrobeAppearanceTools.CommandDto>(commandJson ?? "{}")), requestCode));
+                return;
+            }
+            if (path == "/api/appearance_optimizer_apply")
+            {
+                Query(request.Url.Query).TryGetValue("review", out var reviewJson);
+                WriteJson(context, 200, RunOnMain(() => WardrobeAppearanceTools.ApplyOptimizer(JsonUtility.FromJson<WardrobeAppearanceEditor.ApplyDto>(reviewJson ?? "{}")), requestCode)); return;
             }
             if (path == "/api/menu_snapshot")
             {
