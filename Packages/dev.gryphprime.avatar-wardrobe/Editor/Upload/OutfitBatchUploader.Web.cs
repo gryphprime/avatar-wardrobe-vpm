@@ -20,30 +20,23 @@ namespace ShiroTools
     public partial class OutfitBatchUploader
     {
         private static OutfitBatchUploader _webEngine;
-        private static GameObject _webScannedAvatar;
-        private static int _webScannedRevision = -1;
-        internal static OutfitBatchUploader WebEngine(bool refreshScene = true)
+        internal static OutfitBatchUploader WebEngine()
         {
             if (_webEngine == null) _webEngine = CreateEmbeddedDrawer();
             var selected = WebParentAvatar();
-            if (selected != null) _webEngine._avatarRoot = selected;
-            var revision = OutfitToggleGenerator.AvatarWardrobePresets.HierarchyRevision;
-            if (refreshScene || selected != _webScannedAvatar || revision != _webScannedRevision)
-            {
-                _webEngine.ScanScene();
-                _webEngine.RegisterLegacyPresets();
-                _webScannedAvatar = selected;
-                _webScannedRevision = revision;
-            }
-            // Read-only status/detail requests must never regenerate menus or render icons.
-            if (refreshScene && selected != null && !BatchActiveNow && !_webEngine._isBatchUploading && !_webEngine._isExpressBusy &&
-                !selected.scene.path.StartsWith("Assets/Generated/WardrobeUploads/", StringComparison.Ordinal))
-            {
-                var avatar = selected.GetComponent<VRC.SDK3.Avatars.Components.VRCAvatarDescriptor>();
-                OutfitToggleGenerator.OutfitToggleGenerator.SyncPresetSelection(avatar, OutfitToggleGenerator.AvatarWardrobePresets.SeparateAvatarUploads);
-                OutfitToggleGenerator.OutfitToggleGenerator.MigrateMenuGroups(avatar);
-            }
+            _webEngine._avatarRoot = selected;
+            // Rebind records for mutations after a read returned detached defaults.
+            _webEngine.AutoDetectSkin();
+            _webEngine.RebuildOutfitList();
             return _webEngine;
+        }
+        internal static void MigrateSelectedAvatar()
+        {
+            if (BatchActiveNow) throw new InvalidOperationException("Wait for the active upload before migrating.");
+            var engine = WebEngine();
+            engine.RegisterLegacyPresets();
+            var avatar = OutfitToggleGenerator.AvatarWardrobeServer.SceneAvatar;
+            OutfitToggleGenerator.OutfitToggleGenerator.MigrateMenuGroups(avatar);
         }
         private void RegisterLegacyPresets()
         {
@@ -176,8 +169,10 @@ namespace ShiroTools
         public class WebThumbDto { public int ok; public string message = ""; public string token = ""; }
         internal static WebStateDto WebGetState()
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             try { return WebEngine().BuildWebState(); }
             catch (Exception ex) { return new WebStateDto { message = ex.Message }; }
+
         }
         private WebStateDto BuildWebState()
         {
@@ -478,6 +473,7 @@ namespace ShiroTools
         public class WebBlendListDto { public int ok; public string message = ""; public string skin = ""; public List<WebBlendDto> items = new List<WebBlendDto>(); }
         internal static WebBlendListDto WebBlendshapes(string name)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebBlendListDto();
             try
             {
@@ -500,6 +496,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebBlendshapeSet(string name, string bs, string pinned, string weight)
         {
@@ -564,6 +561,7 @@ namespace ShiroTools
         public class WebItemListDto { public int ok; public string message = ""; public string parent = ""; public List<WebItemDto> items = new List<WebItemDto>(); }
         internal static WebItemListDto WebItems(string name)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebItemListDto();
             try
             {
@@ -580,6 +578,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebItemSet(string outfit, string item, string include)
         {
@@ -631,6 +630,7 @@ namespace ShiroTools
         }
         internal static WebFaceEmoDto WebFaceEmo(string name)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebFaceEmoDto();
             try
             {
@@ -642,6 +642,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebFaceEmoCapture(string name)
         {
@@ -680,6 +681,7 @@ namespace ShiroTools
         }
         internal static WebVramDto WebVramPreview(string name)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebVramDto();
             try
             {
@@ -706,6 +708,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebVramApply(string name)
         {
@@ -731,6 +734,7 @@ namespace ShiroTools
         }
         internal static double WebVramSync(string name)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             try
             {
                 var eng = WebEngine();
@@ -742,9 +746,11 @@ namespace ShiroTools
             }
             catch { }
             return -1;
+
         }
         private sealed class WebJobState
         {
+            public DateTime created = DateTime.UtcNow;
             public bool done; public bool ok; public string message = "";
             public int index; public int total; public string current = "";
             public string blueprintId = ""; public List<WebAvatarDto> avatars;
@@ -752,10 +758,17 @@ namespace ShiroTools
         private static readonly Dictionary<string, WebJobState> _webJobs = new Dictionary<string, WebJobState>();
         private static readonly object _webJobsLock = new object();
         private static string _webPresetJob = "";
+        internal static bool HasWebJob(string id) { lock (_webJobsLock) return _webJobs.ContainsKey(id); }
+        internal static string WebRequestId;
         private static string NewWebJob()
         {
-            string id = Guid.NewGuid().ToString("N");
-            lock (_webJobsLock) _webJobs[id] = new WebJobState();
+            string id = WebRequestId ?? Guid.NewGuid().ToString("N");
+            WebRequestId = null;
+            lock (_webJobsLock)
+            {
+                foreach (var expired in _webJobs.Where(kv => kv.Value.done).OrderByDescending(kv => kv.Value.created).Skip(63).Select(kv => kv.Key).ToList()) _webJobs.Remove(expired);
+                _webJobs[id] = new WebJobState();
+            }
             return id;
         }
         private static void WebJobProgress(string job, int index, int total, string current)
@@ -777,6 +790,7 @@ namespace ShiroTools
                 r.job = job ?? "";
                 if (!_webJobs.TryGetValue(job ?? "", out var st))
                 {
+                    r.done = 1;
                     r.message = "Unknown or expired job. If Unity reloaded mid-upload, check the window and log.";
                     return r;
                 }
@@ -814,7 +828,8 @@ namespace ShiroTools
                 var targets = new List<OutfitEntry>();
                 foreach (var n in names) { var o = eng.WebFindOutfit(n); if (o != null) targets.Add(o); }
                 if (targets.Count == 0) throw new Exception("No matching presets in the scene.");
-                int failedBefore = LoadQueue(SESSION_FAILED).Count;
+                string runBefore = SessionState.GetString(SESSION_BATCH_RUN_ID, "");
+                string runId = null;
                 eng.LoadNewSetupDefaults();
                 eng.EnsureOptDefaults();
                 bool savedOptAsk = eng._nsOptAsk;
@@ -829,6 +844,7 @@ namespace ShiroTools
                         {
                             WebJobProgress(jobId, i++, targets.Count, o.Name);
                             await eng.ExpressSetupAsync(o, null, true);
+                            if (!await WaitForExpressAsync() || !eng._expressSucceeded) throw new Exception(eng._statusMessage);
                         }
                     }
                     var configured = targets.Where(o => o != null && o.Go != null && !string.IsNullOrWhiteSpace(o.BlueprintId)).ToList();
@@ -836,13 +852,14 @@ namespace ShiroTools
                     {
                         WebJobProgress(jobId, 0, configured.Count, "batch");
                         await eng.StartBatchAsync(configured);
+                        runId = SessionState.GetString(SESSION_BATCH_RUN_ID, "");
+                        if (runId == runBefore) throw new Exception("Batch refused to start.");
                         if (!await WaitForBatchAsync()) throw new Exception("Timed out waiting for the upload to finish.");
                     }
                     else if (!expressNew) throw new Exception("Nothing to upload — presets need a Blueprint ID first (use Express).");
                 }
                 finally { eng._nsOptAsk = savedOptAsk; WardrobeHeadless = false; }
-                int failedAfter = LoadQueue(SESSION_FAILED).Count;
-                bool ok = failedAfter <= failedBefore;
+                bool ok = runId != null ? BatchRunSucceeded(runId) : expressNew && eng._expressSucceeded;
                 WebJobFinish(jobId, ok, string.IsNullOrEmpty(eng._statusMessage) ? (ok ? "Done." : "Finished with failures.") : eng._statusMessage, null);
             }
             catch (Exception ex) { try { WebJobFinish(jobId, false, ex.Message, null); } catch { } }
@@ -971,6 +988,7 @@ namespace ShiroTools
         }
         internal static WebReportDto WebDryRun()
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebReportDto();
             try
             {
@@ -980,6 +998,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebDismissFailed()
         {
@@ -1016,17 +1035,18 @@ namespace ShiroTools
             try
             {
                 var eng = WebEngine();
-                int failedBefore = LoadQueue(SESSION_FAILED).Count;
+                string runBefore = SessionState.GetString(SESSION_BATCH_RUN_ID, "");
+                string runId = null;
                 WardrobeHeadless = true;
                 try
                 {
                     WebJobProgress(jobId, 0, valid.Count, "retry");
                     await eng.RetryFailedAsync(valid);
+                    runId = SessionState.GetString(SESSION_BATCH_RUN_ID, "");
                     if (!await WaitForBatchAsync()) throw new Exception("Timed out waiting for the upload to finish.");
                 }
                 finally { WardrobeHeadless = false; }
-                int failedAfter = LoadQueue(SESSION_FAILED).Count;
-                bool ok = failedAfter < failedBefore;
+                bool ok = runId != runBefore && BatchRunSucceeded(runId);
                 WebJobFinish(jobId, ok, string.IsNullOrEmpty(eng._statusMessage) ? (ok ? "Retry finished." : "Retry finished with failures.") : eng._statusMessage, null);
             }
             catch (Exception ex) { try { WebJobFinish(jobId, false, ex.Message, null); } catch { } }
@@ -1067,6 +1087,7 @@ namespace ShiroTools
         }
         internal static WebExportDto WebExport()
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebExportDto();
             try
             {
@@ -1081,6 +1102,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         private static readonly Dictionary<string, StringBuilder> _webImports = new Dictionary<string, StringBuilder>();
         private static readonly object _webImportsLock = new object();
@@ -1288,6 +1310,7 @@ namespace ShiroTools
         }
         internal static WebPresetConfigDto WebPresetConfig(string id)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebPresetConfigDto { id = id ?? "" };
             try
             {
@@ -1306,6 +1329,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebPresetInclude(string id, string include)
         {
@@ -1337,6 +1361,7 @@ namespace ShiroTools
         public class WebPresetBlendListDto { public int ok; public string message = ""; public string skin = ""; public List<WebBlendDto> items = new List<WebBlendDto>(); }
         internal static WebPresetBlendListDto WebPresetBlends(string id)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebPresetBlendListDto();
             try
             {
@@ -1365,6 +1390,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebPresetBlendSet(string id, string bs, string pinned, string weight)
         {
@@ -1433,6 +1459,7 @@ namespace ShiroTools
         public class WebPresetItemListDto { public int ok; public string message = ""; public string parent = ""; public List<WebItemDto> items = new List<WebItemDto>(); }
         internal static WebPresetItemListDto WebPresetItems(string id)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebPresetItemListDto();
             try
             {
@@ -1453,6 +1480,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebPresetItemSet(string id, string item, string include)
         {
@@ -1493,6 +1521,7 @@ namespace ShiroTools
         }
         internal static WebFaceEmoDto WebPresetFaceEmo(string id)
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebFaceEmoDto();
             try
             {
@@ -1506,6 +1535,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         internal static WebResultDto WebPresetFaceEmoSet(string id, string name)
         {
@@ -1579,6 +1609,7 @@ namespace ShiroTools
         public class WebUnassignedDto { public int ok; public string message = ""; public List<WebUnassignedItemDto> items = new List<WebUnassignedItemDto>(); }
         internal static WebUnassignedDto WebUnassigned()
         {
+            using var readScope = OutfitProjectData.ReadOnly();
             var r = new WebUnassignedDto();
             try
             {
@@ -1603,6 +1634,7 @@ namespace ShiroTools
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
+
         }
         [Serializable]
         public class WebPresetCreateDto { public int ok; public string message = ""; public string id = ""; }

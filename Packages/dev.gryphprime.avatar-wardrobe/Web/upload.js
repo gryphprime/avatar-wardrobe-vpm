@@ -73,6 +73,15 @@
   function upStartJob(url,label,canCancel,onDone){
     upShowJob(label,canCancel);
     var token=++upJobToken;
+    var requestId=crypto.randomUUID().replace(/-/g, "");
+    url+=(url.indexOf("?")>=0?"&":"?")+"requestId="+encodeURIComponent(requestId);
+    function handleResult(q){
+      if(token!==upJobToken||!q)return;
+      upEl("upJobMsg").textContent="";
+      if(q.total>0)upEl("upJobBar").style.width=Math.round(100*q.index/Math.max(1,q.total))+"%";
+      if(q.current)upEl("upJobLabel").textContent=label+" - "+q.current;
+      if(q.done){upStopPoll();upEndJob(!!q.ok,q.message);if(onDone)onDone(q);}
+    }
     function followJob(r){
       if(token!==upJobToken)return;
       if(!r||!r.ok||!r.job){ upEndJob(false,(r&&r.message)||T("upload.failed")); return; }
@@ -82,12 +91,7 @@
         if(upJobPolling) return;
         upJobPolling=true;
         request("/api/batch_job?job="+encodeURIComponent(job)).then(function(q){
-          if(token!==upJobToken)return;
-          if(!q)return;
-          upEl("upJobMsg").textContent="";
-          if(q.total>0) upEl("upJobBar").style.width=Math.round(100*q.index/Math.max(1,q.total))+"%";
-          if(q.current) upEl("upJobLabel").textContent=label+" - "+q.current;
-          if(q.done){ upStopPoll(); upEndJob(!!q.ok,q.message); if(onDone) onDone(q); }
+          handleResult(q);
         }).catch(function(){
           // Builds can occupy Unity for a long time. Preserve progress and retry
           // quietly; only an explicit job result can finish the upload UI.
@@ -102,9 +106,10 @@
       function recoverJob(){
         if(token!==upJobToken||upJobPolling)return;
         upJobPolling=true;
-        request("/api/batch_job").then(function(q){
+        request("/api/batch_job?job="+encodeURIComponent(requestId)).then(function(q){
           if(token!==upJobToken)return;
-          if(q&&q.job&&!q.done)followJob({ok:1,job:q.job});
+          if(q&&q.done)handleResult(q);
+          else if(q&&q.job===requestId)followJob({ok:1,job:q.job});
         }).catch(function(){}).finally(function(){upJobPolling=false;});
       }
       upJobTimer=setInterval(recoverJob,5000);

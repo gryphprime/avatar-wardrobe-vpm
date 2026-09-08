@@ -13,13 +13,13 @@ MESH_RE = re.compile(r"m_Mesh: \{fileID: (-?\d+)(?:, guid: ([0-9a-f]{32}))?")
 
 AVATAR_RE = re.compile(r"m_Avatar: \{fileID: (-?\d+)(?:, guid: ([0-9a-f]{32}))?")
 
-ROOTBONE_RE = re.compile(r"m_RootBone: \{fileID: (\d+)")
+ROOTBONE_RE = re.compile(r"m_RootBone: \{fileID: (-?\d+)")
 
 GONAME_RE = re.compile(r"(?m)^  m_Name: (.*)$")
 
-GOFROMTRANS_RE = re.compile(r"m_GameObject: \{fileID: (\d+)")
+GOFROMTRANS_RE = re.compile(r"m_GameObject: \{fileID: (-?\d+)")
 
-SOURCE_RE = re.compile(r"m_SourcePrefab: \{fileID: \d+, guid: ([0-9a-f]{32})")
+SOURCE_RE = re.compile(r"m_SourcePrefab: \{fileID: -?\d+, guid: ([0-9a-f]{32})")
 
 META_GUID_RE = re.compile(r"(?m)^guid: ([0-9a-f]{32})\s*$")
 
@@ -70,6 +70,7 @@ def parse_prefab_text(text):
     avatar_ref = False
     mesh_refs, mat_refs, bone_anchors = [], [], []
     sources = set()
+    source_counts = Counter()
     mod_mats = mod_bones = has_mods = False
     # split() yields [pre, cls, anchor, stripped, body] * N: stride 4, offset 1.
     for i in range(1, len(docs) - 3, 4):
@@ -78,6 +79,8 @@ def parse_prefab_text(text):
         body = docs[i + 3]
         for m in SOURCE_RE.finditer(body):
             sources.add(m.group(1))
+            if cls == CLS_PREFABINSTANCE and not stripped:
+                source_counts[m.group(1)] += 1
         if cls == CLS_PREFABINSTANCE:
             # Variant overrides prove base content: material/bone overrides mean
             # base renderers exist even when the base is a binary model file.
@@ -156,6 +159,7 @@ def parse_prefab_text(text):
         "renderer_names": renderer_names,
         "mod_mat_guids": sorted(set(MODMAT_RE.findall(text))),
         "sources": sources,
+        "source_counts": source_counts,
         "mod_mats": mod_mats,
         "mod_bones": mod_bones,
         "has_mods": has_mods or bool(scripts),

@@ -70,6 +70,8 @@ The workflow merges the previous live listing, keeping old versions available.
 Release archives include SHA-256 values in the listing and are never overwritten.
 Release versus prerelease channels will be introduced later at launch.
 
+See [development validation](DEVELOPMENT.md) for the review fixes, local test fixture, and required Unity CI runner provisioning.
+
 ## Reporting problems
 
 Open **Settings → Report a problem** for bug reports. In an item's detail modal,

@@ -25,6 +25,7 @@ namespace OutfitToggleGenerator
             var provider = WardrobeMetadataProvider.Current;
             if (!provider.IsAvailable)
                 return new NameJobDto { message = WardrobeStrings.T("name.unavailable") };
+            PruneUploadJobs();
             var jobId = Guid.NewGuid().ToString("N");
             lock (nameJobsLock) nameJobs[jobId] = new NameJobState();
             var avatar = AvatarWardrobeCatalog.GetRecord(ActiveAvatarGuid());
@@ -114,6 +115,7 @@ namespace OutfitToggleGenerator
 
         private sealed class UploadJobState
         {
+            public DateTime created = DateTime.UtcNow;
             public bool done;
             public bool ok;
             public string message;
@@ -123,6 +125,11 @@ namespace OutfitToggleGenerator
 
         private static readonly Dictionary<string, UploadJobState> uploadJobs = new Dictionary<string, UploadJobState>();
         private static readonly object uploadJobsLock = new object();
+        private static void PruneUploadJobs()
+        {
+            lock (uploadJobsLock)
+                foreach (var expired in uploadJobs.Where(kv => kv.Value.done).OrderByDescending(kv => kv.Value.created).Skip(63).Select(kv => kv.Key).ToList()) uploadJobs.Remove(expired);
+        }
         [Serializable]
         private sealed class SceneUploadReview
         {
@@ -244,46 +251,7 @@ namespace OutfitToggleGenerator
                 RunPresetUploadJob(presetJobId, cleanPreset);
                 return new UploadJobDto { ok = 1, job = presetJobId };
             }
-            var outfit = AvatarWardrobeCatalog.GetRecord(guid);
-            if (outfit == null) return new UploadJobDto { message = WardrobeStrings.T("err.notfound") };
-            if (AvatarWardrobeCatalog.EffectiveKind(outfit) != WardrobeAssetKind.Outfit)
-                return new UploadJobDto { message = WardrobeStrings.T("install.onlyoutfits") };
-            if (SceneAvatar == null)
-                return new UploadJobDto { message = WardrobeStrings.T("install.noavatar") };
-            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows64)
-                return new UploadJobDto { message = "Switch Unity's build target to Windows first (File > Build Settings)." };
-            var jobId = Guid.NewGuid().ToString("N");
-            lock (uploadJobsLock) uploadJobs[jobId] = new UploadJobState();
-            RunUploadJob(jobId, guid);
-            return new UploadJobDto { ok = 1, job = jobId };
-        }
-
-        private static async void RunUploadJob(string jobId, string guid)
-        {
-            // Assumption: started on Unity's main thread via RunOnMain, where the
-            // Editor installs a SynchronizationContext — so the awaits inside
-            // UploadVariantAsync resume on the main thread and Unity APIs stay legal.
-            try
-            {
-                lock (uploadJobsLock) uploadRunning = true;
-                var outcome = await AvatarWardrobeUpload.UploadVariantAsync(guid);
-                lock (uploadJobsLock) uploadJobs[jobId] = new UploadJobState
-                {
-                    done = true,
-                    ok = outcome.ok,
-                    message = outcome.message,
-                    blueprintId = outcome.blueprintId ?? string.Empty,
-                    isNew = outcome.isNew,
-                };
-            }
-            catch (Exception exception)
-            {
-                lock (uploadJobsLock) uploadJobs[jobId] = new UploadJobState { done = true, message = exception.Message };
-            }
-            finally
-            {
-                lock (uploadJobsLock) uploadRunning = false;
-            }
+            return new UploadJobDto { message = "Variant uploads were retired. Create a preset and upload that preset." };
         }
 
         private static async void RunPresetUploadJob(string jobId, string presetId)
@@ -320,10 +288,11 @@ namespace OutfitToggleGenerator
             UploadJobState state;
             lock (uploadJobsLock)
             {
+                foreach (var expired in uploadJobs.Where(kv => kv.Value.done && DateTime.UtcNow - kv.Value.created > TimeSpan.FromHours(24)).Select(kv => kv.Key).ToList()) uploadJobs.Remove(expired);
                 if (string.IsNullOrEmpty(job) || !uploadJobs.TryGetValue(job, out state))
                     return new UploadResultDto { message = WardrobeStrings.T("name.unknownjob") };
                 if (!state.done) return new UploadResultDto { pending = 1, message = state.message };
-                uploadJobs.Remove(job);
+
             }
             return new UploadResultDto
             {
@@ -346,12 +315,7 @@ namespace OutfitToggleGenerator
                     lastUpload = presetStatus.lastUpload ?? string.Empty,
                 };
             }
-            var status = AvatarWardrobeUpload.GetStatus(guid);
-            return new UploadStatusDto
-            {
-                blueprintId = status.blueprintId ?? string.Empty,
-                lastUpload = status.lastUpload ?? string.Empty,
-            };
+            return new UploadStatusDto();
         }
 
         private static string PresetDisplayName(string target)
@@ -364,7 +328,7 @@ namespace OutfitToggleGenerator
         private static PresetListDto GetPresets()
         {
             if (SceneAvatar != null && !EditorApplication.isPlayingOrWillChangePlaymode)
-                ShiroTools.OutfitBatchUploader.WebEngine(false);
+                ShiroTools.OutfitBatchUploader.WebEngine();
             string baseKey;
             string baseName;
             AvatarWardrobePresets.CurrentBase(out baseKey, out baseName);
@@ -405,9 +369,10 @@ namespace OutfitToggleGenerator
             public string selectedPreset = "common";
         }
         private const string WorkflowPath = "ProjectSettings/AvatarWardrobeUI.json";
+        internal static bool SeparateAvatarUploads => ReadWorkflow().wardrobeMode == "multi-avatar";
         private static WorkflowPreferences ReadWorkflow()
         {
-            if (!File.Exists(WorkflowPath)) return new WorkflowPreferences();
+            if (!File.Exists(WorkflowPath)) return new WorkflowPreferences { wardrobeMode = AvatarWardrobePresets.LegacySeparateAvatarUploads ? "multi-avatar" : "one-avatar" };
             return JsonUtility.FromJson<WorkflowPreferences>(File.ReadAllText(WorkflowPath)) ?? new WorkflowPreferences();
         }
         private static ResultDto SaveWorkflow(string mode, string selected)
@@ -417,13 +382,11 @@ namespace OutfitToggleGenerator
                 return new ResultDto { message = "Unknown avatar workflow." };
             if (mode != null) value.wardrobeMode = mode;
             if (!string.IsNullOrEmpty(selected)) value.selectedPreset = selected;
-            File.WriteAllText(WorkflowPath + ".tmp", JsonUtility.ToJson(value, true));
-            if (File.Exists(WorkflowPath)) File.Replace(WorkflowPath + ".tmp", WorkflowPath, null);
-            else File.Move(WorkflowPath + ".tmp", WorkflowPath);
+            WardrobeAtomicFile.WriteText(WorkflowPath, JsonUtility.ToJson(value, true));
             return new ResultDto { ok = 1 };
         }
 
-        private static ResultDto SavePreset(string id, string name)
+        internal static ResultDto SavePreset(string id, string name)
         {
             var saved = AvatarWardrobePresets.SavePreset(id ?? string.Empty, name ?? string.Empty);
             if (!saved.ok) return new ResultDto { message = saved.message };
@@ -544,7 +507,7 @@ namespace OutfitToggleGenerator
                 // Settings are saved last; failures revert scene edits as well.
                 if (!string.IsNullOrEmpty(cleanTarget))
                     AvatarWardrobePresets.SetAssignment(guid, assignBaseKey, cleanTarget);
-                OutfitToggleGenerator.SyncPresetSelection(SceneAvatar, AvatarWardrobePresets.SeparateAvatarUploads);
+                OutfitToggleGenerator.SyncPresetSelection(SceneAvatar);
                 if (!string.IsNullOrEmpty(menuGroup))
                     AvatarWardrobePresets.UpdateMenuGroup(cleanTarget, menuGroup, null,
                         AnimationUtility.CalculateTransformPath(result.instance.transform, SceneAvatar.transform), guid, "assign");
@@ -595,7 +558,7 @@ namespace OutfitToggleGenerator
                 var paths = instances.Select(item => AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform)).ToList();
                 foreach (var instance in instances) AvatarWardrobeCatalog.Remove(instance);
                 AvatarWardrobePresets.ForgetRemovedItems(target, paths);
-                OutfitToggleGenerator.SyncPresetSelection(SceneAvatar, AvatarWardrobePresets.SeparateAvatarUploads);
+                OutfitToggleGenerator.SyncPresetSelection(SceneAvatar);
                 OutfitToggleGenerator.SyncMenuGroups(SceneAvatar);
                 return new ResultDto { ok = 1, message = "Removed from " + (target == "common" ? "Common Preset" : preset?.name ?? target) + "." };
             });
@@ -616,26 +579,48 @@ namespace OutfitToggleGenerator
                 string baseKey, baseName;
                 AvatarWardrobePresets.CurrentBase(out baseKey, out baseName);
                 AvatarWardrobePresets.SetAssignment(guid, baseKey, string.Empty);
-                OutfitToggleGenerator.SyncPresetSelection(SceneAvatar, AvatarWardrobePresets.SeparateAvatarUploads);
+                OutfitToggleGenerator.SyncPresetSelection(SceneAvatar);
                 return new ResultDto { ok = 1, message = WardrobeStrings.T("install.removed") };
             });
         }
 
-        private static ResultDto EditAvatar(string label, Func<ResultDto> edit)
+        private static ShiroTools.OutfitBatchUploader.WebJobDto StartBatchRequest(string query, Func<ShiroTools.OutfitBatchUploader.WebJobDto> start)
+        {
+            Query(query).TryGetValue("requestId", out var id);
+            if (!string.IsNullOrEmpty(id) && !Guid.TryParseExact(id, "N", out _))
+                return new ShiroTools.OutfitBatchUploader.WebJobDto { message = "Invalid request identity." };
+            if (!string.IsNullOrEmpty(id) && ShiroTools.OutfitBatchUploader.HasWebJob(id))
+                return new ShiroTools.OutfitBatchUploader.WebJobDto { ok = 1, job = id };
+            ShiroTools.OutfitBatchUploader.WebRequestId = id;
+            try { return start(); }
+            finally { ShiroTools.OutfitBatchUploader.WebRequestId = null; }
+        }
+
+        internal static ResultDto EditAvatar(string label, Func<ResultDto> edit)
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
                 return new ResultDto { message = "Leave Play Mode before editing the avatar." };
-            // Unity Undo covers scene objects, not ProjectSettings files. Snapshot those
-            // for exception rollback; ordinary user Undo still applies to scene changes only.
+            // Keep scene objects and their authoritative metadata in the same Undo group.
             var settings = AvatarWardrobePresets.CaptureSettings();
+            var uploadSettings = ShiroTools.OutfitProjectData.CaptureSettings();
             Undo.IncrementCurrentGroup();
             var group = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName(label);
             try
             {
+                WardrobeSettingsUndo.Begin(label);
+                AvatarWardrobePresets.MigrateCurrentOwner();
                 var result = edit();
-                if (result.ok != 1) Undo.RevertAllDownToGroup(group);
-                else Undo.CollapseUndoOperations(group);
+                if (result.ok != 1)
+                {
+                    try { Undo.RevertAllDownToGroup(group); }
+                    finally
+                    {
+                        try { AvatarWardrobePresets.RestoreSettings(settings); }
+                        finally { ShiroTools.OutfitProjectData.RestoreSettings(uploadSettings); }
+                    }
+                }
+                else { WardrobeSettingsUndo.Capture(); Undo.CollapseUndoOperations(group); }
                 return result;
             }
             catch (Exception error)
@@ -644,6 +629,8 @@ namespace OutfitToggleGenerator
                 catch (Exception rollback) { Debug.LogError("Wardrobe scene rollback failed: " + rollback); }
                 try { AvatarWardrobePresets.RestoreSettings(settings); }
                 catch (Exception rollback) { Debug.LogError("Wardrobe preset rollback failed: " + rollback); }
+                try { ShiroTools.OutfitProjectData.RestoreSettings(uploadSettings); }
+                catch (Exception rollback) { Debug.LogError("Wardrobe upload settings rollback failed: " + rollback); }
                 Debug.LogException(error);
                 return new ResultDto { message = "Avatar edit failed and rollback was attempted: " + error.Message };
             }
