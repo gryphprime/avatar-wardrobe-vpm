@@ -1,6 +1,10 @@
 # Wardrobe implementation and validation
 
-This branch implements the September 7 UX recommendations and the added drag/drop,
+**Paused at the user’s request after checkpoint `26df488`.** See the
+[milestone and remaining-work handoff](milestone-and-remaining-work.md) before resuming.
+This page describes delivered behavior; it does not certify full plan completion.
+
+This branch develops workflows from the September 7 UX recommendations and the added drag/drop,
 snapshots and asynchronous-operation plan. It also integrates the existing Aelchor
 reporting contract and an optional advanced scene/object editor.
 
@@ -12,7 +16,7 @@ development pushes do not publish stable VPM releases.
 | Workflow | Behavior |
 | --- | --- |
 | Choose a target | Pin an exact scene avatar. Project/session/avatar/revision guards protect later operations. One-avatar presentation preserves the existing preset configuration. |
-| Add purchased files | External local library accepts ZIP/unitypackage files and chosen folders, retains immutable originals, detects duplicates, and reviews paths, GUID conflicts, executable content and dependencies before copying. Each selected archive has its own result. |
+| Add purchased files | External local library accepts ZIP/unitypackage files and discovers archives in chosen folders, retains immutable originals, detects duplicates, and reviews paths, GUID conflicts, executable content and dependencies before copying. Each selected archive has its own result. |
 | Browse offline | Library records and a bounded catalog/image cache remain available while Unity is closed or its requests time out, including Python 3.9 socket timeouts. Contextual empty states offer Choose avatar, Add purchased files, Clear filters, Retry or the local library, with English/Japanese copy. No project files are automatically unlinked. |
 | Review update impact | Original version hashes and optional creator/product/source metadata stay in the library. Live observations record exact avatar/copy references. Matching prefab bytes and unconfirmed GUID-only version matches are distinguished. |
 | Try on | Capture the complete source into owned storage, process supported build transformations in a separate persistent graphics-enabled Unity project, and show Front/Three-quarter/Back, Before/After and zoom. Active-Unity preview is an explicit fallback. |
