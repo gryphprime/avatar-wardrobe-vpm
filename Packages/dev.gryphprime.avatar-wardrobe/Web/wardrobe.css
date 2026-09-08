@@ -231,3 +231,116 @@ input[type=radio] { accent-color:var(--accent-fill); width:16px; height:16px; fl
 #targetLocation { flex-basis: 100%; overflow-wrap: anywhere; }
 #dInstance { max-width: 100%; }
 #dSetupWarning:empty { display: none; }
+
+.library-workspace { flex: 1; min-height: 0; overflow: auto; margin: 0 auto; padding: 24px; width: min(100%, 1000px); box-sizing: border-box; }
+.library-toolbar { display: flex; flex-wrap: wrap; gap: 20px; align-items: end; }
+.library-toolbar label { display: grid; gap: 8px; }
+.library-item { padding: 24px 0; border-bottom: 1px solid var(--line, #555); }
+.library-item h3 { margin: 0 0 8px; }
+.library-item button { margin: 12px 12px 0 0; }
+#libraryReview { padding: 24px 0; }
+#libraryReview button { margin: 16px 12px 0 0; }
+#libraryReview label { display: block; margin-top: 16px; }
+#libraryReview li, .library-item li { overflow-wrap: anywhere; }
+
+body[data-view="library"]{grid-template-columns:var(--rail) minmax(0,1fr)}
+body[data-view="library"] #side,body[data-view="library"] #avatarTarget,body[data-view="library"] #sceneUpload,body[data-view="library"] .base-picker{display:none}
+.library-workspace>h2{font-family:var(--serif,Georgia,serif);font-size:28px;font-weight:500;margin:6px 0 12px}
+#libraryProject{overflow-wrap:anywhere;margin-bottom:26px}
+#libraryStatus{margin:18px 0;color:var(--dim)}
+.library-toolbar input{max-width:100%;min-width:0}
+.library-toolbar label:first-child{flex:1 1 260px}
+.library-toolbar label:nth-child(2){flex:1 1 180px}
+.library-item>p{margin:8px 0;overflow-wrap:anywhere}
+#libraryReview:not([hidden]){border-block:1px solid var(--line,#45556a);margin:24px 0}
+
+.library-source{margin:18px 0;color:var(--dim)}
+.library-source summary{cursor:pointer}
+.library-source input{max-width:100%}
+body[data-view="library"] #activityStatus,body[data-view="library"] #indexedCount,body[data-view="library"] #pendingCount{display:none}
+
+.report-dialog{color:var(--text,#eee);background:#152334;border:1px solid #6e8eaf;border-radius:16px;width:min(620px,calc(100vw - 40px));max-height:85dvh;padding:24px;overflow:auto}
+.report-dialog::backdrop{background:#000b}
+.report-dialog label{display:block;margin:16px 0}
+.report-dialog input:not([type=checkbox]),.report-dialog textarea{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;color:inherit;background:#0c1826;border:1px solid #6e8eaf;border-radius:6px;font:inherit}
+.report-dialog .report-check{display:flex;gap:10px;align-items:center}
+.report-dialog pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.report-dialog p{line-height:1.5}
+
+/* Optional hierarchy and Inspector share the established Wardrobe controls. */
+body[data-view="advancedScene"]{grid-template-columns:var(--rail) minmax(0,1fr)}
+body[data-view="advancedScene"] #side,body[data-view="advancedScene"] .base-picker,body[data-view="advancedScene"] #workflowPresetWrap{display:none}
+.scene-editor{flex:1;min-height:0;min-width:0;width:100%;padding:22px 28px;overflow:auto}
+.scene-editor-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:14px}
+.scene-editor-toolbar h2{font-family:Georgia,serif;font-size:28px;font-weight:500;margin:0 auto 0 0}
+.scene-editor-toolbar input{width:min(30ch,100%);min-width:160px}
+.scene-editor>p{margin:10px 0;color:var(--dim)}
+.scene-editor-status{min-height:1.5em}.scene-editor-status.error{color:var(--red)}
+.scene-editor-grid{display:grid;grid-template-columns:minmax(230px,.8fr) minmax(320px,1.4fr);gap:24px;align-items:start;min-width:0}
+.scene-editor-tree{position:sticky;top:0;max-height:calc(100dvh - 280px);min-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)}
+.scene-editor-tree-row{display:flex;align-items:center;min-width:max-content;padding-left:calc(var(--scene-depth,0)*14px)}
+.scene-editor-expand{flex:0 0 24px;width:24px;min-height:32px;border:0;padding:0;background:transparent}
+.scene-editor-object{justify-content:flex-start;min-height:34px;max-width:60ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 9px;border:1px solid transparent;background:transparent;border-radius:5px}
+.scene-editor-object.selected{border-color:var(--accent);background:var(--panel-raised);color:var(--accent)}
+.scene-editor-object.inactive{color:var(--dim)}
+.scene-editor-inspector{min-width:0;padding:0 0 24px}
+.scene-editor-inspector h3{font-size:22px;margin:0 0 8px;overflow-wrap:anywhere}
+.scene-editor-inspector>p{font-size:12px;overflow-wrap:anywhere;margin:0 0 18px}
+.scene-editor-field{display:flex;align-items:center;gap:10px;min-width:0}
+.scene-editor-field>span{flex-shrink:0;color:var(--dim)}
+.scene-editor-field input:not([type="checkbox"]),.scene-editor-field select{flex:1;min-width:0;width:100%}
+.scene-editor-name,.scene-editor-create,.scene-editor-reparent{display:flex;align-items:center;gap:10px;margin:16px 0}
+.scene-editor-name>.scene-editor-field,.scene-editor-create>.scene-editor-field,.scene-editor-reparent>.scene-editor-field{flex:1}
+.scene-editor-transform{margin:20px 0}
+.scene-editor-vector{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;border:0;padding:0;margin:14px 0}
+.scene-editor-vector legend{padding:0;margin-bottom:8px;font-weight:600;color:var(--text)}
+.scene-editor-vector input{font-variant-numeric:tabular-nums}
+.scene-editor-actions{display:flex;flex-wrap:wrap;gap:8px;padding:18px 0;border-block:1px solid var(--line);margin:20px 0}
+.scene-editor-confirm{padding:16px 0;border-bottom:1px solid var(--line);margin-bottom:20px}.scene-editor-confirm p{overflow-wrap:anywhere}.scene-editor-confirm button+button{margin-left:10px}
+.scene-editor-components{margin-top:28px;border-top:1px solid var(--line)}
+.scene-editor-component{padding:14px 0;border-bottom:1px solid var(--line)}
+.scene-editor-component summary{display:list-item;cursor:pointer;font-weight:600}
+.scene-editor-property{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0;font-size:13px}
+.scene-editor-property>.scene-editor-field{flex:1;justify-content:space-between}
+.scene-editor-property>.scene-editor-field>span{flex:1;overflow-wrap:anywhere;max-width:50%}
+.scene-editor-property>.subtle{overflow-wrap:anywhere;text-align:right}
+.scene-editor button:focus-visible,.scene-editor input:focus-visible,.scene-editor select:focus-visible,.scene-editor summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.scene-editor ::selection{background:var(--accent-fill);color:var(--text)}
+.scene-editor input{caret-color:var(--accent)}
+@media(max-width:900px){.scene-editor-grid{grid-template-columns:minmax(190px,.7fr) minmax(260px,1fr);gap:16px}.scene-editor{padding:18px}.scene-editor-name,.scene-editor-create,.scene-editor-reparent{flex-wrap:wrap}}
+@media(max-width:680px){.scene-editor-grid{grid-template-columns:minmax(0,1fr)}.scene-editor-tree{position:static;max-height:32dvh;min-height:120px}.scene-editor-toolbar{gap:10px}.scene-editor-toolbar h2{flex-basis:100%;font-size:24px}.scene-editor-toolbar input{flex:1;min-width:0}.scene-editor{padding:16px 12px}.scene-editor-vector{gap:8px}.scene-editor-vector .scene-editor-field{display:grid;gap:4px}.scene-editor-property{flex-wrap:wrap}.scene-editor-property>.scene-editor-field,.scene-editor-create>.scene-editor-field,.scene-editor-reparent>.scene-editor-field{flex-basis:100%}}
+
+/* Stable photographs and per-operation progress in the dressing workspace. */
+.desktop-dressing #layout{display:grid;grid-template-columns:minmax(240px,1fr) minmax(300px,.95fr);gap:12px;min-height:0}
+.desktop-dressing #main{grid-column:1;grid-row:1;padding-left:16px}.desktop-dressing #grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.dressing{grid-column:2;grid-row:1;overflow-y:auto;padding:8px 18px 24px 4px;min-width:0}.dressing-heading{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}.dressing h2{font-size:22px;font-weight:500;margin:8px 0 16px}
+.snapshot-stage{position:relative;min-height:260px;aspect-ratio:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;overflow:hidden}.snapshot-stage img{width:100%;height:100%;object-fit:contain}.snapshot-stage img:not([hidden])+.drop-instruction{position:absolute;bottom:0;padding:7px 12px;margin:0;font-size:11px;background:#121924df;border-radius:8px}.drop-instruction{text-align:center;color:var(--dim);line-height:1.6}.drop-instruction small{font-size:12px}
+.snapshot-caption{font-size:12px;color:var(--dim);line-height:1.5}.snapshot-controls{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.snapshot-controls button{font-size:12px;padding:8px 10px}.snapshot-controls button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}.snapshot-before{font-size:12px;display:flex;gap:7px;align-items:center}.snapshot-before input{width:auto}.dressing [role="status"]{font-size:12px;line-height:1.6}
+.drop-ready{outline:2px dashed var(--accent)!important;outline-offset:-4px;background-color:#27495644!important}.wearing-drop-hint{font-size:11px;padding:0 18px;color:var(--dim);line-height:1.5}.pending-wearing{display:grid;gap:5px;padding:12px 18px;border-bottom:1px dashed var(--line);font-size:12px}.pending-wearing small{color:var(--dim)}.operation-list{list-style:none;padding:0}.operation-list li{padding:14px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.operation-list p{font-size:12px;color:var(--dim);line-height:1.6}.operation-list button{margin-right:8px}
+@media(max-width:1200px){.desktop-dressing #layout{grid-template-columns:minmax(210px,1fr) minmax(260px,1fr)}.dressing{padding-right:10px}.snapshot-stage{min-height:220px}.dressing-heading button{font-size:11px}}
+@media(max-width:960px){.desktop-dressing #layout{display:flex;flex-direction:column;overflow-y:auto}.desktop-dressing #main{overflow:visible;order:2}.dressing{overflow:visible;padding:12px;order:1}.snapshot-stage{max-height:380px;aspect-ratio:1.2}.dressing-heading{justify-content:flex-start}}
+
+.desktop-dressing.automatic-base .base-picker{display:none}.desktop-dressing .snapshot-stage{height:clamp(220px,40dvh,440px);min-height:0;aspect-ratio:auto}.desktop-dressing .snapshot-stage img{position:absolute;inset:0}.desktop-dressing .dressing [data-snapshot-status]{margin:8px 0}
+
+/* Add after the Advanced Scene styles; shares the established panel/form tokens. */
+.menu-organizer>.scene-editor-field{max-width:48rem;margin-bottom:16px}
+.menu-organizer-row{padding-inline-start:calc(var(--menu-depth,0)*16px);border-top:1px solid transparent}
+.menu-organizer-control{display:flex;justify-content:space-between;align-items:center;gap:16px;width:100%;min-height:44px;padding:10px 12px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--text);text-align:start;cursor:pointer}
+.menu-organizer-control:hover{background:var(--panel-raised)}
+.menu-organizer-control.selected{background:var(--panel-raised);border-color:var(--accent);color:var(--accent)}
+.menu-organizer-control:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.menu-organizer-control[draggable=true]{cursor:grab}
+.menu-organizer-control small{font-size:11px;line-height:1.4;flex-shrink:0}
+.menu-organizer-label{min-width:0;overflow-wrap:anywhere}
+.menu-organizer-drop{display:none;min-height:36px;margin-inline-start:calc(var(--menu-depth,0)*16px);padding:8px 12px;font-size:12px;color:var(--dim);border:1px dashed var(--line);border-radius:5px}
+.menu-organizer-dragging .menu-organizer-drop{display:block}
+.menu-organizer-row.menu-organizer-drop-active{border-top-color:var(--accent)}
+.menu-organizer-drop.menu-organizer-drop-active{background:var(--panel-raised);border-color:var(--accent);color:var(--text)}
+.menu-organizer-folder,.menu-organizer-rename{margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+.menu-organizer-folder h3{margin:0 0 12px}
+.menu-organizer .scene-editor-inspector>.scene-editor-field{margin-top:12px}
+.menu-organizer .scene-editor-inspector>.btn{margin-top:12px}
+.menu-organizer .scene-editor-field input,.menu-organizer .scene-editor-field select{min-width:0;max-width:100%}
+@media(max-width:640px){.menu-organizer-control{align-items:flex-start;flex-direction:column;gap:3px}.menu-organizer .scene-editor-field{display:grid;grid-template-columns:1fr;gap:6px}.menu-organizer .scene-editor-field input,.menu-organizer .scene-editor-field select{width:100%}.menu-organizer-row{padding-inline-start:calc(var(--menu-depth,0)*12px)}}
+
+body[data-view="menuOrganizer"]{grid-template-columns:var(--rail) minmax(0,1fr)}body[data-view="menuOrganizer"] #side{display:none}

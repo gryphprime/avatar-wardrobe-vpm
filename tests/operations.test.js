@@ -1,0 +1,33 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('Packages/dev.gryphprime.avatar-wardrobe/Web/operations.js','utf8');
+let sequence=0,tick;const window={crypto:{randomUUID:()=>`00000000-0000-4000-8000-${String(++sequence).padStart(12,'0')}`}};
+vm.runInNewContext(source,{window,setInterval:fn=>(tick=fn,1),clearInterval:()=>{},setTimeout,clearTimeout,Map,Set,Promise,JSON,Number,Error});
+const O=window.WardrobeOperations,context={projectId:'/fixture',sceneGuid:'scene',avatarId:'GlobalObjectId-V1-1',avatarInstanceId:11,session:'session',scopeId:'common',revision:'r0'};
+const input={variantId:'a'.repeat(32),assetVersion:'hash',addCopy:true,scopeId:'common'};
+assert.equal(JSON.stringify(O.normalize('wear-outfit',input,context,'fixed')),JSON.stringify(O.normalize('wear-outfit',input,context,'fixed')),'button/drop normalization is identical');
+assert.throws(()=>O.normalize('replace-outfit',input,context),/exact worn copy/);
+assert.throws(()=>O.normalize('wear-outfit',{variantId:'../file'},context),/specific outfit/);
+assert.throws(()=>O.normalize('wear-outfit',input,{}),/Pin an avatar/);
+assert.throws(()=>O.normalize('render-snapshot',{zoom:Infinity},context),/zoom/);
+let release,posts=0,changes=[],serverRecords=[],currentContext={...context};
+const client=O.create({api:async(path,options)=>{
+ if(path==='/api/operation_context')return currentContext;
+ if(options.method==='GET')return {items:serverRecords};
+ posts++;return await new Promise(resolve=>{release=resolve;});
+},onChange:records=>changes.push(records.map(x=>x.state))});
+(async()=>{
+ client.setHost(true);await new Promise(resolve=>setImmediate(resolve));
+ const first=client.build('wear-outfit',input),pending=client.submit(first,'Coat');
+ assert.equal(client.list()[0].state,'submitting','optimistic feedback precedes local durable acceptance');
+ const second=client.build('wear-outfit',input);assert.equal(second.precondition.afterOperationId,first.id,'same-revision edits follow their own pending chain');
+ release({id:first.id,type:first.type,command:first,state:'queued'});await pending;
+ assert.equal(client.pending().length,1);assert.equal(posts,1);
+ serverRecords=[{id:first.id,type:first.type,command:first,state:'succeeded',result:{confirmedRevision:'r1'}}];
+ const wait=client.wait(first.id);await client.refresh();assert.equal((await wait).state,'succeeded');
+ const third=client.build('wear-outfit',input);assert.equal(third.precondition.afterOperationId,first.id,'confirmation closes the short context-poll race');
+ currentContext={...context,revision:'external-edit'};await client.refresh();
+ const independent=client.build('wear-outfit',input);assert.equal(independent.precondition.afterOperationId,'','a later observed edit is checked as a new base');
+ currentContext={...context,avatarInstanceId:22,avatarId:'new-target'};await client.refresh();
+ await assert.rejects(()=>client.submit(independent),/target changed/);assert.equal(posts,1,'stale target never posted');
+ client.close();console.log('operations: normalization, immediate projection, ordered revisions, terminal wait and target checks passed');
+})().catch(error=>{console.error(error);process.exitCode=1;});

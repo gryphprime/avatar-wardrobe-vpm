@@ -92,6 +92,7 @@ namespace OutfitToggleGenerator
         }
         // Resolved on Start (main thread) so the listener thread can serve
         // cached bytes without ever touching Unity APIs.
+        private static string serverProjectPath;
         private static string htmlPath;
         private static string langPath;
         private static string thumbDir;
@@ -115,7 +116,8 @@ namespace OutfitToggleGenerator
         {
             if (Running) return true;
             LastError = null;
-            WardrobeLog.Initialize(Directory.GetParent(Application.dataPath).FullName);
+            serverProjectPath = Directory.GetParent(Application.dataPath).FullName;
+            WardrobeLog.Initialize(serverProjectPath);
             WardrobeLog.Write("server", "Starting; Unity " + Application.unityVersion);
             WardrobeStrings.EnsureInitialized();
             dispatcher = new WardrobeWorkQueue();
@@ -158,23 +160,43 @@ namespace OutfitToggleGenerator
             }
             catch (Exception) { }
             RefreshPreviewVersions();
+            InitializeOperations();
             EditorApplication.hierarchyChanged += InvalidateInstalled;
             Undo.undoRedoPerformed += InvalidateInstalled;
-            AssemblyReloadEvents.beforeAssemblyReload += Stop;
+            AssemblyReloadEvents.beforeAssemblyReload += PauseForReload;
             EditorApplication.quitting += Stop;
             EditorApplication.update += Pump;
             listenerThread = new Thread(Loop) { IsBackground = true, Name = "WardrobeServer" };
             listenerThread.Start();
+            SessionState.SetBool("Wardrobe.ServerRequested", true);
             return true;
         }
 
+        [InitializeOnLoadMethod] private static void ResumeAfterReload()
+        {
+            if (!SessionState.GetBool("Wardrobe.ServerRequested", false)) return;
+            EditorApplication.delayCall += () =>
+            {
+                SceneAvatar = EditorUtility.InstanceIDToObject(SessionState.GetInt("Wardrobe.PinnedTarget", 0)) as VRCAvatarDescriptor;
+                Start();
+            };
+        }
+        private static void PauseForReload()
+        {
+            var requested = Running;
+            SessionState.SetInt("Wardrobe.PinnedTarget", SceneAvatar == null ? 0 : SceneAvatar.GetInstanceID());
+            Stop();
+            SessionState.SetBool("Wardrobe.ServerRequested", requested);
+        }
         internal static void Stop()
         {
+            SessionState.SetBool("Wardrobe.ServerRequested", false);
+            if (importLease != null) EndLibraryImport(importLease);
             WardrobeLog.Write("server", "Stopping");
             EditorApplication.update -= Pump;
             EditorApplication.hierarchyChanged -= InvalidateInstalled;
             Undo.undoRedoPerformed -= InvalidateInstalled;
-            AssemblyReloadEvents.beforeAssemblyReload -= Stop;
+            AssemblyReloadEvents.beforeAssemblyReload -= PauseForReload;
             EditorApplication.quitting -= Stop;
             if (dispatcher != null) dispatcher.Close();
             try
@@ -197,6 +219,7 @@ namespace OutfitToggleGenerator
 
         private static void Pump()
         {
+            PublishOperationContext();
             if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
             if (dispatcher != null) dispatcher.Pump(!UploadTargetLocked && !ShiroTools.OutfitBatchUploader.BatchActiveNow && !EditorApplication.isPlayingOrWillChangePlaymode, idleBackground: BakeNextBackgroundPreview);
         }

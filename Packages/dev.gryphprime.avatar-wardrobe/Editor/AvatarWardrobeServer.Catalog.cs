@@ -157,6 +157,7 @@ namespace OutfitToggleGenerator
         [Serializable]
         private sealed class VariantDto
         {
+            public string assetVersion = string.Empty;
             public string guid = string.Empty;
             public int hi;
             public string variant = string.Empty;
@@ -635,6 +636,7 @@ namespace OutfitToggleGenerator
                 detail.variants.Add(new VariantDto
                 {
                     guid = variant.guid,
+                    assetVersion = AssetDatabase.GetAssetDependencyHash(variant.assetPath).ToString(),
                     hi = HasHiThumb(variant.guid) ? 1 : 0,
                     variant = AvatarWardrobeCatalog.DisplayVariant(variant),
                     colorway = variant.colorway ?? string.Empty,

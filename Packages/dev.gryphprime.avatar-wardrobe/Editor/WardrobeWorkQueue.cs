@@ -37,9 +37,24 @@ namespace OutfitToggleGenerator
         }
         private readonly object gate = new object();
         private readonly Queue<IWork> interactive = new Queue<IWork>();
+        private readonly Queue<IWork> operations = new Queue<IWork>();
         private readonly Queue<IWork> background = new Queue<IWork>();
         private bool closed;
-        internal int Count { get { lock (gate) return interactive.Count + background.Count; } }
+        internal int Count { get { lock (gate) return interactive.Count + operations.Count + background.Count; } }
+
+        // Accept without holding an HTTP request open. Only Pump touches Unity.
+        internal Task<T> EnqueueOperation<T>(Func<T> run, TimeSpan? queueTimeout = null)
+        {
+            var work = new Work<T>(run, queueTimeout ?? TimeSpan.FromMinutes(5));
+            lock (gate)
+            {
+                if (closed) throw new OperationCanceledException("Wardrobe server stopped.");
+                if (interactive.Count + operations.Count + background.Count >= 128)
+                    throw new InvalidOperationException("Wardrobe is busy. Keep the operation in the desktop queue.");
+                operations.Enqueue(work);
+            }
+            return work.Completion.Task;
+        }
 
         internal T Invoke<T>(Func<T> run, bool isBackground = false, TimeSpan? queueTimeout = null)
         {
@@ -48,7 +63,7 @@ namespace OutfitToggleGenerator
             lock (gate)
             {
                 if (closed) throw new OperationCanceledException("Wardrobe server stopped.");
-                if (interactive.Count + background.Count >= 128)
+                if (interactive.Count + operations.Count + background.Count >= 128)
                     throw new InvalidOperationException("Wardrobe is busy. Try again after current work finishes.");
                 (isBackground ? background : interactive).Enqueue(work);
             }
@@ -77,6 +92,10 @@ namespace OutfitToggleGenerator
                 work.Execute();
                 if (watch.Elapsed.TotalMilliseconds >= budgetMs) return;
             }
+            IWork operation = null;
+            lock (gate)
+                if (allowBackground && operations.Count > 0) operation = operations.Dequeue();
+            if (operation != null) { operation.Execute(); return; }
             IWork low = null;
             lock (gate)
                 if (allowBackground && interactive.Count == 0 && background.Count > 0)
@@ -86,7 +105,7 @@ namespace OutfitToggleGenerator
             else if (allowBackground && watch.Elapsed.TotalMilliseconds < budgetMs)
             {
                 bool idle;
-                lock (gate) idle = !closed && interactive.Count == 0 && background.Count == 0;
+                lock (gate) idle = !closed && interactive.Count == 0 && operations.Count == 0 && background.Count == 0;
                 if (idle) idleBackground?.Invoke();
             }
         }
@@ -97,6 +116,7 @@ namespace OutfitToggleGenerator
                 closed = true;
                 var reason = new OperationCanceledException("Wardrobe server stopped or reloaded.");
                 while (interactive.Count > 0) interactive.Dequeue().Cancel(reason);
+                while (operations.Count > 0) operations.Dequeue().Cancel(reason);
                 while (background.Count > 0) background.Dequeue().Cancel(reason);
             }
         }

@@ -143,6 +143,7 @@ namespace OutfitToggleGenerator
 
         private static SceneUploadReview ReviewSceneUpload()
         {
+            AssertOperationsSettled();
             var avatar = SceneAvatar;
             var result = new SceneUploadReview();
             if (AvatarWardrobePresets.SeparateAvatarUploads) { result.message = "Use single-avatar mode for Upload Avatar."; return result; }
@@ -234,6 +235,7 @@ namespace OutfitToggleGenerator
 
         private static UploadJobDto StartUpload(string guid, string preset)
         {
+            AssertOperationsSettled();
             lock (uploadJobsLock)
             {
                 if (uploadRunning)
@@ -586,6 +588,7 @@ namespace OutfitToggleGenerator
 
         private static ShiroTools.OutfitBatchUploader.WebJobDto StartBatchRequest(string query, Func<ShiroTools.OutfitBatchUploader.WebJobDto> start)
         {
+            AssertOperationsSettled();
             Query(query).TryGetValue("requestId", out var id);
             if (!string.IsNullOrEmpty(id) && !Guid.TryParseExact(id, "N", out _))
                 return new ShiroTools.OutfitBatchUploader.WebJobDto { message = "Invalid request identity." };
@@ -596,7 +599,7 @@ namespace OutfitToggleGenerator
             finally { ShiroTools.OutfitBatchUploader.WebRequestId = null; }
         }
 
-        internal static ResultDto EditAvatar(string label, Func<ResultDto> edit)
+        internal static ResultDto EditAvatar(string label, Func<ResultDto> edit, bool migratePresets = true)
         {
             if (UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow)
                 return new ResultDto { message = "Finish the upload or batch before editing the avatar." };
@@ -611,7 +614,7 @@ namespace OutfitToggleGenerator
             try
             {
                 WardrobeEditHistory.Begin(label);
-                AvatarWardrobePresets.MigrateCurrentOwner();
+                if (migratePresets) AvatarWardrobePresets.MigrateCurrentOwner();
                 var result = edit();
                 if (result.ok != 1)
                 {

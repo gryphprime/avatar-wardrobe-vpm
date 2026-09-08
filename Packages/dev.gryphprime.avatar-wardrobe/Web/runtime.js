@@ -50,13 +50,14 @@
     delete init.timeout; delete init.binary;
     var url = new URL(path, location.href);
     var reads = new Set(["state", "families", "family", "installed", "nameResult", "shops", "diag", "thumb",
-      "scene_upload_review", "upload_result", "upload_status", "batch_state", "batch_job", "batch_export", "presets", "batch_thumb_img", "batch_unassigned"]);
+      "operation_context", "operation_result", "snapshot", "menu_snapshot", "scene_snapshot", "scene_upload_review", "upload_result", "upload_status", "batch_state", "batch_job", "batch_export", "presets", "batch_thumb_img", "batch_unassigned"]);
     var endpoint = url.pathname.split("/").pop(), op = url.searchParams.get("op");
     var read = reads.has(endpoint) || (["batch_blendshape", "batch_item", "batch_faceemo"].includes(endpoint) && (!op || op === "get"));
     if (endpoint === "thumb" && url.searchParams.get("retry") === "1") read = false;
     if (url.origin === location.origin && url.pathname.startsWith("/api/")) {
       // State changes are POST-only and reject cross-origin requests in the Unity host.
-      init.method = read ? "GET" : "POST";
+      init.method = options.method || (read ? "GET" : "POST");
+      read = init.method === "GET";
       if (!read) {
         init.headers = Object.assign({}, init.headers, {"X-Wardrobe-Request":"1"});
         if (session) init.headers["X-Wardrobe-Session"] = session;

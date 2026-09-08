@@ -71,3 +71,22 @@ See [implementation progress](docs/implementation-progress.md) for this developm
 branch's delivered features and remaining validation gates.
 
 See [development validation](DEVELOPMENT.md) for the imported review fixes, isolated Unity fixture, and required CI runner provisioning.
+
+## Reporting problems
+
+Open **Settings → Report a problem** for bug reports. In an item's detail modal,
+**Item was misclassified** opens a separate report with the selected variant's
+classification metadata and a field for the expected category. Sending a report
+does not change local classifications or install state.
+
+Both forms preview the submitted information. Email is optional; app version and
+browser diagnostics can be unchecked. Reports include an anonymous ID stored for
+this browser origin. Item reports include bounded item/material/part names and a
+prefab filename, without project paths, avatar assignments, screenshots, logs or
+asset files. Reports go to Aelchor's private reporting inbox and are retained for
+90 days. Avoid putting secrets or personal information in the description.
+
+The API must be deployed at `https://reporting.aelchor.com` before releasing this
+client. Bugs use `/v1/reports`; classification reports use
+`/v1/misclassifications`. Network errors preserve the form, and retrying an
+unchanged submission reuses its request ID to avoid duplicate reports.

@@ -153,6 +153,8 @@
     document.querySelectorAll("[data-i18n-aria]").forEach(function(el){ el.setAttribute("aria-label",T(el.getAttribute("data-i18n-aria"))); });
     if(T("app.title")!=="app.title") document.title=T("app.title");
     buildLangSelect();
+    if(window.WardrobeLibrary)window.WardrobeLibrary.localize(T);
+    if(window.WardrobeSceneEditor)window.WardrobeSceneEditor.configure({api:api,T:T,root:$("advancedScene")});
     paintHide();
   }
   function lookup(key){ var v=T(key); return v===key?null:v; }
@@ -227,6 +229,7 @@
         card.innerHTML='<div class="thumb preview-loading"></div><div class="card-info"></div>';
         card.onclick=function(event){ if(!event.target.closest("button")) openDetail(card._family.id); };
         card.onkeydown=function(event){ if(event.target===card&&(event.key==="Enter"||event.key===" ")){event.preventDefault();openDetail(card._family.id);} };
+        window.WardrobeDragDrop.source(card,function(){var family=card._family;return {version:1,familyId:family.id,variantId:family.variantGuids&&family.variantGuids.length===1?family.variantGuids[0]:'',targetKey:dragContextKey()};});
         cardCache.set(f.id,card);
       }
       return card;
@@ -283,7 +286,7 @@
   }
   function groupInstalledItems(items,presets,separate){
     var groups=new Map();
-    groups.set("common",{id:"common",name:separate?T("preset.common"):"Installed items",items:[]});
+    groups.set("common",{id:"common",name:separate?T("preset.common"):"Wearing",items:[]});
     if(separate)presets.forEach(function(p){groups.set(p.id,{id:p.id,name:p.name,items:[]});});
     items.forEach(function(it){
       var key=separate?(it.target||"common"):"common";
@@ -309,7 +312,8 @@
         R.reconcile(group.querySelector(".installed-preset-items"),data.items,function(it){return it.guid+"|"+it.instanceId+"|"+(it.path||"");},function(){
           var el=document.createElement("button");el.type="button";el.className="inst";
           el.innerHTML='<span class="inst-thumb"></span><span class="inst-copy"><span class="t"></span><span class="s"></span></span><span class="inst-arrow" aria-hidden="true">›</span>';
-          el.onclick=function(){openDetail(el._item.familyId,el._item.guid,el._item);};return el;
+          el.onclick=function(){openDetail(el._item.familyId,el._item.guid,el._item);};
+          window.WardrobeDragDrop.target(el,{outfit:function(payload){dropOutfit(payload,'replace-outfit',el._item);},error:function(message){toast(message,'err');}});el.title='Drop a variant here to replace this exact worn copy';return el;
         },function(el,it){
           el._item=it;var variant=it.variant&&it.variant.toLowerCase()!=="default"?it.variant:T("variant.default");
           R.text(el.querySelector(".t"),it.family);R.text(el.querySelector(".s"),it.setupWarning?T("setup.attention")+" — "+it.setupWarning:variant);el.title=it.family+" · "+variant;
@@ -328,7 +332,7 @@
   }
   function hud(){
     var s=lastState||{},percent=s.hiTotal>0?Math.min(100,Math.round(100*s.hiBaked/s.hiTotal)):0;
-    R.text($("hudLow"),T(!connected?"status.reconnecting":indexing?"banner.indexing":previewActivity.active?"status.rendering":"status.ready",indexDone,indexTotal));
+    R.text($("hudLow"),T(!connected?(s.desktop?"library.offlineReady":"status.reconnecting"):indexing?"banner.indexing":previewActivity.active?"status.rendering":"status.ready",indexDone,indexTotal));
     R.text($("indexedCount"),s.outfits?T("status.indexed",s.outfits):"");
     R.text($("pendingCount"),s.dirty?"· "+T(s.dirty===1?"status.pending":"status.pending.other",s.dirty):"");
     R.text($("hudHi"),s.hiTotal>0?T("hud.hi",s.hiBaked,s.hiTotal):T("activity.previews"));
@@ -350,9 +354,16 @@
     var expectedWorkflow=workflowRevision;
     stateFlight=api("/api/state",{method:"GET",timeout:30000}).then(function(s){
       if(!s||s.pending||s.ok===0) throw new Error("No state");
-      connected=true; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
+      var firstDesktopState=!lastState&&s.desktop,wasConnected=connected;
+      connected=s.bridgeOnline!==false; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
       R.setContext(s.session, s.avatarInstanceId);
+      $("navLibrary").hidden=!s.desktop;
+      if(s.bridgeOnline===false&&(wasConnected||firstDesktopState)) toast(T("library.offlineHelp"),"info");
+      if(firstDesktopState)setBatchView("library");
       window.WardrobeUpdates.refresh(s.wardrobeVersion, T);
+      window.WardrobeReporting.setVersion(s.wardrobeVersion);
+      operations.setHost(!!s.desktop);
+      $("dressing").hidden=!s.desktop;$("wearingDropHint").hidden=!s.desktop;document.body.classList.toggle("desktop-dressing",!!s.desktop);document.body.classList.toggle("automatic-base",!s.avatarBaseEditable);
       if(!baseSaving){
         var baseSelect=$("avatarBase"),choices=[{guid:"",name:T("avatar.base.auto"),path:""}].concat(s.baseAvatars||[]);
         R.reconcile(baseSelect,choices,function(c){return c.guid;},function(){return document.createElement("option");},function(option,c){option.value=c.guid;R.text(option,c.name);option.title=c.path||"";});
@@ -375,6 +386,8 @@
       catalogEpoch=s.epoch||""; contextKey=nextContext;
       if(avatarChanged||expectedWorkflow===workflowRevision)paintWorkflowState(s);
       if(avatarChanged&&uploadUI&&currentView==="upload")uploadUI.show();
+      if(avatarChanged&&currentView==="menuOrganizer")window.WardrobeMenuOrganizer.show();
+      if(avatarChanged&&currentView==="advancedScene"&&window.WardrobeSceneEditor)window.WardrobeSceneEditor.show();
       var nextPreviews=[s.session||"",s.epoch||"",s.previewEpoch||0].join("|");
       var previewsChanged=nextPreviews!==previewContext;
       previewContext=nextPreviews;
@@ -483,8 +496,9 @@
           ? '<div class="variant-control"><button class="variant-nav" id="dPrevVar" aria-label="'+esc(T("nav.prev.variant"))+'">&#8249;</button><div class="filmstrip" id="dFilm"></div><button class="variant-nav" id="dNextVar" aria-label="'+esc(T("nav.next.variant"))+'">&#8250;</button></div>'
           : '<div class="single-variant-label" id="dSingleVariant"></div>')+
         '</section><section class="detail-options"><div id="dCompatibility"></div><div id="dPresetWrap"></div><div id="dVarBody"></div><div id="dAllowWrap"></div></section></div>'+
-        '<footer class="detail-footer"><button id="dClose">'+esc(T("detail.close"))+'</button><div class="actions" id="dActs"></div></footer>';
+        '<footer class="detail-footer"><button id="dReportItem">'+esc(T("report.item"))+'</button><button id="dClose">'+esc(T("detail.close"))+'</button><div class="actions" id="dActs"></div></footer>';
       document.getElementById("dClose").onclick=closeDetail;
+      document.getElementById("dReportItem").onclick=function(){window.WardrobeReporting.openItem(d,v);};
       if(multi) buildFilm();
       selectVariant(startIndex);
     }
@@ -568,11 +582,12 @@
       var replaceSelect=document.getElementById('dReplaceCopy');
       function paintWearMode(){replaceSelect.hidden=document.getElementById('dWearMode').value!=='replace';replaceSelect.previousElementSibling.hidden=replaceSelect.hidden;}
       document.getElementById('dWearMode').onchange=paintWearMode;paintWearMode();
-      var action='<button id="dRemove" class="danger" hidden>Remove</button>'+
+      var action='<button id="dTryOn">Try on</button><button id="dRemove" class="danger" hidden>Remove</button>'+
         '<button id="dAddPreset" class="primary">'+esc(T("wear.apply"))+"</button>";
       document.getElementById("dActs").innerHTML=action+
         (aiAvailable?'<button id="dAi">'+esc(T("detail.ai"))+"</button>":"");
       wireActions();
+      if($('dTryOn'))window.WardrobeDragDrop.source($('dTryOn'),function(){return {version:1,familyId:d.id,variantId:v.guid,targetKey:dragContextKey()};});
       var dtok=++detailToken;
       loadDetailThumb(v.guid,dtok);
     }
@@ -642,6 +657,14 @@
       }).catch(function(){ toast(T("detail.install.fail"),"err"); });
     }
     function presetInstall(sel,common){
+      if(operations.enabled()){
+        var target=effectivePreset(common?'common':sel.value);
+        if(target==='__new'){createPresetFlow(sel);return;}
+        var mode=$('dWearMode').value,replacement=$('dReplaceCopy').value,group=$('dGroup');
+        var input={variantId:v.guid,assetVersion:v.assetVersion,scopeId:target,createToggles:!!($('dCreateToggles')&&$('dCreateToggles').checked),menuGroup:group?group.value:'',addCopy:mode==='copy'};
+        if(mode==='replace')input.instanceId=replacement;
+        queueOutfit(mode==='replace'?'replace-outfit':'wear-outfit',input,d.name+' · '+v.variant);return;
+      }
       if(installInFlight) return;
       var target=effectivePreset(common?"common":sel.value);
       common=target==="common";
@@ -846,6 +869,12 @@
           endButtonBusy(ai,aiState);
         }
       };
+      var tryOn=$('dTryOn');
+      if(tryOn){tryOn.disabled=!operations.enabled();tryOn.title=operations.enabled()?'Preview the complete avatar without changing the scene':'Open Library and Dressing Room from Unity first';tryOn.onclick=function(){
+        var input={variantId:v.guid,assetVersion:v.assetVersion,scopeId:effectivePreset($('dPreset').value),label:d.name+' · '+v.variant,createToggles:!!($('dCreateToggles')&&$('dCreateToggles').checked)};
+        if($('dWearMode').value==='replace')input.instanceId=$('dReplaceCopy').value;
+        snapshots.begin(input);closeModal();
+      };}
       var rem=document.getElementById("dRemove");
       if(rem) rem.onclick=function(){
         var target=instance&&instance.guid===v.guid?instance.target||'common':effectivePreset(document.getElementById('dPreset').value);
@@ -855,6 +884,7 @@
         if(index<0){toast(T('detail.chooseCopy'),'err');return;}
         var itemPath=membership.paths[index];
         if(!confirm('Remove this prefab from '+name+'?')) return;
+        if(operations.enabled()){queueOutfit('remove-outfit',{variantId:v.guid,assetVersion:v.assetVersion,scopeId:target,instanceId:String(copyId),itemPath:itemPath},d.name+' · '+v.variant);return;}
         if(removeInFlight) return;
         removeInFlight=true;
         var removeState=beginButtonBusy(rem,T("detail.remove.busy"));
@@ -873,16 +903,69 @@
     draw();
   }
 
+
+  var operations=window.WardrobeOperations.create({api:api,onChange:paintOperations,onSettled:function(record){
+    if(window.WardrobeOperations.isMutation(record.type)&&record.state==='succeeded'){dropCaches();sideContent.dataset.signature='';loadInstalled();load(false,true);refreshState();}
+  }});
+  var snapshots=window.WardrobeSnapshots.create({operations:operations,api:api,root:$('dressing'),scope:function(){return effectivePreset();}});
+  function queueOutfit(type,input,label){try{var command=operations.build(type,input);operations.submit(command,label).catch(function(error){toast(error.message,'err');});}catch(error){toast(error.message,'err');}}
+  function dragContextKey(){var context=operations.context();if(!context)throw new Error('Wait for the pinned avatar to connect.');return window.WardrobeOperations.targetKey(Object.assign({},context,{scopeId:effectivePreset()}));}
+  async function dropOutfit(payload,intent,instance){
+    try{
+      if(payload.targetKey!==dragContextKey())throw new Error('The avatar or preset changed during the drag. Start again from the current target.');
+      if(!payload.variantId){openDetail(payload.familyId);toast('Choose a variant, then use Try on or Wear.');return;}
+      if(instance&&instance.familyId!==payload.familyId)throw new Error('Replace accepts a variant of this same outfit family. Use Wear to add another outfit.');
+      var expected=dragContextKey(),detail=await api('/api/family?id='+encodeURIComponent(payload.familyId)+'&target='+encodeURIComponent(effectivePreset()));
+      if(expected!==dragContextKey())throw new Error('The target changed while resolving the outfit. Drag again.');
+      var variant=detail.variants.find(function(v){return v.guid===payload.variantId;});if(!variant)throw new Error('The variant is no longer available.');
+      var input={variantId:variant.guid,assetVersion:variant.assetVersion,scopeId:instance?instance.target||'common':effectivePreset(),addCopy:!instance,label:detail.name+' · '+variant.variant};
+      if(instance)input.instanceId=String(instance.instanceId);
+      if(intent==='try-on')snapshots.begin(input);else queueOutfit(intent,input,input.label);
+    }catch(error){toast(error.message,'err');}
+  }
+  function paintOperations(records,context){
+    var pending=records.filter(function(record){return window.WardrobeOperations.isMutation(record.type)&&!window.WardrobeOperations.isTerminal(record.state);});
+    var summary=$('operationSummary');summary.hidden=!operations.enabled();R.text(summary,pending.length?pending.length+(pending.length===1?' change pending':' changes pending'):'Changes');
+    var recent=records.slice(-30).reverse();
+    if(!recent.length)recent=[{id:'empty',label:'No outfit changes queued.',state:''}];
+    R.reconcile($('operationsList'),recent,function(record){return record.id;},function(){
+      var row=document.createElement('li');row.innerHTML='<strong></strong><p></p><button data-op-cancel>Cancel</button><button data-op-retry>Check same request</button><button data-op-review>Review current scene</button>';
+      row.querySelector('[data-op-cancel]').onclick=function(){operations.cancel(row._record.id).catch(function(error){toast(error.message,'err');});};
+      row.querySelector('[data-op-retry]').onclick=function(){operations.submit(row._record.command,row._record.label).catch(function(error){toast(error.message,'err');});};
+      row.querySelector('[data-op-review]').onclick=function(){refreshState();operations.refresh();setBatchView('wardrobe');};return row;
+    },function(row,record){
+      row._record=record;R.text(row.querySelector('strong'),record.label||record.type);
+      R.text(row.querySelector('p'),record.state+(record.cancelRequested?' · cancellation requested':'')+(record.waitingReason?' · '+record.waitingReason:'')+(record.error?' · '+record.error:''));
+      row.querySelector('[data-op-cancel]').hidden=!['queued','running','submitting','acceptance-unknown'].includes(record.state);
+      row.querySelector('[data-op-cancel]').disabled=!!record.cancelRequested;
+      row.querySelector('[data-op-retry]').hidden=record.state!=='acceptance-unknown';
+      row.querySelector('[data-op-review]').hidden=record.state!=='needs-review';
+    });
+    var visible=pending.filter(function(record){return context&&record.command.target.avatarInstanceId===context.avatarInstanceId&&record.command.target.session===context.session;});
+    R.reconcile($('pendingWearing'),visible,function(record){return record.id;},function(){var row=document.createElement('div');row.className='pending-wearing';row.innerHTML='<strong></strong><small></small>';return row;},function(row,record){
+      R.text(row.querySelector('strong'),record.label||record.type);R.text(row.querySelector('small'),(record.type==='remove-outfit'?'Removing':'Adding')+' · '+record.state+(context.waitingReason?' · '+context.waitingReason:''));
+    });
+    if(snapshots)snapshots.contextChanged();
+    $('sceneUpload').disabled=pending.length>0||!connected;
+  }
+  $('operationSummary').onclick=function(){setBatchView('activity');};
+  window.WardrobeDragDrop.target($('tryOnDrop'),{outfit:function(payload){dropOutfit(payload,'try-on');},error:function(message){toast(message,'err');}});
+  window.WardrobeDragDrop.target($('side'),{outfit:function(payload){dropOutfit(payload,'wear-outfit');},error:function(message){toast(message,'err');}});
+  window.WardrobeDragDrop.target($('library'),{files:function(files){window.WardrobeLibrary.addFiles(files);},error:function(message){toast(message,'err');}});
+
   var uploadUI=new WardrobeUpload({api:api,T:T,toast:toast,esc:esc,spinner:spinner,onChange:refreshState,onPresetCreated:presetCreated});
   function setBatchView(view){
     if(detailBusy()) return;
-    closeModal(); currentView=view;
-    ["layout","upload","activity","settings"].forEach(function(id){$(id).hidden=(id==="layout"?"wardrobe":id)!==view;});
+    closeModal(); currentView=view;document.body.dataset.view=view;
+    ["layout","upload","activity","settings","library","advancedScene","menuOrganizer"].forEach(function(id){$(id).hidden=(id==="layout"?"wardrobe":id)!==view;});
     $("wardrobeToolbar").hidden=view!=="wardrobe";
     document.querySelectorAll("#navtabs button").forEach(function(button){
       var selected=button.dataset.view===view;button.classList.toggle("on",selected);
       if(selected) button.setAttribute("aria-current","page");else button.removeAttribute("aria-current");
     });
+    if(view==="library") window.WardrobeLibrary.show();
+    if(view==="menuOrganizer")window.WardrobeMenuOrganizer.configure({api:api,T:T,root:$("menuOrganizer")}).show();
+    if(view==="advancedScene"&&window.WardrobeSceneEditor)window.WardrobeSceneEditor.configure({api:api,T:T,root:$("advancedScene")}).show();
     if(view==="upload") uploadUI.show();
     if(view==="activity") paintActivity();
     
@@ -894,6 +977,7 @@
     input.onchange=function(){R.store(key,input.checked?"1":"0");apply(input.checked);};
   }
   settingsToggle("settingCompact","wardrobeCompact",function(on){document.body.classList.toggle("compact",on);});
+  settingsToggle("settingAdvancedScene","wardrobeAdvancedScene",function(on){$("navAdvancedScene").hidden=!on;if(!on&&currentView==="advancedScene")setBatchView("wardrobe");});
   document.addEventListener("click",function(event){
     document.querySelectorAll("details.maintenance[open],details.filters[open]").forEach(function(menu){if(!menu.contains(event.target)) menu.open=false;});
   });

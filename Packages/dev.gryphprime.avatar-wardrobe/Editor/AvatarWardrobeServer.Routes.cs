@@ -40,6 +40,7 @@ namespace OutfitToggleGenerator
             }
             catch (Exception) { }
             var path = request.Url.AbsolutePath;
+            if (HandleOperations(context, path)) return;
             if (path == "/" || path == "/index.html" || path == "/wardrobe.html")
             {
                 // Static file, served straight off the listener thread: even a
@@ -67,6 +68,13 @@ namespace OutfitToggleGenerator
                 case "/runtime.js": uiFile = "runtime.js"; uiMime = "application/javascript"; break;
                 case "/previews.js": uiFile = "previews.js"; uiMime = "application/javascript"; break;
                 case "/upload.js": uiFile = "upload.js"; uiMime = "application/javascript"; break;
+                case "/reporting.js": uiFile = "reporting.js"; uiMime = "application/javascript"; break;
+                case "/library.js": uiFile = "library.js"; uiMime = "application/javascript"; break;
+                case "/operations.js": uiFile = "operations.js"; uiMime = "application/javascript"; break;
+                case "/snapshots.js": uiFile = "snapshots.js"; uiMime = "application/javascript"; break;
+                case "/drag-drop.js": uiFile = "drag-drop.js"; uiMime = "application/javascript"; break;
+                case "/menu-organizer.js": uiFile = "menu-organizer.js"; uiMime = "application/javascript"; break;
+                case "/scene-editor.js": uiFile = "scene-editor.js"; uiMime = "application/javascript"; break;
                 case "/wardrobe.js": uiFile = "wardrobe.js"; uiMime = "application/javascript"; break;
                 case "/assets/header-portrait.webp": uiFile = "assets/header-portrait.webp"; uiMime = "image/webp"; break;
                 case "/assets/rail-landscape.webp": uiFile = "assets/rail-landscape.webp"; uiMime = "image/webp"; break;
@@ -95,6 +103,30 @@ namespace OutfitToggleGenerator
             if (path == "/api/state")
             {
                 WriteJson(context, 200, RunOnMain(GetState, requestCode));
+                return;
+            }
+            if (path == "/api/menu_snapshot")
+            {
+                WriteJson(context, 200, RunOnMain(() => WardrobeMenuOrganization.Snapshot(SceneAvatar), requestCode)); return;
+            }
+            if (path == "/api/menu_execute")
+            {
+                Query(request.Url.Query).TryGetValue("command", out var commandJson);
+                WriteJson(context, 200, RunOnMain(() => WardrobeMenuOrganization.Execute(JsonUtility.FromJson<WardrobeMenuOrganization.CommandDto>(commandJson ?? "{}")), requestCode)); return;
+            }
+            if (path == "/api/scene_snapshot")
+            {
+                WriteJson(context, 200, RunOnMain(() => WardrobeSceneEditor.Snapshot(SceneAvatar), requestCode));
+                return;
+            }
+            if (path == "/api/scene_execute")
+            {
+                var query = Query(request.Url.Query);
+                query.TryGetValue("command", out var command);
+                WriteJson(context, 200, RunOnMain(() => {
+                    try { return WardrobeSceneEditor.Execute(JsonUtility.FromJson<WardrobeSceneEditor.CommandDto>(command ?? "")); }
+                    catch (Exception) { return new ResultDto { message = "The scene command is invalid. Refresh and review the object." }; }
+                }, requestCode));
                 return;
             }
             if (path == "/api/families")
@@ -213,6 +245,14 @@ namespace OutfitToggleGenerator
                 if (outcome == null) WriteJson(context, 202, new ResultDto { ok = 0, message = "pending" });
                 else if (outcome.Length == 0) WriteJson(context, 404, new ResultDto { ok = 0, message = "unavailable" });
                 else WriteBytes(context, 200, "image/png", outcome);
+                return;
+            }
+            if (path == "/api/library_import_begin" || path == "/api/library_import_end" || path == "/api/library_import_renew")
+            {
+                var query = Query(request.Url.Query);
+                query.TryGetValue("token", out var token);
+                WriteJson(context, 200, RunOnMain(() => path.EndsWith("_begin", StringComparison.Ordinal)
+                    ? BeginLibraryImport() : path.EndsWith("_renew", StringComparison.Ordinal) ? RenewLibraryImport(token) : EndLibraryImport(token), requestCode));
                 return;
             }
             if (path == "/api/compatibility_override")
@@ -806,6 +846,11 @@ namespace OutfitToggleGenerator
             var r = context.Request;
             if (!r.IsLocal || r.Url == null || !WardrobeHttpPolicy.SameOrigin(r.Url.GetLeftPart(UriPartial.Authority), Port))
             { WriteText(context, 403, "text/plain", "Local requests only."); return false; }
+            var project = r.Headers["X-Wardrobe-Project"];
+            if (!string.IsNullOrEmpty(project) && !string.Equals(Uri.UnescapeDataString(project), serverProjectPath, StringComparison.Ordinal))
+            { WriteText(context, 409, "text/plain", "This Unity bridge belongs to another project. Open the project chosen in your library."); return false; }
+            if (r.Url.AbsolutePath.StartsWith("/api/library_import_", StringComparison.Ordinal) && string.IsNullOrEmpty(project))
+            { WriteText(context, 409, "text/plain", "Open the project through Wardrobe Library before importing."); return false; }
             var origin = r.Headers["Origin"];
             if ((!string.IsNullOrEmpty(origin) && !WardrobeHttpPolicy.SameOrigin(origin, Port)) ||
                 r.Headers["Sec-Fetch-Site"] == "cross-site")
@@ -829,8 +874,8 @@ namespace OutfitToggleGenerator
                 WriteText(context, 409, "text/plain", "The Unity session changed. Refresh the wardrobe before editing.");
                 return false;
             }
-            requestWritesAvatar = !read &&
-                r.Url.AbsolutePath != "/api/index" && r.Url.AbsolutePath != "/api/active" && r.Url.AbsolutePath != "/api/thumb" && r.Url.AbsolutePath != "/api/name";
+            requestWritesAvatar = !read && !r.Url.AbsolutePath.StartsWith("/api/library_import_", StringComparison.Ordinal) &&
+                r.Url.AbsolutePath != "/api/operation_cancel" && r.Url.AbsolutePath != "/api/index" && r.Url.AbsolutePath != "/api/active" && r.Url.AbsolutePath != "/api/thumb" && r.Url.AbsolutePath != "/api/name";
             int.TryParse(r.Headers["X-Wardrobe-Avatar"], out requestAvatarId);
             if (requestWritesAvatar && (suppliedSession != serverSession ||
                 (requestAvatarId == 0 && r.Url.AbsolutePath != "/api/target")))

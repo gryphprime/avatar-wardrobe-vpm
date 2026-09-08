@@ -7,7 +7,7 @@ namespace OutfitToggleGenerator
     {
         internal static readonly HashSet<string> Reads = new HashSet<string>(StringComparer.Ordinal)
         {
-            "/api/scene_upload_thumbnail", "/api/scene_upload_review", "/api/state", "/api/families", "/api/family", "/api/installed", "/api/nameResult",
+            "/api/operation_context", "/api/operation_result", "/api/snapshot", "/api/menu_snapshot", "/api/scene_snapshot", "/api/scene_upload_thumbnail", "/api/scene_upload_review", "/api/state", "/api/families", "/api/family", "/api/installed", "/api/nameResult",
             "/api/shops", "/api/diag", "/api/thumb", "/api/upload_result", "/api/upload_status",
             "/api/batch_thumb_img", "/api/batch_unassigned", "/api/batch_state", "/api/batch_job", "/api/batch_export", "/api/presets"
         };

@@ -7,7 +7,7 @@ for(const avatarMode of [false,true]){
  const context={rem:{},instance:{guid:'asset',target:'owner-preset',path:'Outfits/Owner/Second copy',instanceId:42},v:{guid:'asset'},avatarMode,
   effectivePreset:()=> 'common',document:{getElementById:id=>({value:id==='dInstance'?'42':'common'})},presetNameOf:()=> 'Owner',
   installedPresets:[{id:'owner-preset',paths:['Outfits/Owner/Second copy'],instanceIds:[42]},{id:'common',paths:[],instanceIds:[]}],confirm:()=>true,removeInFlight:false,
-  beginButtonBusy(){},endButtonBusy(){},T:x=>x,encodeURIComponent,
+  beginButtonBusy(){},endButtonBusy(){},T:x=>x,encodeURIComponent,operations:{enabled:()=>false},
   api:url=>{calls.push(url);return Promise.resolve({ok:0});},toast(){}};
  vm.runInNewContext(source.slice(begin,end)+'\nrem.onclick();',context);
  assert.equal(calls.length,1);
