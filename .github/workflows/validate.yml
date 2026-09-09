@@ -19,6 +19,9 @@ jobs:
       - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       - run: for test in tests/*.test.js; do node "$test" || exit; done
   unity-tests:
+    # Disabled until the dedicated licensed Unity runner is provisioned.
+    # Remove this gate when a runner with the avatar-wardrobe-unity label is online.
+    if: ${{ false }}
     # Dedicated licensed runner with the supported SDK dependencies already resolved.
     # Do not route untrusted pull-request code to this runner.
     runs-on: [self-hosted, avatar-wardrobe-unity]
