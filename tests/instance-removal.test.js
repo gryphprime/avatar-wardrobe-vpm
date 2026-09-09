@@ -5,8 +5,9 @@ const end=source.indexOf('\n      };',begin)+9;
 for(const avatarMode of [false,true]){
  const calls=[];
  const context={rem:{},instance:{guid:'asset',target:'owner-preset',path:'Outfits/Owner/Second copy'},v:{guid:'asset'},avatarMode,
-  effectivePreset:()=> 'common',document:{getElementById:()=>({value:'common'})},presetNameOf:()=> 'Owner',
-  installedPresets:[{id:'owner-preset'},{id:'common'}],confirm:()=>true,removeInFlight:false,
+  effectivePreset:()=> 'common',document:{getElementById:id=>id==='dInstance'?{value:'2'}:{value:'common'}},presetNameOf:()=> 'Owner',
+  installedPresets:[{id:'owner-preset',instanceIds:[1,2],paths:['Outfits/Owner/First copy','Outfits/Owner/Second copy']},{id:'common',instanceIds:[3],paths:['Outfits/Common']}],
+  operations:{enabled:()=>false},confirm:()=>true,removeInFlight:false,
   beginButtonBusy(){},endButtonBusy(){},T:x=>x,encodeURIComponent,
   api:url=>{calls.push(url);return Promise.resolve({ok:0});},toast(){}};
  vm.runInNewContext(source.slice(begin,end)+'\nrem.onclick();',context);
