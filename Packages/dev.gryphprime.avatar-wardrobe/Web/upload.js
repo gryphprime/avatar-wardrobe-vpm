@@ -275,7 +275,7 @@
       (upGroups[id]||[]).forEach(function(g){h+='<option value="'+esc(g.id)+'"'+((g.paths||[]).indexOf(it.path)>=0?' selected':'')+'>'+esc(g.name)+'</option>';});
       h+='<option value="__new">+ New menu group</option></select>';
       if(it.guid) h+='<button data-pact="locate" data-guid="'+esc(it.guid)+'">'+esc(T("upload.locate"))+'</button>';
-      h+='<button class="danger" data-pact="removeitem" data-path="'+esc(it.path||'')+'" data-guid="'+esc(it.guid||'')+'">Remove</button></div>';
+      h+='<button class="danger" data-pact="removeitem" data-instance="'+esc(it.instanceId||'')+'" data-path="'+esc(it.path||'')+'" data-guid="'+esc(it.guid||'')+'">Remove</button></div>';
     });
     body.innerHTML=h+'</div>'+(shown.length?'':'<p class="subtle">'+esc(T("upload.noMembers"))+'</p>')+'</section>';
   }
@@ -299,7 +299,7 @@
       if(act==='removepreset'&&id==='common')return;
       if(!confirm(act==='removepreset'?'Remove '+presetName+' and its scene items? Source assets and uploaded avatars will remain.':'Remove this item from '+presetName+'?'))return;
       el.disabled=true;
-      var url=act==='removepreset'?'/api/preset_delete?id='+encodeURIComponent(id):'/api/preset_remove_item?target='+encodeURIComponent(id)+'&guid='+encodeURIComponent(el.dataset.guid||'')+'&item='+encodeURIComponent(el.dataset.path||'');
+      var url=act==='removepreset'?'/api/preset_delete?id='+encodeURIComponent(id):'/api/preset_remove_item?target='+encodeURIComponent(id)+'&guid='+encodeURIComponent(el.dataset.guid||'')+'&item='+encodeURIComponent(el.dataset.path||'')+'&instanceId='+encodeURIComponent(el.dataset.instance||'');
       api(url).then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||'Remove failed.');upRefreshState();if(options.onChange)options.onChange();})
         .catch(function(e){toast(e.message,'err');}).finally(function(){el.disabled=false;});
     }

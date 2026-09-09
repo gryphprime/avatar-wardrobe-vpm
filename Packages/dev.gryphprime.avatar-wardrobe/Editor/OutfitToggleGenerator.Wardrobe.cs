@@ -290,6 +290,7 @@ namespace OutfitToggleGenerator
                 target.SetActive(true);
                 PrefabUtility.RecordPrefabInstancePropertyModifications(target);
             }
+            WardrobeMenuOrganization.Rebind(avatar);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(avatar.gameObject.scene);
         }
 
@@ -394,6 +395,7 @@ namespace OutfitToggleGenerator
                 PrefabUtility.RecordPrefabInstancePropertyModifications(part);
             }
             EnsureGeneratedMenuIcons(avatar.gameObject, host.transform);
+            WardrobeMenuOrganization.Rebind(avatar);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(avatar.gameObject.scene);
         }
 

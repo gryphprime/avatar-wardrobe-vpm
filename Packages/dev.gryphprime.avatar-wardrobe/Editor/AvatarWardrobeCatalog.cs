@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using nadena.dev.modular_avatar.core;
 using UnityEditor;
 using UnityEngine;
@@ -128,6 +129,13 @@ namespace OutfitToggleGenerator
     {
         public List<WardrobeAssetOverride> entries = new List<WardrobeAssetOverride>();
         public List<WardrobeAvatarOverride> avatarOverrides = new List<WardrobeAvatarOverride>();
+        public List<WardrobeFitTrust> fitTrust = new List<WardrobeFitTrust>();
+    }
+
+    [Serializable]
+    internal sealed class WardrobeFitTrust
+    {
+        public string assetGuid, avatarGuid, assetVersion, avatarVersion, fitProfile;
     }
 
     [Serializable]
@@ -204,19 +212,20 @@ namespace OutfitToggleGenerator
             get { return Path.Combine(CacheDirectory, "scan.log"); }
         }
 
+        private static readonly WardrobeBackgroundValue<string> scanTail = new WardrobeBackgroundValue<string>();
         internal static string LastScannedPath()
         {
-            try
+            var path = ScanJournalPath;
+            return scanTail.Get(() =>
             {
-                if (!File.Exists(ScanJournalPath)) return null;
-                using (var reader = new StreamReader(File.Open(ScanJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                if (!File.Exists(path)) return null;
+                using (var reader = new StreamReader(File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                 {
-                    string line = null, last = null;
+                    string line, last = null;
                     while ((line = reader.ReadLine()) != null) last = line;
                     return last;
                 }
-            }
-            catch (Exception) { return null; }
+            });
         }
 
         private static string ProjectRoot
@@ -314,6 +323,7 @@ namespace OutfitToggleGenerator
 
         internal static void RecoverMissingIndex()
         {
+            if (cacheMaintenance) return;
             if (File.Exists(CachePath) && !File.Exists(RebuildMarker)) return;
             if (ExternalRunning || EditorApplication.timeSinceStartup < nextIndexRecovery) return;
             nextIndexRecovery = EditorApplication.timeSinceStartup + 30;
@@ -322,26 +332,21 @@ namespace OutfitToggleGenerator
             RunExternalIndexer(true);
         }
 
+        private static readonly WardrobeBackgroundValue<WardrobeExternalProgress> indexProgress = new WardrobeBackgroundValue<WardrobeExternalProgress>();
         internal static WardrobeExternalProgress ExternalProgress()
         {
-            var progress = new WardrobeExternalProgress();
-            try
-            {
-                var path = Path.Combine(CacheDirectory, "progress.json");
-                if (!File.Exists(path)) return progress;
-                var data = JsonUtility.FromJson<WardrobeExternalProgress>(File.ReadAllText(path));
-                if (data == null) return progress;
-                // A run that died without finishing leaves a stale file behind.
-                if (data.running && !ExternalRunning) data.running = false;
-                return data;
-            }
-            catch (Exception) { return progress; }
+            var path = Path.Combine(CacheDirectory, "progress.json");
+            var data = indexProgress.Get(() => File.Exists(path) ? JsonUtility.FromJson<WardrobeExternalProgress>(File.ReadAllText(path)) : new WardrobeExternalProgress());
+            if (data == null) return new WardrobeExternalProgress();
+            if (data.running && !ExternalRunning) data.running = false;
+            return data;
         }
 
         internal static string LastIndexError { get; private set; }
 
         internal static bool RunExternalIndexer(bool full)
         {
+            if (cacheMaintenance) { LastIndexError = "Wait for cache maintenance to finish."; return false; }
             LoadCache();
             if (ExternalRunning)
             {
@@ -381,70 +386,56 @@ namespace OutfitToggleGenerator
             }
         }
 
-        internal static void WipeCache()
+        private static bool cacheMaintenance;
+        internal static async Task WipeCacheAsync()
         {
-            CancelExternalIndexer();
-            if (Directory.Exists(CacheDirectory))
-                foreach (var path in Directory.GetFileSystemEntries(CacheDirectory))
-                {
-                    if (Path.GetFileName(path).StartsWith("wardrobe.log", StringComparison.Ordinal)) continue;
-                    if (Directory.Exists(path)) Directory.Delete(path, true);
-                    else File.Delete(path);
-                }
-            cache = null;
-            cacheLoaded = false;
-            loadedCatalogStamp = DateTime.MinValue;
-            LoadCache();
-            catalogEpoch++;
-            File.WriteAllText(RebuildMarker, "full");
-            nextIndexRecovery = 0;
-            LastIndexError = null;
-            WardrobeLog.Write("cache", "Cleared catalog and thumbnail caches");
-        }
-
-        internal static void CancelExternalIndexer()
-        {
+            if (cacheMaintenance) throw new InvalidOperationException("Cache maintenance is already running.");
+            // Resolve/recover the process on Unity's thread, then move waits and deletion off it.
+            var running = ExternalRunning;
+            var process = externalProcess; externalProcess = null;
+            var directory = CacheDirectory; var marker = RebuildMarker;
+            cacheMaintenance = true;
+            catalogLoad = null;
             try
             {
-                if (ExternalRunning)
-                { externalProcess.Kill(); externalProcess.WaitForExit(); }
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        if (running && process != null && !process.HasExited)
+                        {
+                            process.Kill();
+                            if (!process.WaitForExit(10000)) throw new IOException("Indexer did not stop; cache was preserved.");
+                        }
+                        if (Directory.Exists(directory))
+                            foreach (var path in Directory.GetFileSystemEntries(directory))
+                            {
+                                if (Path.GetFileName(path).StartsWith("wardrobe.log", StringComparison.Ordinal)) continue;
+                                if (Directory.Exists(path)) Directory.Delete(path, true); else File.Delete(path);
+                            }
+                        Directory.CreateDirectory(directory);
+                        WardrobeAtomicFile.WriteText(marker, "full");
+                    }
+                    finally { process?.Dispose(); }
+                });
+                cache = new WardrobeCatalogCache { version = CacheVersion };
+                cacheLoaded = true; loadedCatalogStamp = DateTime.MinValue; catalogEpoch++;
+                nextCatalogPoll = 0; nextIndexRecovery = 0; LastIndexError = null;
+                WardrobeLog.Write("cache", "Cleared catalog and thumbnail caches");
             }
-            catch (Exception exception)
-            {
-                Debug.LogWarning("Avatar Wardrobe could not stop the indexer: " + exception.Message);
-            }
-            finally { if (externalProcess != null) externalProcess.Dispose(); externalProcess = null; }
+            finally { cacheMaintenance = false; }
         }
 
         // Reloads records written by the external indexer. Returns true when the
         // file changed so the window can drop its caches.
+        private static int reportedCatalogEpoch;
         internal static bool PollExternalUpdates()
         {
             LoadCache();
-            DateTime stamp;
-            try
-            {
-                if (!File.Exists(CachePath))
-                {
-                    if (loadedCatalogStamp == DateTime.MinValue) return false;
-                    cacheLoaded = false;
-                    loadedCatalogStamp = DateTime.MinValue;
-                    LoadCache();
-                    catalogEpoch++;
-                    return true;
-                }
-                stamp = File.GetLastWriteTimeUtc(CachePath);
-            }
-            catch (Exception) { return false; }
-            if (stamp == loadedCatalogStamp) return false;
-            cacheLoaded = false;
-            LoadCache();
-            loadedCatalogStamp = stamp;
-            catalogEpoch++;
-            ReconcileDirty();
-            // Derived catalog has a single writer (Python). Never serialize its records
-            // back through JsonUtility: it drops fields it does not know about.
-            return true;
+            PollCatalogDisk();
+            var changed = reportedCatalogEpoch != catalogEpoch;
+            reportedCatalogEpoch = catalogEpoch;
+            return changed;
         }
 
         internal static void EnsureIndexed()
@@ -814,7 +805,7 @@ namespace OutfitToggleGenerator
         internal static WardrobeCompatibility Compatibility(WardrobeAssetRecord outfit, string avatarGuid)
         {
             LoadOverrides();
-            if (outfit != null && GetOverride(outfit.guid)?.compatibleOverride == true)
+            if (HasFitTrust(outfit, avatarGuid))
                 return new WardrobeCompatibility
                 {
                     state = WardrobeCompatibilityState.Compatible,
@@ -969,6 +960,54 @@ namespace OutfitToggleGenerator
                 : record == null ? WardrobeAssetKind.Ignored : record.kind;
         }
 
+        internal static string CaptureOverrides() => File.Exists(OverridesPath) ? File.ReadAllText(OverridesPath) : null;
+        internal static void RestoreOverrides(string text)
+        {
+            if (text == null) { if (File.Exists(OverridesPath)) File.Delete(OverridesPath); }
+            else WardrobeAtomicFile.WriteText(OverridesPath, text);
+            overrides = null;
+            overridesLoaded = false;
+            overridesVersion++;
+        }
+        private static string FitProfile()
+        {
+            var avatar = AvatarWardrobeServer.SceneAvatar;
+            if (avatar == null) return "";
+            var text = GlobalObjectId.GetGlobalObjectIdSlow(avatar).ToString() + "|" + avatar.transform.localScale;
+            foreach (var renderer in avatar.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                if (renderer.sharedMesh == null) continue;
+                text += "|" + AnimationUtility.CalculateTransformPath(renderer.transform, avatar.transform) + "|" + renderer.sharedMesh.name;
+                for (var i = 0; i < renderer.sharedMesh.blendShapeCount; i++)
+                    text += "|" + renderer.sharedMesh.GetBlendShapeName(i) + ":" + renderer.GetBlendShapeWeight(i).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+            }
+            return Hash128.Compute(text).ToString();
+        }
+        private static string FitVersion(WardrobeAssetRecord record) => record == null ? "" :
+            (!string.IsNullOrEmpty(record.assetPath) ? AssetDatabase.GetAssetDependencyHash(record.assetPath).ToString() : record.dependencyFingerprint ?? "");
+        private static bool HasFitTrust(WardrobeAssetRecord outfit, string avatarGuid)
+        {
+            if (outfit == null || string.IsNullOrEmpty(avatarGuid) || overrides.fitTrust == null) return false;
+            var entries = overrides.fitTrust.Where(t => t.assetGuid == outfit.guid && t.avatarGuid == avatarGuid).ToList();
+            if (entries.Count == 0) return false;
+            var profile = FitProfile();
+            return profile != "" && entries.Any(t => WardrobeEditPolicy.FitMatches(t.assetVersion, FitVersion(outfit), t.avatarVersion, FitVersion(GetRecord(avatarGuid)), t.fitProfile, profile));
+        }
+        internal static void SetFitTrust(string guid, string avatarGuid, bool enabled)
+        {
+            LoadOverrides();
+            var asset = GetRecord(guid);
+            if (asset == null || AvatarWardrobeServer.SceneAvatar == null || string.IsNullOrEmpty(FitVersion(GetRecord(avatarGuid))))
+                throw new InvalidOperationException("Choose an avatar and its base before trusting a fit.");
+            if (overrides.fitTrust == null) overrides.fitTrust = new List<WardrobeFitTrust>();
+            var profile = FitProfile();
+            overrides.fitTrust.RemoveAll(t => t.assetGuid == guid && t.avatarGuid == avatarGuid && t.fitProfile == profile);
+            if (enabled) overrides.fitTrust.Add(new WardrobeFitTrust { assetGuid = guid, avatarGuid = avatarGuid,
+                assetVersion = FitVersion(asset), avatarVersion = FitVersion(GetRecord(avatarGuid)), fitProfile = profile });
+            SaveOverrides();
+            overridesVersion++;
+        }
+
         internal static WardrobeAssetOverride OverrideFor(string guid)
         {
             LoadOverrides();
@@ -1034,7 +1073,7 @@ namespace OutfitToggleGenerator
             bool allowIncompatible,
             bool createToggles,
             bool ownUndoGroup = true,
-            string presetTarget = null)
+            string presetTarget = null, bool addCopy = false)
         {
             if (avatar == null) return WardrobeInstallResult.Failure(WardrobeStrings.T("msg.noavatar"));
             if (EditorUtility.IsPersistent(avatar.gameObject))
@@ -1060,8 +1099,8 @@ namespace OutfitToggleGenerator
             try
             {
                 GameObject installed = null;
-                if (presetTarget == null) TryFindInstalled(avatar, outfit, out installed);
-                else installed = AvatarWardrobePresets.PrefabInstances(avatar, outfit.guid)
+                if (!addCopy && presetTarget == null) TryFindInstalled(avatar, outfit, out installed);
+                else if (!addCopy) installed = AvatarWardrobePresets.PrefabInstances(avatar, outfit.guid)
                     .FirstOrDefault(item => AvatarWardrobePresets.ItemPreset(item, avatar) == presetTarget);
                 if (installed != null)
                 {
@@ -1076,6 +1115,7 @@ namespace OutfitToggleGenerator
                 }
                 var instance = PrefabUtility.InstantiatePrefab(source, avatar.transform) as GameObject;
                 if (instance == null) throw new InvalidOperationException(WardrobeStrings.T("msg.nocreate"));
+                instance.name = GameObjectUtility.GetUniqueNameForSibling(avatar.transform, source.name);
                 Undo.RegisterCreatedObjectUndo(instance, "Install wardrobe outfit");
                 Undo.RegisterFullObjectHierarchyUndo(instance, "Configure wardrobe outfit");
 
@@ -1095,7 +1135,10 @@ namespace OutfitToggleGenerator
                     }
                 }
 
-                if (createToggles)
+                var status = Undo.AddComponent<WardrobeSetupStatus>(instance);
+                status.sourceGuid = outfit.guid;
+                status.warning = warning;
+                if (createToggles && !creatorSetup)
                     OutfitToggleGenerator.CreateOrUpdateWardrobeToggle(avatar, instance, InstallationLabel(outfit));
                 succeeded = true;
                 Selection.activeGameObject = instance;
@@ -1129,7 +1172,10 @@ namespace OutfitToggleGenerator
                 throw new InvalidOperationException("Wardrobe will not remove an avatar root or source asset.");
             var avatar = instance.GetComponentInParent<VRCAvatarDescriptor>();
             if (avatar == null) throw new InvalidOperationException("The outfit is not inside an avatar.");
-            if (avatar != null) OutfitToggleGenerator.RemoveWardrobeOutfit(avatar, instance);
+            var path = AnimationUtility.CalculateTransformPath(instance.transform, avatar.transform);
+            var sharedPath = avatar.GetComponentsInChildren<Transform>(true).Any(t => t != instance.transform &&
+                AnimationUtility.CalculateTransformPath(t, avatar.transform) == path);
+            if (!sharedPath) OutfitToggleGenerator.RemoveWardrobeOutfit(avatar, instance);
             Undo.DestroyObjectImmediate(instance);
         }
 
@@ -1476,7 +1522,10 @@ namespace OutfitToggleGenerator
 
         private static bool HasCreatorSetup(GameObject instance)
         {
-            return instance.GetComponentInChildren<ModularAvatarMergeArmature>(true) != null ||
+            return instance.GetComponentsInChildren<Component>(true).Any(component => component != null &&
+                       ((component.GetType().Namespace ?? "").StartsWith("VF.", StringComparison.Ordinal) ||
+                        (component.GetType().Namespace ?? "").StartsWith("lilycalInventory", StringComparison.Ordinal))) ||
+                   instance.GetComponentInChildren<ModularAvatarMergeArmature>(true) != null ||
                    instance.GetComponentInChildren<ModularAvatarOutfitRoot>(true) != null ||
                    instance.GetComponentInChildren<ModularAvatarObjectToggle>(true) != null ||
                    instance.GetComponentInChildren<ModularAvatarMenuItem>(true) != null;
@@ -1606,50 +1655,81 @@ namespace OutfitToggleGenerator
                 : overrides.entries.FirstOrDefault(entry => entry.guid == guid);
         }
 
+        private sealed class CatalogSnapshot
+        {
+            internal WardrobeCatalogCache value;
+            internal DateTime stamp;
+        }
+        private static Task<CatalogSnapshot> catalogLoad;
+        private static double nextCatalogPoll;
+        internal static bool CatalogLoading => catalogLoad != null;
+
+        // This method never waits for disk or parsing. Readers keep the last complete snapshot.
         private static void LoadCache()
         {
-            if (cacheLoaded) return;
-            cacheLoaded = true;
-            try
+            if (!cacheLoaded)
             {
-                cache = File.Exists(CachePath)
-                    ? JsonUtility.FromJson<WardrobeCatalogCache>(File.ReadAllText(CachePath))
-                    : null;
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning("Avatar Wardrobe ignored its unreadable cache: " + exception.Message);
-            }
-
-            if (cache == null || cache.version != CacheVersion)
+                cacheLoaded = true;
                 cache = new WardrobeCatalogCache { version = CacheVersion };
-            if (cache.records == null) cache.records = new List<WardrobeAssetRecord>();
-            cache.records.RemoveAll(record => record == null || string.IsNullOrEmpty(record.guid));
-            foreach (var record in cache.records)
+                catalogLoad = null; // An older in-flight result is no longer eligible for publication.
+                loadedCatalogStamp = DateTime.MinValue;
+                nextCatalogPoll = 0;
+                PollCatalogDisk();
+            }
+            if (cacheMaintenance) return;
+            if (catalogLoad != null && catalogLoad.IsCompleted)
+            {
+                var finished = catalogLoad; catalogLoad = null;
+                if (finished.IsFaulted)
+                    Debug.LogWarning("Wardrobe kept its last catalog: " + finished.Exception.GetBaseException().Message);
+                else if (finished.Result != null)
+                {
+                    var snapshot = finished.Result;
+                    // Preserve dirty events received while the worker was reading the catalog.
+                    var pending = new HashSet<string>(snapshot.value.dirtyPaths, StringComparer.OrdinalIgnoreCase);
+                    foreach (var path in cache.dirtyPaths) if (pending.Add(path)) snapshot.value.dirtyPaths.Add(path);
+                    cache = snapshot.value;
+                    loadedCatalogStamp = snapshot.stamp;
+                    catalogEpoch++;
+                    nextCatalogPoll = EditorApplication.timeSinceStartup + 1;
+                    ReconcileDirty();
+                }
+                nextCatalogPoll = EditorApplication.timeSinceStartup + 1;
+            }
+        }
+        private static void PollCatalogDisk()
+        {
+            if (cacheMaintenance || catalogLoad != null || EditorApplication.timeSinceStartup < nextCatalogPoll) return;
+            var file = CachePath; var dirty = DirtySidecarPath; var previousStamp = loadedCatalogStamp;
+            // Paths are captured on the main thread; workers never evaluate Application.dataPath.
+            catalogLoad = Task.Run(() => ReadCatalogSnapshot(file, dirty, previousStamp));
+        }
+        private static CatalogSnapshot ReadCatalogSnapshot(string file, string dirty, DateTime previousStamp)
+        {
+            var stamp = File.Exists(file) ? File.GetLastWriteTimeUtc(file) : DateTime.MinValue;
+            if (stamp == previousStamp) return null;
+            var parsed = stamp == DateTime.MinValue ? new WardrobeCatalogCache { version = CacheVersion } :
+                JsonUtility.FromJson<WardrobeCatalogCache>(File.ReadAllText(file));
+            if (parsed == null || parsed.version != CacheVersion) throw new InvalidDataException("Unsupported catalog version.");
+            if ((File.Exists(file) ? File.GetLastWriteTimeUtc(file) : DateTime.MinValue) != stamp)
+                throw new IOException("Catalog changed during loading; retrying on the next poll.");
+            if (parsed.records == null) parsed.records = new List<WardrobeAssetRecord>();
+            parsed.records.RemoveAll(record => record == null || string.IsNullOrEmpty(record.guid));
+            foreach (var record in parsed.records)
             {
                 if (record.meshIds == null) record.meshIds = new List<string>();
                 if (record.materialIds == null) record.materialIds = new List<string>();
                 if (record.boneNames == null) record.boneNames = new List<string>();
                 if (record.dependencies == null) record.dependencies = new List<string>();
             }
-            if (cache.dirtyPaths == null) cache.dirtyPaths = new List<string>();
-            try
+            if (parsed.dirtyPaths == null) parsed.dirtyPaths = new List<string>();
+            if (File.Exists(dirty))
             {
-                if (File.Exists(CachePath)) loadedCatalogStamp = File.GetLastWriteTimeUtc(CachePath);
+                var sidecar = JsonUtility.FromJson<WardrobeDirtyPaths>(File.ReadAllText(dirty));
+                var seen = new HashSet<string>(parsed.dirtyPaths, StringComparer.OrdinalIgnoreCase);
+                if (sidecar?.paths != null) foreach (var path in sidecar.paths) if (seen.Add(path)) parsed.dirtyPaths.Add(path);
             }
-            catch (Exception) { }
-            try
-            {
-                if (File.Exists(DirtySidecarPath))
-                {
-                    var sidecar = JsonUtility.FromJson<WardrobeDirtyPaths>(File.ReadAllText(DirtySidecarPath));
-                    if (sidecar != null && sidecar.paths != null)
-                        foreach (var path in sidecar.paths)
-                            if (!cache.dirtyPaths.Contains(path, StringComparer.OrdinalIgnoreCase))
-                                cache.dirtyPaths.Add(path);
-                }
-            }
-            catch (Exception) { }
+            return new CatalogSnapshot { value = parsed, stamp = stamp };
         }
 
         private static void LoadOverrides()

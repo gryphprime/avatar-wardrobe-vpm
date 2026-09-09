@@ -23,9 +23,7 @@ namespace OutfitToggleGenerator
         {
             presets = AvatarWardrobePresets.CaptureSettings();
             uploads = OutfitProjectData.CaptureSettings();
-            previous = SceneManager.GetActiveScene();
-            if (string.IsNullOrEmpty(previous.path))
-                EditorSceneManager.SaveScene(previous, "Assets/ReviewPrevious.unity");
+            previous = WardrobeTestSceneFixture.RequireSavedActiveScene();
             scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
             root = new GameObject("Review fixture");
             SceneManager.MoveGameObjectToScene(root, scene);
@@ -42,6 +40,30 @@ namespace OutfitToggleGenerator
             AssetDatabase.DeleteAsset("Assets/ReviewFixture.unity");
             AvatarWardrobePresets.RestoreSettings(presets);
             OutfitProjectData.RestoreSettings(uploads);
+        }
+        [Test] public void LibraryImportLeaseReleasesReloadAndEditLocks()
+        {
+            var lease = AvatarWardrobeServer.BeginLibraryImport();
+            Assert.AreEqual(1, lease.ok, lease.message);
+            try
+            {
+                Assert.IsTrue(AvatarWardrobeServer.UploadTargetLocked);
+                Assert.AreEqual(0, AvatarWardrobeServer.BeginLibraryImport().ok);
+                Assert.AreEqual(0, AvatarWardrobeServer.EndLibraryImport("wrong-token").ok);
+                Assert.AreEqual(0, AvatarWardrobeServer.RenewLibraryImport("wrong-token").ok);
+                Assert.AreEqual(1, AvatarWardrobeServer.RenewLibraryImport(lease.id).ok);
+                Assert.IsTrue(AvatarWardrobeServer.UploadTargetLocked);
+            }
+            finally { Assert.AreEqual(1, AvatarWardrobeServer.EndLibraryImport(lease.id).ok); }
+            Assert.IsFalse(AvatarWardrobeServer.UploadTargetLocked);
+            Assert.AreEqual(0, AvatarWardrobeServer.EndLibraryImport(lease.id).ok);
+        }
+        [Test] public void ExactCopyRemovalAndSettingsUndoRemainCoherent()
+        {
+            const string report = "Library/AvatarWardrobe/edit-validation.txt";
+            if (File.Exists(report)) File.Delete(report);
+            AvatarWardrobeServer.ValidateWardrobeEditing();
+            StringAssert.StartsWith("PASS: 10 ", File.ReadAllText(report));
         }
         [Test] public void MixedPartTreesAreRejectedBeforeChangingTargets()
         {

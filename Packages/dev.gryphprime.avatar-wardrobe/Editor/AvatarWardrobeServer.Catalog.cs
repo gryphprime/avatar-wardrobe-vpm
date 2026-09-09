@@ -38,6 +38,8 @@ namespace OutfitToggleGenerator
         [Serializable]
         private sealed class InstalledItemDto
         {
+            public int instanceId;
+            public string setupWarning = "";
             public string path = string.Empty;
             public string guid = string.Empty;
             public string family = string.Empty;
@@ -50,7 +52,17 @@ namespace OutfitToggleGenerator
         [Serializable]
         private sealed class InstalledListDto
         {
+            public string projectId, avatarId, avatarName, scene, session;
+            public bool usageComplete;
+            public List<LibraryUsageItemDto> usage = new List<LibraryUsageItemDto>();
             public List<InstalledItemDto> items = new List<InstalledItemDto>();
+        }
+
+        [Serializable]
+        private sealed class LibraryUsageItemDto
+        {
+            [NonSerialized] public string sourcePath;
+            public string instanceId, path, guid, sourceSha256, dependencyHash;
         }
 
         private sealed class NameJobState
@@ -96,6 +108,8 @@ namespace OutfitToggleGenerator
             public string server = "wardrobe-refactor-1";
             public string wardrobeVersion = WardrobeVersion.Current;
             public int avatarInstanceId;
+            public string projectPath, scenePath;
+            public TargetChoice[] sceneTargets;
             public string avatarName = string.Empty;
             public string avatarLabel = string.Empty;
             public string avatarGuid = string.Empty;
@@ -153,6 +167,7 @@ namespace OutfitToggleGenerator
         [Serializable]
         private sealed class VariantDto
         {
+            public string assetVersion = string.Empty;
             public string guid = string.Empty;
             public int hi;
             public string variant = string.Empty;
@@ -245,6 +260,10 @@ namespace OutfitToggleGenerator
                 wardrobeMode = ReadWorkflow().wardrobeMode,
                 selectedPreset = ReadWorkflow().selectedPreset,
                 workflowPresets = AvatarWardrobePresets.PresetsForBase(WorkflowBaseKey()).Select(p => new PresetDto { id = p.id, name = p.name }).ToList(),
+                projectPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..")),
+                scenePath = SceneAvatar == null ? "" : SceneAvatar.gameObject.scene.path,
+                sceneTargets = SceneTargets().Select(a => new TargetChoice { id = a.GetInstanceID(), name = a.name,
+                    scene = a.gameObject.scene.path, identity = GlobalObjectId.GetGlobalObjectIdSlow(a).ToString() }).ToArray(),
                 avatarName = avatarName,
                 avatarInstanceId = SceneAvatar == null ? 0 : SceneAvatar.GetInstanceID(),
                 avatarGuid = ActiveAvatarGuid(),
@@ -316,18 +335,32 @@ namespace OutfitToggleGenerator
             return candidatesCache;
         }
 
+        private static Dictionary<string, List<GameObject>> installedRootsCache = new Dictionary<string, List<GameObject>>();
+
         private static HashSet<string> InstalledGuids()
         {
             if (installedCache != null && (DateTime.UtcNow - installedCacheAt).TotalSeconds < 2)
                 return installedCache;
             var installed = new HashSet<string>();
+            var rootsByGuid = new Dictionary<string, List<GameObject>>();
             if (SceneAvatar != null)
+            {
+                var roots = new HashSet<GameObject>();
                 foreach (var transform in SceneAvatar.GetComponentsInChildren<Transform>(true))
                 {
-                    var path = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(transform.gameObject);
+                    var root = PrefabUtility.GetNearestPrefabInstanceRoot(transform.gameObject);
+                    if (root == null || !roots.Add(root)) continue;
+                    var path = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(root);
                     var guid = AssetDatabase.AssetPathToGUID(path);
-                    if (!string.IsNullOrEmpty(guid)) installed.Add(guid);
+                    if (string.IsNullOrEmpty(guid)) continue;
+                    installed.Add(guid);
+                    if (root == SceneAvatar.gameObject || !root.transform.IsChildOf(SceneAvatar.transform)) continue;
+                    if (!rootsByGuid.TryGetValue(guid, out var instances))
+                        rootsByGuid[guid] = instances = new List<GameObject>();
+                    instances.Add(root);
                 }
+            }
+            installedRootsCache = rootsByGuid;
             if (installedCache == null || !installedCache.SetEquals(installed)) installedCacheVersion++;
             installedCache = installed;
             installedCacheAt = DateTime.UtcNow;
@@ -337,6 +370,7 @@ namespace OutfitToggleGenerator
         private static void InvalidateInstalled()
         {
             installedCache = null;
+            installedRootsCache.Clear();
             installedCacheVersion++;
             matchesCache.Clear();
         }
@@ -387,7 +421,7 @@ namespace OutfitToggleGenerator
                       AvatarWardrobeCatalog.CatalogEpoch + "|" + AvatarWardrobeCatalog.OverridesVersion + "|" +
                       AvatarWardrobeCatalog.BaseAvatarStamp;
             WardrobeCompatibility cached;
-            if (compatCache.TryGetValue(key, out cached) && cached != null) return cached;
+            if (compatCache.TryGetValue(key, out cached) && cached != null && !cached.compatibleOverride) return cached;
             var fresh = compute();
             if (compatCache.Count >= 4096) compatCache.Clear();
             compatCache[key] = fresh;
@@ -476,8 +510,9 @@ namespace OutfitToggleGenerator
             var installed = InstalledGuids();
             string target;
             if (query.TryGetValue("target", out target) && !string.IsNullOrEmpty(target))
-                installed = new HashSet<string>(installed.Where(guid => AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
-                    .Any(instance => AvatarWardrobePresets.ItemPreset(instance, SceneAvatar) == target)));
+                installed = new HashSet<string>(installed.Where(guid =>
+                    installedRootsCache.TryGetValue(guid, out var instances) && instances.Any(instance => instance != null &&
+                        AvatarWardrobePresets.ItemPreset(instance, SceneAvatar) == target)));
             // One full-catalog scan per distinct query: pages and prefetch
             // crawls reuse it. Compatibility itself stays cached per family;
             // the key mirrors that scope plus anything else the scan reads.
@@ -605,8 +640,9 @@ namespace OutfitToggleGenerator
             var avatarGuid = ActiveAvatarGuid();
             var installed = InstalledGuids();
             if (!string.IsNullOrEmpty(target))
-                installed = new HashSet<string>(installed.Where(guid => AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
-                    .Any(instance => AvatarWardrobePresets.ItemPreset(instance, SceneAvatar) == target)));
+                installed = new HashSet<string>(family.variants.Select(variant => variant.guid).Where(guid =>
+                    installedRootsCache.TryGetValue(guid, out var instances) && instances.Any(instance => instance != null &&
+                        AvatarWardrobePresets.ItemPreset(instance, SceneAvatar) == target)));
             var detail = new FamilyDetailDto { id = family.id, name = family.displayName };
             string assignBaseKey;
             string assignBaseName;
@@ -627,6 +663,7 @@ namespace OutfitToggleGenerator
                 detail.variants.Add(new VariantDto
                 {
                     guid = variant.guid,
+                    assetVersion = AssetDatabase.GetAssetDependencyHash(variant.assetPath).ToString(),
                     hi = HasHiThumb(variant.guid) ? 1 : 0,
                     variant = AvatarWardrobeCatalog.DisplayVariant(variant),
                     colorway = variant.colorway ?? string.Empty,
@@ -662,6 +699,7 @@ namespace OutfitToggleGenerator
             public string id = "";
             public string name = "";
             public List<string> paths = new List<string>();
+            public List<int> instanceIds = new List<int>();
         }
         [Serializable]
         private sealed class PrefabPresetsDto
@@ -679,6 +717,7 @@ namespace OutfitToggleGenerator
                     partToggles = group.All(OutfitToggleGenerator.HasPartToggles) ? 1 : 0,
                     partTogglesMixed = group.Any(OutfitToggleGenerator.HasPartToggles) && !group.All(OutfitToggleGenerator.HasPartToggles) ? 1 : 0,
                     name = group.Key == "common" ? "Common Preset" : AvatarWardrobePresets.GetPresetName(group.Key),
+                    instanceIds = group.Select(item => item.GetInstanceID()).ToList(),
                     paths = group.Select(item => AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform)).ToList()
                 });
             return result;
@@ -691,9 +730,113 @@ namespace OutfitToggleGenerator
             return key;
         }
 
+        private sealed class UsageHashEntry
+        {
+            internal string dependencyHash, sha;
+            internal long length, modifiedTicks, used;
+        }
+        private const long UsageHashFileLimit = 2L * 1024 * 1024;
+        private const long UsageHashReadLimit = 64L * 1024 * 1024;
+        private static readonly Dictionary<string, UsageHashEntry> usageHashes = new Dictionary<string, UsageHashEntry>(StringComparer.Ordinal);
+        private static long usageHashSequence;
+        private static readonly object usageHashGate = new object();
+
+        // Called on an HTTP worker. Provenance is optional: a missing hash is
+        // a GUID-only match. Bound disk reads and reuse unchanged source hashes.
+        internal static string LibraryUsagePrefabHash(string assetPath, string dependencyHash, ref long bytesRemaining)
+        {
+            lock (usageHashGate) return LibraryUsagePrefabHashLocked(assetPath, dependencyHash, ref bytesRemaining);
+        }
+        private static string LibraryUsagePrefabHashLocked(string assetPath, string dependencyHash, ref long bytesRemaining)
+        {
+            if (string.IsNullOrEmpty(assetPath) || !assetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)) return string.Empty;
+            try
+            {
+                var file = new FileInfo(assetPath);
+                if (!file.Exists) { usageHashes.Remove(assetPath); return string.Empty; }
+                var length = file.Length; var modified = file.LastWriteTimeUtc.Ticks;
+                if (usageHashes.TryGetValue(assetPath, out var cached) && cached.length == length && cached.modifiedTicks == modified && cached.dependencyHash == dependencyHash)
+                {
+                    cached.used = ++usageHashSequence;
+                    return cached.sha;
+                }
+                usageHashes.Remove(assetPath);
+                if (length > UsageHashFileLimit || length > bytesRemaining) return string.Empty;
+                bytesRemaining -= length;
+                string sha;
+                using (var hash = System.Security.Cryptography.SHA256.Create())
+                using (var stream = File.OpenRead(assetPath))
+                {
+                    var buffer = new byte[65536]; var remaining = length;
+                    while (remaining > 0)
+                    {
+                        var count = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, remaining));
+                        if (count == 0) return string.Empty;
+                        hash.TransformBlock(buffer, 0, count, null, 0); remaining -= count;
+                    }
+                    if (stream.Length != length) return string.Empty;
+                    hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    sha = BitConverter.ToString(hash.Hash).Replace("-", "").ToLowerInvariant();
+                }
+                file.Refresh();
+                if (!file.Exists || file.Length != length || file.LastWriteTimeUtc.Ticks != modified) return string.Empty;
+                if (usageHashes.Count >= 512) usageHashes.Remove(usageHashes.OrderBy(pair => pair.Value.used).First().Key);
+                usageHashes[assetPath] = new UsageHashEntry { dependencyHash = dependencyHash, length = length, modifiedTicks = modified, sha = sha, used = ++usageHashSequence };
+                return sha;
+            }
+            catch (IOException) { usageHashes.Remove(assetPath); return string.Empty; }
+            catch (UnauthorizedAccessException) { usageHashes.Remove(assetPath); return string.Empty; }
+        }
+
+        private static InstalledListDto PopulateUsageHashes(InstalledListDto list)
+        {
+            var hashes = new Dictionary<string, string>();
+            var remaining = UsageHashReadLimit;
+            foreach (var item in list.usage)
+            {
+                var key = item.sourcePath + ":" + item.dependencyHash;
+                if (!hashes.TryGetValue(key, out var sha))
+                    hashes[key] = sha = LibraryUsagePrefabHash(item.sourcePath, item.dependencyHash, ref remaining);
+                item.sourceSha256 = sha;
+            }
+            return list;
+        }
+
+        private static InstalledListDto ValidateUsageHashes(InstalledListDto list)
+        {
+            foreach (var item in list.usage)
+            {
+                if (string.IsNullOrEmpty(item.sourceSha256)) continue;
+                var relative = item.sourcePath.Substring(list.projectId.Length + 1).Replace('\\', '/');
+                if (AssetDatabase.GetAssetDependencyHash(relative).ToString() != item.dependencyHash) item.sourceSha256 = "";
+            }
+            return list;
+        }
+
         private static InstalledListDto GetInstalled()
         {
-            var list = new InstalledListDto();
+            var list = new InstalledListDto { projectId = Path.GetFullPath(Path.Combine(Application.dataPath, "..")), session = serverSession };
+            if (SceneAvatar != null)
+            {
+                var avatar = SceneAvatar;
+                list.avatarId = string.IsNullOrEmpty(avatar.gameObject.scene.path) ? "session:" + serverSession + ":" + avatar.GetInstanceID() : GlobalObjectId.GetGlobalObjectIdSlow(avatar.gameObject).ToString();
+                list.avatarName = avatar.name;
+                list.scene = avatar.gameObject.scene.path;
+                var instances = avatar.GetComponentsInChildren<Transform>(true).Where(t => PrefabUtility.IsAnyPrefabInstanceRoot(t.gameObject)).Take(8193).ToArray();
+                list.usageComplete = instances.Length <= 8192;
+                foreach (var transform in instances.Take(8192))
+                {
+                    var assetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(transform.gameObject);
+                    var guid = AssetDatabase.AssetPathToGUID(assetPath);
+                    if (string.IsNullOrEmpty(guid)) continue;
+                    var dependencyHash = AssetDatabase.GetAssetDependencyHash(assetPath).ToString();
+                    list.usage.Add(new LibraryUsageItemDto {
+                        instanceId = string.IsNullOrEmpty(list.scene) ? "session:" + serverSession + ":" + transform.GetInstanceID() : GlobalObjectId.GetGlobalObjectIdSlow(transform.gameObject).ToString(),
+                        path = AnimationUtility.CalculateTransformPath(transform, avatar.transform), guid = guid,
+                        sourceSha256 = "", sourcePath = Path.Combine(list.projectId, assetPath), dependencyHash = dependencyHash
+                    });
+                }
+            }
             var installed = InstalledGuids();
             if (installed.Count == 0) return list;
             foreach (var family in CachedFamilies().Concat(CachedCandidates()))
@@ -705,6 +848,8 @@ namespace OutfitToggleGenerator
                     {
                         var target = AvatarWardrobePresets.ItemPreset(instance, SceneAvatar);
                         list.items.Add(new InstalledItemDto {
+                            instanceId = instance.GetInstanceID(),
+                            setupWarning = instance.GetComponent<WardrobeSetupStatus>()?.warning ?? "",
                             path = AnimationUtility.CalculateTransformPath(instance.transform, SceneAvatar.transform),
                             guid = variant.guid, family = family.displayName,
                             variant = AvatarWardrobeCatalog.DisplayVariant(variant), familyId = family.id,

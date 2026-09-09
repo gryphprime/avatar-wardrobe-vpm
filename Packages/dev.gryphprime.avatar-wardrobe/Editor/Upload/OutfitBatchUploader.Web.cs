@@ -99,7 +99,7 @@ namespace ShiroTools
         [Serializable]
         public class WebTagDto { public string key = ""; public int on; }
         [Serializable]
-        public class WebMemberDto { public string guid = ""; public string name = ""; public string path = ""; }
+        public class WebMemberDto { public int instanceId; public string guid = ""; public string name = ""; public string path = ""; }
         [Serializable]
         public class WebPresetDto
         {
@@ -254,7 +254,7 @@ namespace ShiroTools
                         var avatar = OutfitToggleGenerator.AvatarWardrobeServer.SceneAvatar;
                         foreach (var memberObject in OutfitToggleGenerator.AvatarWardrobePresets.PrefabInstances(avatar, a.guid)
                             .Where(item => OutfitToggleGenerator.AvatarWardrobePresets.ItemPreset(item, avatar) == p.id))
-                            pd.members.Add(new WebMemberDto { guid = a.guid, name = mname,
+                            pd.members.Add(new WebMemberDto { instanceId = memberObject.GetInstanceID(), guid = a.guid, name = mname,
                                 path = AnimationUtility.CalculateTransformPath(memberObject.transform, _avatarRoot.transform) });
                     }
                     if (!string.IsNullOrEmpty(p.legacyPath) && _avatarRoot != null &&
@@ -274,7 +274,7 @@ namespace ShiroTools
                                      source.GetComponents<Component>().All(component => component is Transform)))) continue;
                                 if (child != source && child.parent != source &&
                                     !PrefabUtility.IsAnyPrefabInstanceRoot(child.gameObject)) continue;
-                                pd.members.Add(new WebMemberDto { guid = WebPrefabGuid(child.gameObject), name = ScenePathOf(child, source), path = AnimationUtility.CalculateTransformPath(child, _avatarRoot.transform) });
+                                pd.members.Add(new WebMemberDto { instanceId = child.gameObject.GetInstanceID(), guid = WebPrefabGuid(child.gameObject), name = ScenePathOf(child, source), path = AnimationUtility.CalculateTransformPath(child, _avatarRoot.transform) });
                             }
                             if (source.childCount == 0 && pd.members.Count > 0) pd.members[pd.members.Count - 1].name = source.name;
                         }
@@ -283,18 +283,18 @@ namespace ShiroTools
                     pd.members = pd.members.GroupBy(m => string.IsNullOrEmpty(m.path) ? "guid:" + m.guid : m.path).Select(g => g.First()).ToList();
                     st.presets.Add(pd);
                 }
-                try
+                var logPath = UPLOAD_LOG_PATH;
+                st.logTail = backgroundLogTail.Get(() =>
                 {
-                    if (File.Exists(UPLOAD_LOG_PATH))
+                    if (!File.Exists(logPath)) return "";
+                    var tail = new Queue<string>();
+                    using (var reader = new StreamReader(File.Open(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                     {
-                        var lines = File.ReadAllLines(UPLOAD_LOG_PATH);
-                        int from = lines.Length > 80 ? lines.Length - 80 : 0;
-                        var tail = new List<string>();
-                        for (int i = from; i < lines.Length; i++) tail.Add(lines[i]);
-                        st.logTail = string.Join("\n", tail.ToArray());
+                        string line;
+                        while ((line = reader.ReadLine()) != null) { tail.Enqueue(line); if (tail.Count > 80) tail.Dequeue(); }
                     }
-                }
-                catch { }
+                    return string.Join("\n", tail);
+                }) ?? "";
                 st.ok = 1;
             }
             catch (Exception ex) { st.message = ex.Message; }
@@ -1179,6 +1179,7 @@ namespace ShiroTools
             catch (Exception ex) { r.message = ex.Message; }
             return r;
         }
+        private static readonly OutfitToggleGenerator.WardrobeBackgroundValue<string> backgroundLogTail = new OutfitToggleGenerator.WardrobeBackgroundValue<string>();
         internal static byte[] WebThumbBytes(string token)
         {
             try

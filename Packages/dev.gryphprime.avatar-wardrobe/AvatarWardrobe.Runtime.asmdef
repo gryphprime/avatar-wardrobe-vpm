@@ -1,3 +1,9 @@
 {
-  "name": "AvatarWardrobe.Runtime"
+  "name": "AvatarWardrobe.Runtime",
+  "references": [
+    "VRC.SDKBase",
+    "VRC.SDK3A",
+    "nadena.dev.modular-avatar.core",
+    "nadena.dev.ndmf.runtime"
+  ]
 }

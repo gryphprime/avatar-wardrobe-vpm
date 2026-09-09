@@ -50,15 +50,16 @@
     delete init.timeout; delete init.binary;
     var url = new URL(path, location.href);
     var reads = new Set(["state", "families", "family", "installed", "nameResult", "shops", "diag", "thumb",
-      "scene_upload_review", "upload_result", "upload_status", "batch_state", "batch_job", "batch_export", "presets", "batch_thumb_img", "batch_unassigned"]);
+      "write_result", "operation_context", "operation_result", "snapshot", "preset_appearance", "preset_appearance_export", "appearance_snapshot", "appearance_textures", "appearance_tools", "menu_snapshot", "scene_snapshot", "scene_upload_review", "upload_result", "upload_status", "batch_state", "batch_job", "batch_export", "presets", "batch_thumb_img", "batch_unassigned"]);
     var endpoint = url.pathname.split("/").pop(), op = url.searchParams.get("op");
     var read = reads.has(endpoint) || (["batch_blendshape", "batch_item", "batch_faceemo"].includes(endpoint) && (!op || op === "get"));
     if (endpoint === "thumb" && url.searchParams.get("retry") === "1") read = false;
     if (url.origin === location.origin && url.pathname.startsWith("/api/")) {
       // State changes are POST-only and reject cross-origin requests in the Unity host.
-      init.method = read ? "GET" : "POST";
+      init.method = options.method || (read ? "GET" : "POST");
+      read = init.method === "GET";
       if (!read) {
-        init.headers = Object.assign({}, init.headers, {"X-Wardrobe-Request":"1"});
+        init.headers = Object.assign({}, init.headers, {"X-Wardrobe-Request":"1", "X-Wardrobe-Queue":"1"});
         if (session) init.headers["X-Wardrobe-Session"] = session;
         if (avatarId) init.headers["X-Wardrobe-Avatar"] = String(avatarId);
       }
@@ -70,10 +71,35 @@
       try { value = body ? JSON.parse(body) : null; }
       catch (_) { throw new Error(response.ok ? "Invalid server response" : body.slice(0, 240)); }
       if (!response.ok) throw new Error((value && (value.message || value.error)) || "Request failed (" + response.status + ")");
+      if (response.status === 202 && value && value.writeJob) {
+        // Acceptance has its own timeout. Do not abort an accepted write after 45s.
+        clearTimeout(timer);
+        return await waitForWrite(value.writeJob);
+      }
       return value;
     } finally {
       clearTimeout(timer);
       if (upstream) upstream.removeEventListener("abort", relay);
+    }
+  }
+  var pendingWrites = 0;
+  async function waitForWrite(id) {
+    pendingWrites++;
+    global.dispatchEvent(new CustomEvent('wardrobe-write-status', {detail:{pending:pendingWrites}}));
+    var deadline = Date.now() + 30 * 60 * 1000;
+    try {
+      while (Date.now() < deadline) {
+        await new Promise(function(resolve){setTimeout(resolve, 500);});
+        var receipt;
+        try { receipt = await request('/api/write_result?id=' + encodeURIComponent(id), {method:'GET',timeout:8000}); }
+        catch (error) { throw new Error('Write status is unconfirmed. Refresh and check Unity before retrying. ' + error.message); }
+        if (receipt.state === 'completed') return receipt.result;
+        if (receipt.state === 'failed') throw new Error(receipt.error || 'Unity could not apply the change.');
+      }
+      throw new Error('Write status is unconfirmed. Refresh and check Unity before retrying.');
+    } finally {
+      pendingWrites--;
+      global.dispatchEvent(new CustomEvent('wardrobe-write-status', {detail:{pending:pendingWrites}}));
     }
   }
   function openDialog(node) {

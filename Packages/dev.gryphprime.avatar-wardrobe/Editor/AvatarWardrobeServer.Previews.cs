@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -15,6 +16,7 @@ namespace OutfitToggleGenerator
 {
     internal static partial class AvatarWardrobeServer
     {
+        private static Task previewCacheInitialization;
         private static string previewGridPriority = "";
         private static string queuedPreviewGrid;
         private static string queuedPreviewEpoch;
@@ -22,58 +24,33 @@ namespace OutfitToggleGenerator
         private static Queue<string> backgroundPreviews = new Queue<string>();
         private static readonly HashSet<string> attemptedBackgroundPreviews = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Runs only in an idle dispatcher slot, after requested previews and avatar edits.
-        // Continue through the entire catalog even when the browser loses focus.
+        // Warm only the browser's current grid, while it has a focus lease.
+        // A single prefab render can exceed the dispatcher budget; leave a long
+        // idle interval after expensive renders instead of baking the entire catalog.
         private static void BakeNextBackgroundPreview()
         {
-            if (UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow || EditorApplication.isCompiling || EditorApplication.isUpdating ||
-                EditorApplication.isPlayingOrWillChangePlaymode) return;
+            if (!WebActive || UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow || EditorApplication.isCompiling || EditorApplication.isUpdating ||
+                EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.timeSinceStartup < nextBackgroundPreviewPass) return;
             RefreshPreviewVersions();
             string grid;
             lock (webActiveLock) grid = previewGridPriority;
-            var avatar = AvatarWardrobeCatalog.GetAvatarRecord(SceneAvatar);
-            var epoch = AvatarWardrobeCatalog.CatalogEpoch + "|" + previewRevision + "|" + (avatar == null ? "" : avatar.guid);
-            if (backgroundPreviews.Count == 0 && EditorApplication.timeSinceStartup >= nextBackgroundPreviewPass)
-            {
-                attemptedBackgroundPreviews.Clear();
-                queuedPreviewEpoch = null;
-                nextBackgroundPreviewPass = EditorApplication.timeSinceStartup + 60;
-            }
+            var epoch = AvatarWardrobeCatalog.CatalogEpoch + "|" + previewRevision;
             if (queuedPreviewEpoch != epoch || queuedPreviewGrid != grid)
             {
-                if (queuedPreviewEpoch != epoch) attemptedBackgroundPreviews.Clear();
+                attemptedBackgroundPreviews.Clear();
                 queuedPreviewEpoch = epoch; queuedPreviewGrid = grid;
-                var ordered = new List<string>();
-                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                Action<string> add = guid => { if (IsAssetGuid(guid) && seen.Add(guid)) ordered.Add(guid); };
-                var gridGuids = grid.Split(',').Where(IsAssetGuid).Take(120).ToList();
-                // Grid covers first, then their variants, then the remaining catalog.
-                foreach (var guid in gridGuids) add(guid);
-                var families = CachedFamilies();
-                foreach (var guid in gridGuids)
-                {
-                    var family = families.FirstOrDefault(f => f.variants.Any(v => v.guid == guid));
-                    if (family != null) foreach (var variant in family.variants) add(variant.guid);
-                }
-                var records = AvatarWardrobeCatalog.Records.Where(record => record != null &&
-                    (AvatarWardrobeCatalog.EffectiveKind(record) == WardrobeAssetKind.Outfit || AvatarWardrobeCatalog.EffectiveKind(record) == WardrobeAssetKind.Candidate)).ToList();
-                if (avatar != null)
-                    foreach (var record in records)
-                    {
-                        var state = AvatarWardrobeCatalog.Compatibility(record, avatar.guid).state;
-                        if (state == WardrobeCompatibilityState.Compatible || state == WardrobeCompatibilityState.ProbablyCompatible)
-                            add(record.guid);
-                    }
-                foreach (var record in records) add(record.guid);
-                backgroundPreviews = new Queue<string>(ordered.Where(guid => !attemptedBackgroundPreviews.Contains(guid)));
+                backgroundPreviews = new Queue<string>(grid.Split(',').Where(IsAssetGuid)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Take(120));
             }
-            // Bound disk probes too: a fully cached catalog must not stall an editor update.
-            for (var checkedCount = 0; checkedCount < 64 && backgroundPreviews.Count > 0; checkedCount++)
+            for (var checkedCount = 0; checkedCount < 16 && backgroundPreviews.Count > 0; checkedCount++)
             {
                 var guid = backgroundPreviews.Dequeue();
                 if (HasHiThumb(guid) || thumbDead.Contains("hi:" + guid) || !attemptedBackgroundPreviews.Add(guid)) continue;
+                var started = EditorApplication.timeSinceStartup;
                 BakeThumbHi(guid);
-                return; // Never more than one render per editor update.
+                var finished = EditorApplication.timeSinceStartup;
+                nextBackgroundPreviewPass = finished + Math.Max(1, (finished - started) * 10);
+                return;
             }
         }
 
@@ -85,24 +62,38 @@ namespace OutfitToggleGenerator
         // never leave a half-written file for a concurrent reader: write
         // aside and swap into place. Bytes are already in hand, so a lost
         // race just means the other writer's identical file wins.
-        private static bool WriteThumbAtomically(string path, byte[] png)
+        private static readonly ConcurrentDictionary<string, Task<byte[]>> previewEncoding = new ConcurrentDictionary<string, Task<byte[]>>(StringComparer.Ordinal);
+        private static byte[] QueueThumbEncoding(Texture2D texture, string path)
         {
-            try { WardrobeAtomicFile.WriteBytes(path, png); return true; }
-            catch (IOException exception) { Debug.LogWarning("Wardrobe could not cache preview: " + exception.Message); return false; }
+            if (previewEncoding.ContainsKey(path) || previewEncoding.Count >= 8) return null;
+            // Copy pixels while the texture is alive; the worker owns only a managed array.
+            var pixels = texture.GetPixels32();
+            var width = (uint)texture.width; var height = (uint)texture.height;
+            previewEncoding[path] = Task.Run(() =>
+            {
+                var png = ImageConversion.EncodeArrayToPNG(pixels, UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm, width, height);
+                WardrobeAtomicFile.WriteBytes(path, png);
+                return png;
+            });
+            return null;
+        }
+        private static void PumpPreviewEncoding()
+        {
+            foreach (var path in previewEncoding.Keys.ToArray())
+            {
+                var task = previewEncoding[path];
+                if (!task.IsCompleted) continue;
+                previewEncoding.TryRemove(path, out _);
+                if (task.IsFaulted) WardrobeLog.Write("preview", "Could not cache preview: " + task.Exception.GetBaseException().Message);
+                else if (task.Result != null && path.StartsWith(hiDir + Path.DirectorySeparatorChar, StringComparison.Ordinal)) TrackHighPreview(path, true);
+            }
         }
 
         private static byte[] BakeThumb(string guid)
         {
             if (string.IsNullOrEmpty(guid)) return new byte[0];
             var path = ThumbPath(guid);
-            if (File.Exists(path))
-            {
-                try
-                {
-                    return File.ReadAllBytes(path);
-                }
-                catch (Exception) { }
-            }
+            if (previewEncoding.ContainsKey(path) || File.Exists(path)) return null;
             if (thumbDead.Contains("lo:" + guid)) return new byte[0];
             var record = AvatarWardrobeCatalog.GetRecord(guid);
             if (record == null) return new byte[0];
@@ -113,11 +104,8 @@ namespace OutfitToggleGenerator
                 var preview = AssetPreview.GetAssetPreview(prefab);
                 if (preview != null)
                 {
-                    var png = preview.EncodeToPNG();
-                    if (png == null) return new byte[0];
-                    WriteThumbAtomically(path, png);
                     thumbSightings.Remove(guid);
-                    return png;
+                    return QueueThumbEncoding(preview, path);
                 }
             }
             catch (Exception exception)
@@ -152,7 +140,15 @@ namespace OutfitToggleGenerator
             foreach (var hi in new[] { false, true })
             {
                 var path = ThumbPath(guid, hi);
-                try { if (File.Exists(path)) File.Delete(path); if (hi) TrackHighPreview(path, false); } catch (IOException) { }
+                // Serialize deletion after any encoding already queued for this exact cache key.
+                previewEncoding.TryGetValue(path, out var prior);
+                previewEncoding[path] = Task.Run(async () =>
+                {
+                    if (prior != null) { try { await prior; } catch (Exception) { } }
+                    if (File.Exists(path)) File.Delete(path);
+                    return (byte[])null;
+                });
+                if (hi) TrackHighPreview(path, false);
             }
             thumbSightings.Remove(guid);
             thumbWarned.Remove(guid);
@@ -166,14 +162,7 @@ namespace OutfitToggleGenerator
         {
             if (string.IsNullOrEmpty(guid)) return new byte[0];
             var path = ThumbPath(guid, true);
-            if (File.Exists(path))
-            {
-                try
-                {
-                    return File.ReadAllBytes(path);
-                }
-                catch (Exception) { }
-            }
+            if (previewEncoding.ContainsKey(path) || File.Exists(path)) return null;
             if (thumbDead.Contains("hi:" + guid)) return new byte[0];
             var record = AvatarWardrobeCatalog.GetRecord(guid);
             if (record == null) return new byte[0];
@@ -188,10 +177,7 @@ namespace OutfitToggleGenerator
                     thumbDead.Add("hi:" + guid);
                     return new byte[0];
                 }
-                var png = icon.EncodeToPNG();
-                if (png == null) return new byte[0];
-                if (WriteThumbAtomically(path, png)) TrackHighPreview(path, true);
-                return png;
+                return QueueThumbEncoding(icon, path);
             }
             catch (Exception exception)
             {
@@ -227,14 +213,6 @@ namespace OutfitToggleGenerator
         private static DiagDto GetDiag()
         {
             var dto = new DiagDto { thumbDir = thumbDir ?? string.Empty };
-            try
-            {
-                dto.thumbDirExists = Directory.Exists(thumbDir) ? 1 : 0;
-                dto.thumbsOnDisk = Directory.Exists(thumbDir)
-                    ? Directory.GetFiles(thumbDir, "*.png").Length
-                    : 0;
-            }
-            catch (Exception) { }
             dto.sightingCount = thumbSightings.Count;
             dto.deadCount = thumbDead.Count;
             var sample = CachedFamilies().SelectMany(family => family.variants).FirstOrDefault();
@@ -251,13 +229,18 @@ namespace OutfitToggleGenerator
             thumbSightings.TryGetValue(sample.guid, out sightings);
             dto.sampleSightings = sightings;
             dto.sampleThumbExists = File.Exists(ThumbPath(sample.guid)) ? 1 : 0;
+            return dto;
+        }
+
+        private static DiagDto PopulateDiskDiagnostics(DiagDto dto, string highDirectory)
+        {
             try
             {
-                dto.hiThumbsOnDisk = hiDir != null && Directory.Exists(hiDir)
-                    ? Directory.GetFiles(hiDir, "*.png").Length
-                    : 0;
+                dto.thumbDirExists = Directory.Exists(dto.thumbDir) ? 1 : 0;
+                dto.thumbsOnDisk = dto.thumbDirExists == 1 ? Directory.EnumerateFiles(dto.thumbDir, "*.png").Count() : 0;
+                dto.hiThumbsOnDisk = Directory.Exists(highDirectory) ? Directory.EnumerateFiles(highDirectory, "*.png").Count() : 0;
             }
-            catch (Exception) { }
+            catch (IOException) { }
             return dto;
         }
 

@@ -25,17 +25,6 @@
       if (cache.has(id)) bytes -= cache.get(id).blob.size;
       cache.delete(id); unavailable.delete(id);
     }
-    function sleep(ms, signal) {
-      return new Promise(function (resolve, reject) {
-        if (signal.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
-        var timer = setTimeout(function () { signal.removeEventListener("abort", abort); resolve(); }, ms);
-        function abort() {
-          clearTimeout(timer); signal.removeEventListener("abort", abort);
-          reject(new DOMException("Aborted", "AbortError"));
-        }
-        signal.addEventListener("abort", abort, {once: true});
-      });
-    }
     async function decode(blob) {
       var url = URL.createObjectURL(blob), image = new Image();
       image.alt = ""; image.decoding = "async";
@@ -66,9 +55,9 @@
         return visible === 0 || (visible > 48 * 48 * .99 && max - min < 1.5);
       } catch (_) { return false; }
     }
-    async function fetchImage(job, hi, retry) {
+    async function fetchImage(job, hi, retry, cachedOnly) {
       var path = "/api/thumb?guid=" + encodeURIComponent(job.guid) + "&v=" + encodeURIComponent(job.epoch) +
-        (hi ? "&hi=1" : "") + (retry ? "&retry=1" : "");
+        (hi ? "&hi=1" : "") + (retry ? "&retry=1" : "") + (cachedOnly ? "&cached=1" : "");
       var response = await runtime.request(path, {binary: true, signal: job.controller.signal, timeout: 35000});
       if (response.status === 202 || response.status === 503) return {pending: true};
       if (response.status === 404) return {dead: true};
@@ -77,67 +66,93 @@
       if (blank(await decode(blob))) return {dead: true};
       return {blob: blob, hi: hi};
     }
+    function publishLow(job, result) {
+      if (job.epoch !== epoch || job.controller.signal.aborted) return;
+      remember(job.key, result); job.partial = result;
+      job.progress.forEach(function (report) { report(result); });
+    }
+    // One attempt per dispatch. Retry delays do not occupy a request slot.
     async function run(job) {
-      var low = cache.get(job.key), hiDead = false, loDead = false;
-      for (var attempt = 0; attempt < 5; attempt++) {
-        if (job.controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
-        if (document.hidden || !document.hasFocus()) return low || {paused: true};
-        var hi = hiDead ? {dead: true} : await fetchImage(job, true, job.retry && attempt === 0);
-        if (hi.blob) return hi;
-        hiDead = !!hi.dead;
-        if (!low && !loDead) {
-          var result = await fetchImage(job, false, false);
-          if (result.blob) {
-            low = result;
-            if (job.epoch !== epoch) return null;
-            remember(job.key, low);
-            job.partial = low;
-            job.progress.forEach(function (report) { report(low); });
-          }
-          loDead = !!result.dead;
-        }
-        if (hiDead) return low || {dead: loDead, pending: !loDead};
-        await sleep(Math.min(2500, 400 * Math.pow(1.7, attempt)), job.controller.signal);
+      if (job.controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+      var low = cache.get(job.key);
+      if (document.hidden || !document.hasFocus()) return low || {paused: true};
+      if (low) publishLow(job, low);
+      // Fast disk hits still get full quality, without triggering a cold render.
+      var hi = await fetchImage(job, true, false, true);
+      if (hi.blob && !job.retry) return hi;
+      if (job.cachedOnly) return low || {pending: true};
+      if (!low && !job.loDead) {
+        var result = await fetchImage(job, false, job.retry);
+        job.retry = false;
+        if (result.blob) { low = result; publishLow(job, low); }
+        job.loDead = !!result.dead;
       }
-      return low || {pending: true};
+      // Grid cards need pixels promptly; only the selected item must wait for
+      // the 512px upgrade. Background warming supplies later cached upgrades.
+      if (low && job.priority > 0) return low;
+      if (job.priority === 0 || job.loDead || job.attempt >= 2) {
+        hi = await fetchImage(job, true, false, false);
+        if (hi.blob) return hi;
+        if (hi.dead) return low || {dead: !!job.loDead, pending: !job.loDead};
+      }
+      return {pending: true};
+    }
+    function finish(job, result) {
+      if (jobs.get(job.key) === job) jobs.delete(job.key);
+      job.resolve(result);
     }
     function pump() {
       if (stopped) return;
       while (active < maxActive && queue.length) {
         queue.sort(function (a, b) { return a.priority - b.priority || a.order - b.order; });
+        // Keep one of the three slots available for the modal, even while
+        // grid requests are waiting on Unity. Promotion wakes this lane too.
+        if (active >= maxActive - 1 && queue[0].priority > 0) break;
         var job = queue.shift(); active++; notify();
         (function (current) {
           run(current).then(function (result) {
-            if (!result || current.epoch !== epoch) { current.resolve(null); return; }
+            if (!result || current.epoch !== epoch || current.controller.signal.aborted) { finish(current, null); return; }
+            if (result.pending && !current.cachedOnly && current.attempt < 4) {
+              var delay = Math.min(2500, 400 * Math.pow(1.7, current.attempt++));
+              current.timer = setTimeout(function () {
+                current.timer = null;
+                if (jobs.get(current.key) !== current || current.controller.signal.aborted) return;
+                queue.push(current); pump();
+              }, delay);
+              return;
+            }
             if (result.blob) remember(current.key, result);
             if (result.dead) unavailable.add(current.key);
-            current.resolve(result);
+            finish(current, current.partial && result.pending ? current.partial : result);
           }).catch(function (error) {
-            current.resolve(error.name === "AbortError" ? null : {error: true});
+            finish(current, error.name === "AbortError" ? null : current.partial || {error: true});
           }).finally(function () {
             active--;
-            if (jobs.get(current.key) === current) jobs.delete(current.key);
+            if (!current.timer && jobs.get(current.key) === current) jobs.delete(current.key);
             notify(); pump();
           });
         })(job);
       }
     }
-    function get(guid, priority, retry, onProgress) {
+    function get(guid, priority, retry, onProgress, cachedOnly) {
       if (!guid || stopped) return Promise.resolve({dead: true});
       var id = key(guid);
       if (retry) forget(id);
-      if (cache.has(id) && cache.get(id).hi) {
+      if (!retry && cache.has(id) && (cache.get(id).hi || (priority > 0 && !cachedOnly))) {
         var entry = cache.get(id); cache.delete(id); cache.set(id, entry);
         return Promise.resolve(entry);
       }
       if (!retry && unavailable.has(id)) return Promise.resolve({dead: true});
       if (jobs.has(id)) {
-        var current = jobs.get(id); current.priority = Math.min(current.priority, priority || 0);
+        var current = jobs.get(id); current.cachedOnly = current.cachedOnly && !!cachedOnly; current.priority = Math.min(current.priority, priority || 0);
         if (onProgress) { current.progress.push(onProgress); if (current.partial) onProgress(current.partial); }
-        return current.promise;
+        if (current.priority === 0 && current.timer) {
+          clearTimeout(current.timer); current.timer = null; queue.push(current);
+        }
+        pump(); return current.promise;
       }
       var job = {key: id, guid: guid, epoch: epoch, priority: priority || 0, order: serial++, retry: !!retry,
-        controller: new AbortController(), progress: onProgress ? [onProgress] : []};
+        cachedOnly: !!cachedOnly, attempt: 0, timer: null, loDead: false, controller: new AbortController(), progress: onProgress ? [onProgress] : []};
       job.promise = new Promise(function (resolve) { job.resolve = resolve; });
       jobs.set(id, job); queue.push(job); pump(); return job.promise;
     }
@@ -157,15 +172,15 @@
       config = config || {};
       if (!node || !guid) { if (node) queueMicrotask(function () { fallback(node, null, {dead: true}); }); return; }
       var previous = bindings.get(node);
-      if (previous && previous.guid === guid && previous.epoch === epoch && !config.retry && (previous.loading || previous.ready)) {
+      if (previous && previous.guid === guid && previous.epoch === epoch && !config.retry && !config.upgrade && (previous.loading || previous.ready)) {
         // A prefetched card may become visible while still queued: promote that same job.
         var pending = jobs.get(key(guid));
-        if (pending) pending.priority = Math.min(pending.priority, config.priority || 0);
+        if (pending) { pending.priority = Math.min(pending.priority, config.priority || 0); pump(); }
         return;
       }
-      var binding = {guid: guid, epoch: epoch, loading: true, ready: false};
+      var binding = {guid: guid, epoch: epoch, loading: true, ready: false, hi: false, blob: config.upgrade && previous ? previous.blob : null, checkedAt: Date.now()};
       bindings.set(node, binding);
-      node._wardrobePreview = {guid: guid, config: config}; node.dataset.thumb = guid;
+      node._wardrobePreview = {guid: guid, config: Object.assign({}, config, {upgrade: false})}; node.dataset.thumb = guid;
       if (!node.querySelector("img")) {
         node.classList.add("preview-loading"); node.setAttribute("aria-busy", "true");
         node.innerHTML = '<span class="preview-placeholder" aria-hidden="true"></span>';
@@ -189,13 +204,25 @@
           if (config.detail) image.id = "dImg";
           node.replaceChildren(image);
           node.classList.remove("preview-loading", "preview-stale"); node.removeAttribute("aria-busy");
-          binding.blob = result.blob; binding.ready = !partial; binding.loading = !!partial;
+          binding.hi = !!result.hi; binding.blob = result.blob; binding.ready = !partial; binding.loading = !!partial;
         } catch (_) {
           binding.loading = false;
           if (!node.querySelector("img")) fallback(node, guid, {error: true});
         }
       }
-      get(guid, config.priority, config.retry, function (result) { paint(result, true); }).then(function (result) { paint(result, false); });
+      get(guid, config.priority, config.retry, function (result) { paint(result, true); }, config.upgrade).then(function (result) { paint(result, false); });
+    }
+    // Low-res is useful immediately, but is not a terminal quality level.
+    // Probe only visible consumers, through the same bounded request scheduler.
+    function refresh() {
+      if (stopped || document.hidden || !document.hasFocus()) return;
+      document.querySelectorAll("[data-thumb]").forEach(function (node) {
+        var binding = bindings.get(node), data = node._wardrobePreview;
+        if (!data || !binding || binding.loading || binding.hi || !binding.blob || Date.now() - binding.checkedAt < 5000) return;
+        var rect = node.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0 || rect.bottom <= 0 || rect.right <= 0 || rect.top >= global.innerHeight || rect.left >= global.innerWidth) return;
+        bind(node, data.guid, Object.assign({}, data.config, {upgrade: true}));
+      });
     }
     function sweep() {
       observed.forEach(function (observer, node) { if (!node.isConnected) { observer.unobserve(node); observed.delete(node); } });
@@ -224,7 +251,7 @@
       observers.get(root).observe(node); observed.set(node, observers.get(root));
     }
     function cancelJobs() {
-      jobs.forEach(function (job) { job.controller.abort(); job.resolve(null); });
+      jobs.forEach(function (job) { clearTimeout(job.timer); job.timer = null; job.controller.abort(); job.resolve(null); });
       queue = []; jobs.clear();
     }
     function reset(nextEpoch) {
@@ -247,6 +274,7 @@
     });
     return {get: get, bind: bind, observe: observe, resume: resume, reset: reset, decode: decode, fallback: fallback, sweep: sweep,
       isUnavailable: function (guid) { return unavailable.has(key(guid)); },
+      refresh: refresh,
       stats: function () { return {active: active, queued: queue.length, cached: cache.size, bytes: bytes}; }};
   };
 })(window);

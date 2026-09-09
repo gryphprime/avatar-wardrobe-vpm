@@ -8,15 +8,17 @@
 </head>
 <body>
 <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs><symbol id="icon-wardrobe" viewBox="0 0 24 24"><path d="M9 3 3 6l2 5 3-1v11h8V10l3 1 2-5-6-3a3 3 0 0 1-6 0Z"/></symbol><symbol id="icon-presets" viewBox="0 0 24 24"><path d="M5 4h14v16H5z M9 1v6 M15 1v6 M8 11h8 M8 15h5"/></symbol><symbol id="icon-activity" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></symbol><symbol id="icon-settings" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 2h6l1 3 3 1 3 5-2 3v3l-5 4-3-1-3 1-5-4v-3l-2-3 3-5 3-1Z"/></symbol><symbol id="icon-search" viewBox="0 0 24 24"><path d="M21 21l-6-6 M17 9a8 8 0 1 1-16 0 8 8 0 0 1 16 0"/></symbol><symbol id="icon-filter" viewBox="0 0 24 24"><path d="M3 4h18l-7 8v7l-4 2v-9Z"/></symbol><symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol><symbol id="icon-spark" viewBox="0 0 24 24"><path d="M12 1l3 8 8 3-8 3-3 8-3-8-8-3 8-3Z"/></symbol></defs></svg>
-<aside id="rail" aria-label="Main navigation"><nav id="navtabs"><button id="navWardrobe" class="rail-item on" data-view="wardrobe" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#icon-wardrobe"></use></svg><span data-i18n="nav.wardrobe">Wardrobe</span></button><button id="navUpload" class="rail-item" data-view="upload"><svg class="icon" aria-hidden="true"><use href="#icon-presets"></use></svg><span data-i18n="nav.presets">Presets</span></button><button id="navActivity" class="rail-item" data-view="activity"><svg class="icon" aria-hidden="true"><use href="#icon-activity"></use></svg><span data-i18n="nav.activity">Activity</span></button><button id="navSettings" class="rail-item" data-view="settings"><svg class="icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span data-i18n="nav.settings">Settings</span></button></nav></aside>
+<aside id="rail" aria-label="Main navigation"><nav id="navtabs"><button id="navWardrobe" class="rail-item on" data-view="wardrobe" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#icon-wardrobe"></use></svg><span data-i18n="nav.wardrobe">Wardrobe</span></button><button id="navLibrary" class="rail-item" data-view="library" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 5h5v15H4zM10 5h5v15h-5zM16 4l4-1 3 15-4 1z"/></svg><span data-i18n="library.nav">Library</span></button>
+    <button id="navUpload" class="rail-item" data-view="upload"><svg class="icon" aria-hidden="true"><use href="#icon-presets"></use></svg><span data-i18n="nav.presets">Presets</span></button><button id="navAppearance" class="rail-item" data-view="appearanceEditor" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.8 1.8 0 0 1 1-3.3h3a3 3 0 0 0 3-3 9 9 0 0 0-9-8Z"/><circle cx="7.5" cy="10" r="1"/><circle cx="11" cy="6.5" r="1"/><circle cx="16" cy="8" r="1"/></svg><span>Appearance</span></button><button id="navMenu" class="rail-item" data-view="menuOrganizer" hidden><svg class="icon" aria-hidden="true"><use href="#icon-presets"></use></svg><span>Menu</span></button><button id="navAdvancedScene" class="rail-item" data-view="advancedScene" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h6v5H4z M14 16h6v5h-6z M14 6h6v5h-6z M7 8v10h7 M7 8h7"/></svg><span data-i18n="scene.nav">Scene</span></button><button id="navActivity" class="rail-item" data-view="activity"><svg class="icon" aria-hidden="true"><use href="#icon-activity"></use></svg><span data-i18n="nav.activity">Activity</span></button><button id="navSettings" class="rail-item" data-view="settings"><svg class="icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span data-i18n="nav.settings">Settings</span></button></nav></aside>
 <header>
   <div class="topline">
     <div class="brand"><svg class="icon" aria-hidden="true"><use href="#icon-spark"></use></svg><div><h1 data-i18n="app.title">Avatar Wardrobe</h1></div></div>
-    <div class="avatar-target" id="avatarTarget"><strong id="avatar">—</strong></div>
-    <label><span data-i18n="avatar.base">Base avatar</span>: <select id="avatarBase" aria-label="Base avatar"><option value="">Automatic (source prefab)</option></select></label>
+    <div class="avatar-target" id="avatarTarget"><label for="wardrobeTarget" data-i18n="target.label">Dressing avatar</label><select id="wardrobeTarget"><option value="">Choose avatar</option></select><strong id="avatar" hidden>—</strong><small id="targetLocation"></small><small id="sceneUnsaved" hidden>Unsaved scene changes</small></div>
+    <label class="base-picker"><span data-i18n="avatar.base">Base avatar</span>: <select id="avatarBase" aria-label="Base avatar"><option value="">Automatic (source prefab)</option></select></label>
     <label id="workflowPresetWrap" hidden>Preset: <select id="workflowPreset" aria-label="Preset"><option value="common">Common Preset</option></select></label>
     <select id="lang" data-i18n-title="lang.title" title="Language" aria-label="Language"></select>
     <div class="top-actions">
+    <button id="operationSummary" hidden>Changes</button>
     <button id="sceneUpload">Upload Avatar</button>
     <a id="wardrobeUpdate" class="update-indicator" href="https://gryphprime.github.io/avatar-wardrobe-vpm/#update" target="_blank" rel="noopener noreferrer" hidden data-i18n="update.available">Update available</a>
     <details class="maintenance"><summary data-i18n-aria="maintenance.label" aria-label="Maintenance">&#8943;</summary><div class="menu">
@@ -94,20 +96,46 @@
 <section id="activity" class="workspace" hidden>
   <div class="workspace-heading"><div><p class="eyebrow" data-i18n="activity.eyebrow">WORKSPACE</p><h2 data-i18n="nav.activity">Activity</h2><p class="subtle" data-i18n="activity.hint">Indexing and previews, without interrupting your wardrobe.</p></div><button id="activityIndex" data-i18n="index.inc">Index changes</button></div>
   <div class="activity-cards"><article class="surface"><span class="eyebrow" data-i18n="activity.catalog">CATALOG</span><h3 id="activityCatalog">—</h3><p id="activityIndexState" class="subtle"></p></article><article class="surface"><span class="eyebrow" data-i18n="activity.previews">PREVIEWS</span><h3 id="activityPreviews">—</h3><p class="subtle" data-i18n="activity.onDemand">Generated on demand for visible outfits.</p></article><article class="surface"><span class="eyebrow" data-i18n="activity.connection">CONNECTION</span><h3 id="activityConnection">—</h3><p class="subtle" data-i18n="activity.local">Your assets stay in this Unity project.</p></article></div>
+  <section aria-labelledby="operationsHeading"><h3 id="operationsHeading">Outfit changes</h3><p class="subtle">Queued changes apply in order. Needs review means Unity could not confirm the result; inspect the scene before retrying.</p><ol id="operationsList" class="operation-list"></ol></section>
   <h3 data-i18n="activity.recent">Recent activity</h3><ol id="activityLog" class="activity-log"><li class="subtle" data-i18n="activity.empty">No activity yet.</li></ol>
 </section>
 <section id="settings" class="workspace" hidden>
   <div class="workspace-heading"><div><p class="eyebrow" data-i18n="settings.eyebrow">MAKE IT YOURS</p><h2 data-i18n="nav.settings">Settings</h2><p class="subtle" data-i18n="settings.hint">A quieter workspace. The same tools.</p></div></div>
   <div class="settings-stack">
-    <article class="surface"><h3>Help</h3><p class="subtle">Tell us about a problem with Avatar Wardrobe.</p><button id="settingsReportBug">Report a problem</button></article>
+    <article class="surface"><h3 data-i18n="report.help">Help</h3><p class="subtle" data-i18n="report.helpHint">Tell us about a problem with Avatar Wardrobe.</p><button id="settingsReportBug" data-i18n="report.openBug">Report a problem</button></article>
     <article class="surface"><p class="eyebrow">Project</p><h3>Avatar workflow</h3><p>How do you use this project?</p><label class="setting-row"><span><strong>One avatar</strong><small>Keep the interface simple. All outfit and menu changes use the default configuration.</small></span><input type="radio" name="workflow" id="workflowOne" value="one-avatar" checked></label><label class="setting-row"><span><strong>Multiple avatars</strong><small>Show presets for maintaining separate avatar configurations in this Unity project.</small></span><input type="radio" name="workflow" id="workflowMulti" value="multi-avatar"></label><p class="subtle">Existing presets and avatar configurations are preserved when switching modes.</p></article>
+    <article class="surface"><h3 data-i18n="scene.title">Advanced Scene</h3><label class="setting-row"><span><strong data-i18n="scene.enable">Show the Advanced Scene editor</strong><small data-i18n="scene.enableHint">Inspect the pinned avatar hierarchy, edit objects and component fields, and use Unity Undo.</small></span><input id="settingAdvancedScene" type="checkbox"></label></article>
     <article class="surface"><h3 data-i18n="settings.appearance">Appearance</h3><label class="setting-row"><span><strong data-i18n="settings.compact">Compact cards</strong><small data-i18n="settings.compactHint">Show more outfits without reducing text size.</small></span><input id="settingCompact" type="checkbox"></label></article>
     <article class="surface"><h3 data-i18n="settings.indexing">Indexing</h3><p class="subtle" data-i18n="settings.autoIndexHint">Asset changes are indexed automatically in the background.</p><p class="subtle" data-i18n="settings.previewHint">High-resolution previews continue while this window is focused, prioritizing the current grid.</p></article>
     <article class="surface"><h3 data-i18n="settings.maintenance">Maintenance</h3><p class="subtle" data-i18n="settings.maintenanceHint">Reindexing updates catalog metadata. It does not remove your outfits.</p><div class="actions"><button id="settingsReindex" data-i18n="index.full">Reindex project</button><button id="settingsDiagnostics" data-i18n="diag.button">Diagnostics</button></div></article>
   </div>
 </section>
 
+<section id="appearanceEditor" class="scene-editor appearance-editor" hidden aria-label="Avatar appearance"></section>
+<section id="menuOrganizer" class="scene-editor menu-organizer" hidden aria-label="Menu organization"></section>
+<section id="advancedScene" class="scene-editor" hidden aria-label="Advanced Scene" data-i18n-aria="scene.title"></section>
+
+<section id="library" class="library-workspace" hidden aria-labelledby="libraryHeading">
+<h2 id="libraryHeading" data-i18n="library.heading">Your library</h2><p id="libraryProject" class="subtle"></p>
+<div class="library-toolbar"><label><span data-i18n="library.add">Add purchased files</span><input id="libraryFiles" type="file" accept=".zip,.unitypackage" multiple></label><label><span data-i18n="library.search">Search downloads</span><input id="librarySearch" type="search"></label><button id="libraryRefresh" data-i18n="library.refresh">Refresh library</button></div>
+<details class="library-source"><summary data-i18n="library.folder">Add downloads from a folder</summary><p data-i18n="library.folderHelp">Choose a folder to add the ZIP and unitypackage downloads inside it.</p><input id="libraryFolder" type="file" webkitdirectory multiple aria-label="Choose download folder" data-i18n-aria="library.folderLabel"></details>
+<p id="libraryStatus" data-i18n="library.local" role="status" aria-live="polite">Your downloads stay on this computer.</p>
+<section id="libraryReview" hidden aria-label="Review library action"></section><div id="libraryList"></div>
+</section>
+
   <div id="layout">
+  <section id="dressing" class="dressing" hidden aria-labelledby="dressingHeading">
+    <div class="dressing-heading"><h2 id="dressingHeading">Dressing room</h2><button data-snapshot-current>Photograph avatar</button></div>
+    <div class="snapshot-stage" id="tryOnDrop"><img alt="Complete avatar photograph" hidden><p class="drop-instruction">Drop an outfit to Try on<br><small>Your avatar stays unchanged</small></p></div>
+    <p data-snapshot-caption class="snapshot-caption">No avatar photograph yet</p>
+    <div class="snapshot-controls" role="group" aria-label="Photograph angle"><button data-snapshot-view="front" aria-pressed="true">Front</button><button data-snapshot-view="three-quarter" aria-pressed="false">Three-quarter</button><button data-snapshot-view="back" aria-pressed="false">Back</button></div>
+    <label class="snapshot-zoom">Zoom <select data-snapshot-zoom aria-label="Photograph zoom"><option value="0.8">Fit with space</option><option value="1" selected>Fit avatar</option><option value="1.25">Closer</option><option value="1.6">Detail</option></select></label>
+    <label class="snapshot-before"><input type="checkbox" data-snapshot-before> Before try-on</label>
+    <p data-snapshot-status class="subtle" role="status" aria-live="polite">Choose an outfit, then Try on. Photos include the complete avatar.</p>
+    <details data-snapshot-metrics class="snapshot-metrics" hidden></details>
+    <div class="snapshot-controls"><button data-snapshot-wear class="primary" hidden>Wear</button><button data-snapshot-discard>Discard try-on</button><button data-snapshot-pin>Keep photo</button><button data-snapshot-fallback hidden>Use active Unity preview</button></div>
+    <section id="photoHistory" aria-label="Photo history"></section>
+  </section>
   <div id="main">
     <div id="emptyGridState" role="status" aria-live="polite"></div>
     <div id="grid"></div>
@@ -121,6 +149,7 @@
 </div>
   <aside id="side">
     <div class="side-header"><div><h2 id="sideTitle" data-i18n="side.installed">Installed</h2></div></div>
+    <p id="wearingDropHint" class="wearing-drop-hint" hidden>Drop an outfit to Wear · add another copy</p><div id="pendingWearing" aria-live="polite"></div>
     <div id="sideContent"><div id="instlist"></div></div>
   </aside>
 <footer id="hud">
@@ -146,7 +175,18 @@
 <script src="/runtime.js" defer></script>
 <script src="/previews.js" defer></script>
 <script src="/upload.js" defer></script>
+<script src="/library.js" defer></script>
 <script src="/reporting.js" defer></script>
+<link rel="stylesheet" href="/appearance-editor.css">
+<link rel="stylesheet" href="/photo-history.css">
+<script src="/preset-appearance.js" defer></script>
+<script src="/appearance-editor.js" defer></script>
+<script src="/menu-organizer.js" defer></script>
+<script src="/scene-editor.js" defer></script>
+<script src="/operations.js" defer></script>
+<script src="/photo-history.js" defer></script>
+<script src="/snapshots.js" defer></script>
+<script src="/drag-drop.js" defer></script>
 <script src="/wardrobe.js" defer></script>
 </body>
 </html>

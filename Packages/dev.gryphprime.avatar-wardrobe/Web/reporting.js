@@ -1,10 +1,11 @@
 (function(){
   "use strict";
+  function count(value){value=Number(value);return Number.isFinite(value)&&value>=0?Math.floor(value):0;}
   var endpoint="https://reporting.aelchor.com/v1/", version="", installation;
   function id(){return crypto.randomUUID();}
   function installationId(){
     if(installation)return installation;
-    try{installation=localStorage.getItem("wardrobe.reporting.installation.v1");if(!/^[0-9a-f-]{36}$/i.test(installation||"")){installation=id();localStorage.setItem("wardrobe.reporting.installation.v1",installation);}}
+    try{installation=localStorage.getItem("wardrobe.reporting.installation.v1");if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(installation||"")){installation=id();localStorage.setItem("wardrobe.reporting.installation.v1",installation);}}
     catch(e){installation=id();}
     return installation;
   }
@@ -14,13 +15,15 @@
     return {guid:short(variant.guid,128),name:short(family.name),shop:short(variant.shop),product:short(variant.product),
       prefab:short(String(variant.source||"").replace(/\\/g,"/").split("/").pop()),category:short(variant.category,100),
       confidence:short(variant.confidence,100),variant:short(variant.variant,100),colorway:short(variant.colorway,100),
-      parts:names(variant.parts),materials:names(variant.mats),physicsComponents:Number(variant.phys)||0,contacts:Number(variant.contact)||0};
+      parts:names(variant.parts),materials:names(variant.mats),physicsComponents:count(variant.phys),contacts:count(variant.contact)};
   }
   async function send(payload,signal){
+    var encoded=JSON.stringify(payload);
+    if(new TextEncoder().encode(encoded).length>65536)throw new Error("This report is too large. Please shorten it.");
     var response=await fetch(endpoint+(payload.type==="misclassification"?"misclassifications":"reports"),{
-      method:"POST",headers:{"Content-Type":"application/json"},credentials:"omit",referrerPolicy:"no-referrer",body:JSON.stringify(payload),signal:signal
+      method:"POST",headers:{"Content-Type":"application/json"},credentials:"omit",referrerPolicy:"no-referrer",body:encoded,signal:signal
     });
-    if(!response.ok)throw new Error(response.status===429?"Too many reports. Please try again in an hour.":response.status===413?"This report is too large. Please shorten it.":"Could not send the report. Your text is still here; please try again.");
+    if(response.status!==200&&response.status!==201)throw new Error(response.status===429?"Too many reports. Please try again in an hour.":response.status===413?"This report is too large. Please shorten it.":"Could not send the report. Your text is still here; please try again.");
     var result=await response.json();if(!result.id)throw new Error("The server did not confirm the report. Please try again.");return result;
   }
   function open(item){
@@ -36,7 +39,7 @@
     document.body.appendChild(dialog);
     var form=dialog.querySelector("form"), status=dialog.querySelector("#reportStatus"), button=dialog.querySelector("#reportSend"), busy=false,lastBody="",requestId=id();
     dialog.querySelector("h2").textContent=item?"Item was misclassified":"Report a problem";
-    dialog.querySelector("#reportPrivacy").textContent="Reports are sent to Aelchor and kept for 90 days. An anonymous browser ID groups reports. "+(item?"Item names, material names and classification metadata are included; review them below. ":"")+"No screenshot, logs, project paths or asset files are collected. Your description and optional email are also sent.";
+    dialog.querySelector("#reportPrivacy").textContent="Reports are sent to Aelchor and kept for 90 days. An anonymous browser ID groups reports. "+(item?"Item names, material names and classification metadata are included; review them below. ":"")+"No screenshot, logs, project paths or asset files are collected automatically. Your description and optional email are also sent. Unchecking browser information removes app version and browser details; item classification metadata remains included.";
     function body(){
       var diagnostics=form.elements.includeDiagnostics.checked?{browser:short(navigator.userAgent,1000),language:short(navigator.language,100)}:null;
       var payload={appId:"avatar-wardrobe",installationId:installationId(),type:item?"misclassification":"bug",message:form.elements.message.value.trim(),email:form.elements.email.value.trim()||null,appVersion:diagnostics?short(version,100):"",diagnostics:diagnostics};

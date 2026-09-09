@@ -5,6 +5,10 @@
       "name": "English",
       "strings": [
         {
+          "k": "write.pending",
+          "v": "Applying changes in Unity ({0} pending). You can keep browsing."
+        },
+        {
           "k": "app.title",
           "v": "Avatar Wardrobe"
         },
@@ -170,7 +174,7 @@
         },
         {
           "k": "side.installed",
-          "v": "Installed"
+          "v": "Wearing"
         },
         {
           "k": "side.viewInstalled",
@@ -438,7 +442,7 @@
         },
         {
           "k": "detail.compatibleOverride",
-          "v": "Mark as compatible"
+          "v": "Trust this match for this avatar and body shape"
         },
         {
           "k": "detail.toggles",
@@ -1363,6 +1367,462 @@
         {
           "k": "update.hint",
           "v": "Installed: {0}. Available: {1}. Update in ALCOM or VCC."
+        },
+        {
+          "k": "target.choose",
+          "v": "Choose avatar"
+        },
+        {
+          "k": "target.unsaved",
+          "v": "Unsaved scene"
+        },
+        {
+          "k": "target.label",
+          "v": "Dressing avatar"
+        },
+        {
+          "k": "detail.wornCopy",
+          "v": "Worn copy"
+        },
+        {
+          "k": "detail.chooseCopy",
+          "v": "Choose a copy"
+        },
+        {
+          "k": "setup.attention",
+          "v": "Added — setup needs attention"
+        },
+        {
+          "k": "wear.action",
+          "v": "Wear action"
+        },
+        {
+          "k": "wear.apply",
+          "v": "Wear"
+        },
+        {
+          "k": "wear.replace",
+          "v": "Replace variant"
+        },
+        {
+          "k": "wear.copy",
+          "v": "Add another copy"
+        },
+        {
+          "k": "wear.replaceCopy",
+          "v": "Replace this copy"
+        },
+        {
+          "k": "wear.semantics",
+          "v": "New items apply with Wear. Existing menu and toggle changes save immediately; use Unity Undo to reverse them. Replacing preserves placement and menu position; material and body overrides need review."
+        },
+        {
+          "k": "library.empty",
+          "v": "Add a purchased ZIP or unitypackage to begin. Originals stay in your library; importing creates project copies."
+        },
+        {
+          "k": "library.used",
+          "v": "In your library · {0} project references"
+        },
+        {
+          "k": "library.codeConsent",
+          "v": " I trust this package and accept running its Unity code."
+        },
+        {
+          "k": "library.noMatches",
+          "v": "No matching downloads. Clear the search to see your library."
+        },
+        {
+          "k": "library.added",
+          "v": "Download added. Review its project import when ready."
+        },
+        {
+          "k": "library.unused",
+          "v": "In your library · Ready to import"
+        },
+        {
+          "k": "library.noProject",
+          "v": "No project chosen. Library browsing is available."
+        },
+        {
+          "k": "library.duplicate",
+          "v": "This exact download is already in your library."
+        },
+        {
+          "k": "library.checking",
+          "v": "Checking project paths and existing versions…"
+        },
+        {
+          "k": "library.compareTitle",
+          "v": "Compare {0} with another version"
+        },
+        {
+          "k": "library.ready",
+          "v": "Review ready. Nothing has been imported yet."
+        },
+        {
+          "k": "library.references",
+          "v": "Prefabs and project references"
+        },
+        {
+          "k": "library.error",
+          "v": "Library operation failed."
+        },
+        {
+          "k": "library.apply",
+          "v": "Import into this project"
+        },
+        {
+          "k": "library.review",
+          "v": "Review project import"
+        },
+        {
+          "k": "library.adding",
+          "v": "Adding {0}…"
+        },
+        {
+          "k": "library.importTitle",
+          "v": "Import {0}"
+        },
+        {
+          "k": "library.changes",
+          "v": "Review file changes"
+        },
+        {
+          "k": "library.impact",
+          "v": "Show update impact"
+        },
+        {
+          "k": "library.compare",
+          "v": "Compare versions"
+        },
+        {
+          "k": "library.newVersion",
+          "v": "New version"
+        },
+        {
+          "k": "library.cancel",
+          "v": "Cancel"
+        },
+        {
+          "k": "library.close",
+          "v": "Close"
+        },
+        {
+          "k": "library.importSummary",
+          "v": "{0} new files · {1} conflicts · {2} executable files. Existing files will be preserved."
+        },
+        {
+          "k": "library.impactSummary",
+          "v": "{0} changed files, {1} removed, {2} added; {3} changed asset identities. {4} project references retain the old version. Updates are not applied automatically."
+        },
+        {
+          "k": "library.nav",
+          "v": "Library"
+        },
+        {
+          "k": "library.heading",
+          "v": "Your library"
+        },
+        {
+          "k": "library.add",
+          "v": "Add purchased files"
+        },
+        {
+          "k": "library.search",
+          "v": "Search downloads"
+        },
+        {
+          "k": "library.refresh",
+          "v": "Refresh library"
+        },
+        {
+          "k": "library.local",
+          "v": "Your downloads stay on this computer."
+        },
+        {
+          "k": "library.cancelled",
+          "v": "Review cancelled. The project was not changed."
+        },
+        {
+          "k": "library.folder",
+          "v": "Add downloads from a folder"
+        },
+        {
+          "k": "library.folderHelp",
+          "v": "Choose a folder to add the ZIP and unitypackage downloads inside it."
+        },
+        {
+          "k": "library.folderLabel",
+          "v": "Choose download folder"
+        },
+        {
+          "k": "library.noArchives",
+          "v": "No ZIP or unitypackage downloads were found in the selection."
+        },
+        {
+          "k": "library.dependencies",
+          "v": "{0} missing references · {1} asset identity conflicts"
+        },
+        {
+          "k": "library.missingGuid",
+          "v": "Missing {0}, referenced by {1}. Install the product’s required dependencies in Unity."
+        },
+        {
+          "k": "library.guidConflict",
+          "v": "{0} uses an asset identity already present at {1}."
+        },
+        {
+          "k": "library.incomplete",
+          "v": "Reference scan incomplete for {0}; check dependencies in Unity after import."
+        },
+        {
+          "k": "library.offlineReady",
+          "v": "Library available offline"
+        },
+        {
+          "k": "library.offlineHelp",
+          "v": "Unity is closed or unavailable. Browse your Library and cached previews; open the project to Wear."
+        },
+        {
+          "k": "report.help",
+          "v": "Help"
+        },
+        {
+          "k": "report.helpHint",
+          "v": "Tell us about a problem with Avatar Wardrobe."
+        },
+        {
+          "k": "report.openBug",
+          "v": "Report a problem"
+        },
+        {
+          "k": "report.item",
+          "v": "Item was misclassified"
+        },
+        {
+          "k": "scene.unavailable",
+          "v": "Scene editing is unavailable in this host."
+        },
+        {
+          "k": "scene.failed",
+          "v": "The scene request failed. Refresh and review before trying again."
+        },
+        {
+          "k": "scene.applying",
+          "v": "Applying the scene edit…"
+        },
+        {
+          "k": "scene.nativeOpened",
+          "v": "Object selected in Unity Inspector."
+        },
+        {
+          "k": "scene.updated",
+          "v": "Scene updated. Undo is available in Unity."
+        },
+        {
+          "k": "scene.reviewAgain",
+          "v": "Refresh the scene and review the object before continuing."
+        },
+        {
+          "k": "scene.collapse",
+          "v": "Collapse "
+        },
+        {
+          "k": "scene.expand",
+          "v": "Expand "
+        },
+        {
+          "k": "scene.noObjects",
+          "v": "No objects match this search."
+        },
+        {
+          "k": "scene.finite",
+          "v": "Enter a finite value for every transform axis."
+        },
+        {
+          "k": "scene.select",
+          "v": "Select an object from the hierarchy."
+        },
+        {
+          "k": "scene.name",
+          "v": "Name"
+        },
+        {
+          "k": "scene.rename",
+          "v": "Rename"
+        },
+        {
+          "k": "scene.active",
+          "v": "Active"
+        },
+        {
+          "k": "scene.position",
+          "v": "Local position"
+        },
+        {
+          "k": "scene.rotation",
+          "v": "Local rotation"
+        },
+        {
+          "k": "scene.scale",
+          "v": "Local scale"
+        },
+        {
+          "k": "scene.applyTransform",
+          "v": "Apply transform"
+        },
+        {
+          "k": "scene.duplicate",
+          "v": "Duplicate object"
+        },
+        {
+          "k": "scene.delete",
+          "v": "Delete object"
+        },
+        {
+          "k": "scene.confirmDelete",
+          "v": "Confirm object deletion"
+        },
+        {
+          "k": "scene.deleteExact",
+          "v": "Delete this exact object and its children?"
+        },
+        {
+          "k": "scene.cancel",
+          "v": "Cancel"
+        },
+        {
+          "k": "scene.native",
+          "v": "Open in Unity Inspector"
+        },
+        {
+          "k": "scene.newObject",
+          "v": "GameObject"
+        },
+        {
+          "k": "scene.childName",
+          "v": "New child name"
+        },
+        {
+          "k": "scene.create",
+          "v": "Create empty child"
+        },
+        {
+          "k": "scene.move",
+          "v": "Move to parent"
+        },
+        {
+          "k": "scene.parent",
+          "v": "Parent object"
+        },
+        {
+          "k": "scene.nativeField",
+          "v": "Use Unity Inspector"
+        },
+        {
+          "k": "scene.applyField",
+          "v": "Apply"
+        },
+        {
+          "k": "scene.nativeComponent",
+          "v": "Use Unity Inspector for this component."
+        },
+        {
+          "k": "scene.search",
+          "v": "Search hierarchy"
+        },
+        {
+          "k": "scene.title",
+          "v": "Advanced Scene"
+        },
+        {
+          "k": "scene.refresh",
+          "v": "Refresh scene"
+        },
+        {
+          "k": "scene.intro",
+          "v": "Edit objects on the pinned scene avatar. Changes support Unity Undo."
+        },
+        {
+          "k": "scene.hierarchy",
+          "v": "Avatar hierarchy"
+        },
+        {
+          "k": "scene.inspector",
+          "v": "Object Inspector"
+        },
+        {
+          "k": "scene.loading",
+          "v": "Loading the pinned avatar hierarchy…"
+        },
+        {
+          "k": "scene.invalid",
+          "v": "Unity returned an invalid scene snapshot."
+        },
+        {
+          "k": "scene.ready",
+          "v": "Choose an object to inspect or edit."
+        },
+        {
+          "k": "scene.nav",
+          "v": "Scene"
+        },
+        {
+          "k": "scene.enable",
+          "v": "Show the Advanced Scene editor"
+        },
+        {
+          "k": "scene.enableHint",
+          "v": "Inspect the pinned avatar hierarchy, edit objects and component fields, and use Unity Undo."
+        },
+        {
+          "k": "library.batchResult",
+          "v": "{0} files accepted; {1} failed. Review the file results below."
+        },
+        {
+          "k": "library.editDetails",
+          "v": "Edit product details"
+        },
+        {
+          "k": "library.creator",
+          "v": "Creator"
+        },
+        {
+          "k": "library.product",
+          "v": "Product name"
+        },
+        {
+          "k": "library.source",
+          "v": "Creator or product page"
+        },
+        {
+          "k": "library.saveDetails",
+          "v": "Save product details"
+        },
+        {
+          "k": "grid.chooseAvatar",
+          "v": "Choose avatar"
+        },
+        {
+          "k": "grid.chooseAvatarHint",
+          "v": "Choose the scene avatar you want to dress."
+        },
+        {
+          "k": "grid.addFilesHint",
+          "v": "No outfits are available in this project yet. Add your purchased files to get started."
+        },
+        {
+          "k": "grid.offlineHint",
+          "v": "Unity is offline. Your local library is still available."
+        },
+        {
+          "k": "grid.clearFilters",
+          "v": "Clear filters"
+        },
+        {
+          "k": "grid.openLibrary",
+          "v": "Open local library"
         }
       ]
     },
@@ -1536,7 +1996,7 @@
         },
         {
           "k": "side.installed",
-          "v": "導入済み"
+          "v": "着用中"
         },
         {
           "k": "side.viewInstalled",
@@ -1804,7 +2264,7 @@
         },
         {
           "k": "detail.compatibleOverride",
-          "v": "互換性ありとしてマーク"
+          "v": "このアバターと体型で適合を信頼する"
         },
         {
           "k": "detail.toggles",
@@ -2561,6 +3021,462 @@
         {
           "k": "update.hint",
           "v": "インストール済み: {0}。最新: {1}。ALCOM または VCC で更新してください。"
+        },
+        {
+          "k": "target.choose",
+          "v": "アバターを選択"
+        },
+        {
+          "k": "target.unsaved",
+          "v": "未保存のシーン"
+        },
+        {
+          "k": "target.label",
+          "v": "着せ替え対象"
+        },
+        {
+          "k": "detail.wornCopy",
+          "v": "着用中のインスタンス"
+        },
+        {
+          "k": "detail.chooseCopy",
+          "v": "インスタンスを選択"
+        },
+        {
+          "k": "setup.attention",
+          "v": "追加済み — セットアップの確認が必要"
+        },
+        {
+          "k": "wear.action",
+          "v": "着用操作"
+        },
+        {
+          "k": "wear.apply",
+          "v": "着用"
+        },
+        {
+          "k": "wear.replace",
+          "v": "バリエーションを置換"
+        },
+        {
+          "k": "wear.copy",
+          "v": "別のインスタンスを追加"
+        },
+        {
+          "k": "wear.replaceCopy",
+          "v": "置換するインスタンス"
+        },
+        {
+          "k": "wear.semantics",
+          "v": "新規アイテムは「着用」で適用されます。着用中のメニューとトグルの変更は即時保存され、Unity の元に戻すで復元できます。置換後のマテリアルと体型設定をご確認ください。"
+        },
+        {
+          "k": "library.empty",
+          "v": "購入したZIPまたはunitypackageを追加してください。元ファイルはライブラリに保存し、プロジェクトにはコピーを作成します。"
+        },
+        {
+          "k": "library.used",
+          "v": "ライブラリに保存済み · {0}件のプロジェクト参照"
+        },
+        {
+          "k": "library.codeConsent",
+          "v": " このパッケージを信頼し、Unityコードの実行を許可します。"
+        },
+        {
+          "k": "library.noMatches",
+          "v": "一致するダウンロードがありません。検索を消すとすべて表示します。"
+        },
+        {
+          "k": "library.added",
+          "v": "追加しました。インポート内容を確認できます。"
+        },
+        {
+          "k": "library.unused",
+          "v": "ライブラリに保存済み · インポートできます"
+        },
+        {
+          "k": "library.noProject",
+          "v": "プロジェクト未選択です。ライブラリは閲覧できます。"
+        },
+        {
+          "k": "library.duplicate",
+          "v": "同じファイルはすでにライブラリにあります。"
+        },
+        {
+          "k": "library.checking",
+          "v": "プロジェクトのパスと既存バージョンを確認中…"
+        },
+        {
+          "k": "library.compareTitle",
+          "v": "{0}を別のバージョンと比較"
+        },
+        {
+          "k": "library.ready",
+          "v": "確認の準備ができました。まだインポートしていません。"
+        },
+        {
+          "k": "library.references",
+          "v": "プレハブとプロジェクト参照"
+        },
+        {
+          "k": "library.error",
+          "v": "ライブラリの操作に失敗しました。"
+        },
+        {
+          "k": "library.apply",
+          "v": "このプロジェクトにインポート"
+        },
+        {
+          "k": "library.review",
+          "v": "インポート内容を確認"
+        },
+        {
+          "k": "library.adding",
+          "v": "{0}を追加中…"
+        },
+        {
+          "k": "library.importTitle",
+          "v": "{0}をインポート"
+        },
+        {
+          "k": "library.changes",
+          "v": "ファイル変更を確認"
+        },
+        {
+          "k": "library.impact",
+          "v": "更新の影響を表示"
+        },
+        {
+          "k": "library.compare",
+          "v": "バージョンを比較"
+        },
+        {
+          "k": "library.newVersion",
+          "v": "新バージョン"
+        },
+        {
+          "k": "library.cancel",
+          "v": "キャンセル"
+        },
+        {
+          "k": "library.close",
+          "v": "閉じる"
+        },
+        {
+          "k": "library.importSummary",
+          "v": "新規{0}件 · 競合{1}件 · 実行コード{2}件。既存のファイルは保持します。"
+        },
+        {
+          "k": "library.impactSummary",
+          "v": "変更{0}件、削除{1}件、追加{2}件、アセットID変更{3}件。{4}件のプロジェクト参照は旧バージョンを保持します。自動更新は行いません。"
+        },
+        {
+          "k": "library.nav",
+          "v": "ライブラリ"
+        },
+        {
+          "k": "library.heading",
+          "v": "ライブラリ"
+        },
+        {
+          "k": "library.add",
+          "v": "購入ファイルを追加"
+        },
+        {
+          "k": "library.search",
+          "v": "ダウンロードを検索"
+        },
+        {
+          "k": "library.refresh",
+          "v": "ライブラリを更新"
+        },
+        {
+          "k": "library.local",
+          "v": "ダウンロードはこのコンピューター内に保存します。"
+        },
+        {
+          "k": "library.cancelled",
+          "v": "確認をキャンセルしました。プロジェクトは変更していません。"
+        },
+        {
+          "k": "library.folder",
+          "v": "フォルダーからダウンロードを追加"
+        },
+        {
+          "k": "library.folderHelp",
+          "v": "フォルダー内のZIPとunitypackageをまとめて追加します。"
+        },
+        {
+          "k": "library.folderLabel",
+          "v": "ダウンロードフォルダーを選択"
+        },
+        {
+          "k": "library.noArchives",
+          "v": "選択内にZIPまたはunitypackageがありません。"
+        },
+        {
+          "k": "library.dependencies",
+          "v": "不足参照{0}件 · アセットID競合{1}件"
+        },
+        {
+          "k": "library.missingGuid",
+          "v": "参照{0}が不足しています（{1}）。Unityで製品に必要な依存関係をインストールしてください。"
+        },
+        {
+          "k": "library.guidConflict",
+          "v": "{0}のアセットIDはすでに{1}で使われています。"
+        },
+        {
+          "k": "library.incomplete",
+          "v": "{0}の参照確認は未完了です。インポート後にUnityで依存関係を確認してください。"
+        },
+        {
+          "k": "library.offlineReady",
+          "v": "ライブラリはオフラインで使用できます"
+        },
+        {
+          "k": "library.offlineHelp",
+          "v": "Unityに接続できません。ライブラリと保存済みプレビューは閲覧できます。着用するにはプロジェクトを開いてください。"
+        },
+        {
+          "k": "report.help",
+          "v": "ヘルプ"
+        },
+        {
+          "k": "report.helpHint",
+          "v": "Avatar Wardrobeの問題を報告できます。"
+        },
+        {
+          "k": "report.openBug",
+          "v": "問題を報告"
+        },
+        {
+          "k": "report.item",
+          "v": "アイテムの分類が違う"
+        },
+        {
+          "k": "scene.nav",
+          "v": "シーン"
+        },
+        {
+          "k": "scene.title",
+          "v": "高度なシーン編集"
+        },
+        {
+          "k": "scene.enable",
+          "v": "高度なシーンエディターを表示"
+        },
+        {
+          "k": "scene.enableHint",
+          "v": "選択中のアバターの階層、オブジェクト、コンポーネントを編集します。Unity の元に戻す操作が使えます。"
+        },
+        {
+          "k": "scene.unavailable",
+          "v": "このホストではシーン編集を利用できません。"
+        },
+        {
+          "k": "scene.failed",
+          "v": "シーンの操作に失敗しました。更新して対象を確認してからやり直してください。"
+        },
+        {
+          "k": "scene.applying",
+          "v": "シーンの変更を適用中…"
+        },
+        {
+          "k": "scene.nativeOpened",
+          "v": "Unity の Inspector でオブジェクトを選択しました。"
+        },
+        {
+          "k": "scene.updated",
+          "v": "シーンを更新しました。Unity で元に戻せます。"
+        },
+        {
+          "k": "scene.reviewAgain",
+          "v": "シーンを更新し、対象のオブジェクトを確認してから続行してください。"
+        },
+        {
+          "k": "scene.collapse",
+          "v": "折りたたむ："
+        },
+        {
+          "k": "scene.expand",
+          "v": "展開："
+        },
+        {
+          "k": "scene.noObjects",
+          "v": "検索条件に一致するオブジェクトはありません。"
+        },
+        {
+          "k": "scene.finite",
+          "v": "位置・回転・スケールの各軸に有限の数値を入力してください。"
+        },
+        {
+          "k": "scene.select",
+          "v": "階層からオブジェクトを選択してください。"
+        },
+        {
+          "k": "scene.name",
+          "v": "名前"
+        },
+        {
+          "k": "scene.rename",
+          "v": "名前を変更"
+        },
+        {
+          "k": "scene.active",
+          "v": "有効"
+        },
+        {
+          "k": "scene.position",
+          "v": "ローカル位置"
+        },
+        {
+          "k": "scene.rotation",
+          "v": "ローカル回転"
+        },
+        {
+          "k": "scene.scale",
+          "v": "ローカルスケール"
+        },
+        {
+          "k": "scene.applyTransform",
+          "v": "Transform を適用"
+        },
+        {
+          "k": "scene.duplicate",
+          "v": "オブジェクトを複製"
+        },
+        {
+          "k": "scene.delete",
+          "v": "オブジェクトを削除"
+        },
+        {
+          "k": "scene.confirmDelete",
+          "v": "オブジェクト削除の確認"
+        },
+        {
+          "k": "scene.deleteExact",
+          "v": "このオブジェクトと子オブジェクトを削除しますか？"
+        },
+        {
+          "k": "scene.cancel",
+          "v": "キャンセル"
+        },
+        {
+          "k": "scene.native",
+          "v": "Unity Inspector で開く"
+        },
+        {
+          "k": "scene.newObject",
+          "v": "GameObject"
+        },
+        {
+          "k": "scene.childName",
+          "v": "新しい子の名前"
+        },
+        {
+          "k": "scene.create",
+          "v": "空の子を作成"
+        },
+        {
+          "k": "scene.move",
+          "v": "親を変更"
+        },
+        {
+          "k": "scene.parent",
+          "v": "親オブジェクト"
+        },
+        {
+          "k": "scene.nativeField",
+          "v": "Unity Inspector で編集"
+        },
+        {
+          "k": "scene.applyField",
+          "v": "適用"
+        },
+        {
+          "k": "scene.nativeComponent",
+          "v": "このコンポーネントは Unity Inspector で編集してください。"
+        },
+        {
+          "k": "scene.search",
+          "v": "階層を検索"
+        },
+        {
+          "k": "scene.refresh",
+          "v": "シーンを更新"
+        },
+        {
+          "k": "scene.intro",
+          "v": "選択中のシーンアバターのオブジェクトを編集します。変更は Unity で元に戻せます。"
+        },
+        {
+          "k": "scene.hierarchy",
+          "v": "アバターの階層"
+        },
+        {
+          "k": "scene.inspector",
+          "v": "オブジェクトの Inspector"
+        },
+        {
+          "k": "scene.loading",
+          "v": "選択中のアバターの階層を読み込み中…"
+        },
+        {
+          "k": "scene.invalid",
+          "v": "Unity から正しいシーン情報を取得できませんでした。"
+        },
+        {
+          "k": "scene.ready",
+          "v": "確認・編集するオブジェクトを選択してください。"
+        },
+        {
+          "k": "library.batchResult",
+          "v": "{0} 件のファイルを受け付けました。失敗: {1} 件。下の結果を確認してください。"
+        },
+        {
+          "k": "library.editDetails",
+          "v": "商品情報を編集"
+        },
+        {
+          "k": "library.creator",
+          "v": "制作者"
+        },
+        {
+          "k": "library.product",
+          "v": "商品名"
+        },
+        {
+          "k": "library.source",
+          "v": "制作者または商品のページ"
+        },
+        {
+          "k": "library.saveDetails",
+          "v": "商品情報を保存"
+        },
+        {
+          "k": "grid.chooseAvatar",
+          "v": "アバターを選択"
+        },
+        {
+          "k": "grid.chooseAvatarHint",
+          "v": "着せ替えるシーン内のアバターを選択してください。"
+        },
+        {
+          "k": "grid.addFilesHint",
+          "v": "このプロジェクトにはまだ衣装がありません。購入済みのファイルを追加して始めましょう。"
+        },
+        {
+          "k": "grid.offlineHint",
+          "v": "Unity はオフラインです。ローカルライブラリは引き続き利用できます。"
+        },
+        {
+          "k": "grid.clearFilters",
+          "v": "絞り込みを解除"
+        },
+        {
+          "k": "grid.openLibrary",
+          "v": "ローカルライブラリを開く"
         }
       ]
     }

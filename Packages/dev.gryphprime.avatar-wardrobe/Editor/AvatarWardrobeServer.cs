@@ -92,6 +92,7 @@ namespace OutfitToggleGenerator
         }
         // Resolved on Start (main thread) so the listener thread can serve
         // cached bytes without ever touching Unity APIs.
+        private static string serverProjectPath;
         private static string htmlPath;
         private static string langPath;
         private static string thumbDir;
@@ -115,7 +116,8 @@ namespace OutfitToggleGenerator
         {
             if (Running) return true;
             LastError = null;
-            WardrobeLog.Initialize(Directory.GetParent(Application.dataPath).FullName);
+            serverProjectPath = Directory.GetParent(Application.dataPath).FullName;
+            WardrobeLog.Initialize(serverProjectPath);
             WardrobeLog.Write("server", "Starting; Unity " + Application.unityVersion);
             WardrobeStrings.EnsureInitialized();
             dispatcher = new WardrobeWorkQueue();
@@ -144,39 +146,64 @@ namespace OutfitToggleGenerator
             hiDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "AvatarWardrobe", "thumbs512"));
             // Pipeline v5 (fingerprinted previews and explicit sRGB capture):
             // any older cache stock is wrong pixels, so wipe once and stamp.
-            try
+            var stamp = Path.Combine(serverProjectPath, "Library", "AvatarWardrobe", ".thumbpipe");
+            var lowDirectory = thumbDir; var highDirectory = hiDir;
+            previewCacheInitialization = System.Threading.Tasks.Task.Run(() =>
             {
-                var stamp = Path.Combine(Application.dataPath, "..", "Library", "AvatarWardrobe", ".thumbpipe");
+                try
+                {
                 var pipe = File.Exists(stamp) ? File.ReadAllText(stamp) : string.Empty;
                 if (pipe.Trim() != "v5")
                 {
-                    foreach (var dir in new[] { thumbDir, hiDir })
+                    foreach (var dir in new[] { lowDirectory, highDirectory })
                         if (Directory.Exists(dir)) Directory.Delete(dir, true);
                     Directory.CreateDirectory(Path.GetDirectoryName(stamp));
                     WardrobeAtomicFile.WriteText(stamp, "v5");
                 }
             }
-            catch (Exception) { }
+                catch (Exception error) { WardrobeLog.Write("preview", "Cache initialization: " + error.Message); }
+            });
             RefreshPreviewVersions();
+            InitializeOperations();
             EditorApplication.hierarchyChanged += InvalidateInstalled;
             Undo.undoRedoPerformed += InvalidateInstalled;
-            AssemblyReloadEvents.beforeAssemblyReload += Stop;
+            AssemblyReloadEvents.beforeAssemblyReload += PauseForReload;
             EditorApplication.quitting += Stop;
             EditorApplication.update += Pump;
             listenerThread = new Thread(Loop) { IsBackground = true, Name = "WardrobeServer" };
             listenerThread.Start();
+            SessionState.SetBool("Wardrobe.ServerRequested", true);
             return true;
         }
 
+        [InitializeOnLoadMethod] private static void ResumeAfterReload()
+        {
+            if (!SessionState.GetBool("Wardrobe.ServerRequested", false)) return;
+            EditorApplication.delayCall += () =>
+            {
+                SceneAvatar = EditorUtility.InstanceIDToObject(SessionState.GetInt("Wardrobe.PinnedTarget", 0)) as VRCAvatarDescriptor;
+                Start();
+            };
+        }
+        private static void PauseForReload()
+        {
+            var requested = Running;
+            SessionState.SetInt("Wardrobe.PinnedTarget", SceneAvatar == null ? 0 : SceneAvatar.GetInstanceID());
+            Stop();
+            SessionState.SetBool("Wardrobe.ServerRequested", requested);
+        }
         internal static void Stop()
         {
+            SessionState.SetBool("Wardrobe.ServerRequested", false);
+            if (importLease != null) EndLibraryImport(importLease);
             WardrobeLog.Write("server", "Stopping");
             EditorApplication.update -= Pump;
             EditorApplication.hierarchyChanged -= InvalidateInstalled;
             Undo.undoRedoPerformed -= InvalidateInstalled;
-            AssemblyReloadEvents.beforeAssemblyReload -= Stop;
+            AssemblyReloadEvents.beforeAssemblyReload -= PauseForReload;
             EditorApplication.quitting -= Stop;
             if (dispatcher != null) dispatcher.Close();
+            InvalidateContext();
             try
             {
                 if (listener != null) listener.Stop();
@@ -197,33 +224,47 @@ namespace OutfitToggleGenerator
 
         private static void Pump()
         {
+            if (operationLedger == null && operationInitialization != null && operationInitialization.IsCompleted && !operationInitialization.IsFaulted)
+                operationLedger = operationInitialization.Result;
+            PumpPreviewEncoding();
+            PublishOperationContext();
             if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
-            if (dispatcher != null) dispatcher.Pump(!UploadTargetLocked && !ShiroTools.OutfitBatchUploader.BatchActiveNow && !EditorApplication.isPlayingOrWillChangePlaymode, idleBackground: BakeNextBackgroundPreview);
+            if (dispatcher != null) dispatcher.Pump(!UploadTargetLocked && !ShiroTools.OutfitBatchUploader.BatchActiveNow && !EditorApplication.isPlayingOrWillChangePlaymode && importLease == null && !SceneUploadActive && (previewCacheInitialization == null || previewCacheInitialization.IsCompleted), idleBackground: BakeNextBackgroundPreview);
         }
 
         private static T RunOnMain<T>(Func<T> work, string requestCode, bool background = false)
+        {
+            var prepared = PrepareMainWork(work, requestCode);
+            long mainMs = 0;
+            try { return dispatcher.Invoke(() =>
+            {
+                var timer = System.Diagnostics.Stopwatch.StartNew();
+                try { return prepared(); }
+                finally { mainMs = timer.ElapsedMilliseconds; }
+            }, background, isOperation: requestWritesAvatar); }
+            finally { requestMainMs += mainMs; }
+        }
+
+        private static Func<T> PrepareMainWork<T>(Func<T> work, string requestCode)
         {
             var queue = dispatcher;
             if (queue == null) throw new OperationCanceledException("Wardrobe server is not running.");
             var expectedSession = requestSession;
             var expectedAvatar = requestWritesAvatar ? requestAvatarId : 0;
             var writesAvatar = requestWritesAvatar;
-            long mainMs = 0;
-            try { return queue.Invoke(() =>
+            return () =>
             {
                 if (!string.IsNullOrEmpty(expectedSession) && expectedSession != serverSession)
                     throw new OperationCanceledException("The Unity session changed. Refresh the wardrobe and retry.");
-                if (expectedAvatar != 0 && (SceneAvatar == null || SceneAvatar.GetInstanceID() != expectedAvatar))
+                if (writesAvatar && expectedAvatar != 0 && !WardrobeEditPolicy.ContextMatches(serverSession, expectedSession, SceneAvatar == null ? 0 : SceneAvatar.GetInstanceID(), expectedAvatar))
                     throw new OperationCanceledException("The target avatar changed. Review the selected avatar and retry.");
                 if (writesAvatar && SceneUploadActive)
                     throw new InvalidOperationException("Wait for the avatar build/upload to finish before editing through AW.");
                 var previous = WardrobeStrings.RequestCode;
                 WardrobeStrings.RequestCode = requestCode;
-                var timer = System.Diagnostics.Stopwatch.StartNew();
                 try { return work(); }
-                finally { mainMs += timer.ElapsedMilliseconds; WardrobeStrings.RequestCode = previous; }
-            }, background); }
-            finally { requestMainMs += mainMs; }
+                finally { WardrobeStrings.RequestCode = previous; }
+            };
         }
 
         private static void Loop()

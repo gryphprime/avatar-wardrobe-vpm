@@ -143,6 +143,7 @@ namespace OutfitToggleGenerator
 
         private static SceneUploadReview ReviewSceneUpload()
         {
+            AssertOperationsSettled();
             var avatar = SceneAvatar;
             var result = new SceneUploadReview();
             if (AvatarWardrobePresets.SeparateAvatarUploads) { result.message = "Use single-avatar mode for Upload Avatar."; return result; }
@@ -234,6 +235,7 @@ namespace OutfitToggleGenerator
 
         private static UploadJobDto StartUpload(string guid, string preset)
         {
+            AssertOperationsSettled();
             lock (uploadJobsLock)
             {
                 if (uploadRunning)
@@ -439,7 +441,7 @@ namespace OutfitToggleGenerator
             return new ResultDto { ok = 1, message = WardrobeStrings.T("preset.assigned") };
         }
 
-        private static ResultDto Install(string guid, bool allow, bool createToggles, bool switchVariant, string target, string menuGroup = "")
+        private static ResultDto Install(string guid, bool allow, bool createToggles, bool switchVariant, string target, string menuGroup = "", string replaceId = "", bool addCopy = false)
         {
             if (SceneAvatar == null)
                 return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
@@ -463,24 +465,33 @@ namespace OutfitToggleGenerator
             if (!string.IsNullOrEmpty(menuGroup) &&
                 !AvatarWardrobePresets.MenuGroups(cleanTarget).Any(group => group.id == menuGroup))
                 return new ResultDto { message = "The selected Menu Group no longer exists. Select a group and try again." };
-            return EditAvatar("Install wardrobe outfit", () =>
+            GameObject replaced = null;
+            if (switchVariant)
+            {
+                var family = CachedFamilies().FirstOrDefault(candidate => candidate.variants.Any(v => v.guid == guid));
+                if (family != null)
+                    replaced = family.variants.SelectMany(v => AvatarWardrobePresets.PrefabInstances(SceneAvatar, v.guid))
+                        .FirstOrDefault(item => item.GetInstanceID().ToString() == replaceId && AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == cleanTarget);
+                if (replaced == null) return new ResultDto { message = "Choose the exact worn variant to replace. Refresh if it moved." };
+            }
+            return EditAvatar("Wear wardrobe outfit", () =>
             {
                 if (!string.IsNullOrEmpty(cleanTarget) && cleanTarget != AvatarWardrobePresets.CommonTarget)
                     AvatarWardrobePresets.EnsureSceneHolder(cleanTarget);
-                var result = AvatarWardrobeCatalog.Install(SceneAvatar, outfit, allow, false, false, string.IsNullOrEmpty(cleanTarget) ? null : cleanTarget);
+                var result = AvatarWardrobeCatalog.Install(SceneAvatar, outfit, allow, false, false,
+                    string.IsNullOrEmpty(cleanTarget) ? null : cleanTarget, addCopy || switchVariant);
                 if (!result.success) return new ResultDto { message = result.message };
-                if (switchVariant)
+                if (replaced != null)
                 {
-                    var family = CachedFamilies().FirstOrDefault(candidate =>
-                        candidate.variants.Any(variant => variant.guid == outfit.guid));
-                    if (family != null)
-                        foreach (var variant in family.variants)
-                        {
-                            if (variant.guid == outfit.guid) continue;
-                            foreach (var sibling in AvatarWardrobePresets.PrefabInstances(SceneAvatar, variant.guid)
-                                .Where(item => string.IsNullOrEmpty(cleanTarget) || AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == cleanTarget))
-                                AvatarWardrobeCatalog.Remove(sibling);
-                        }
+                    var old = replaced.transform;
+                    var next = result.instance.transform;
+                    Undo.SetTransformParent(next, old.parent, "Replace wardrobe variant");
+                    Undo.RecordObject(next, "Preserve placement");
+                    next.localPosition = old.localPosition; next.localRotation = old.localRotation; next.localScale = old.localScale;
+                    next.SetSiblingIndex(old.GetSiblingIndex());
+                    result.instance.name = replaced.name;
+                    result.instance.SetActive(replaced.activeSelf);
+                    AvatarWardrobeCatalog.Remove(replaced);
                 }
                 // Explicit Add to preset actions place the item in that group. Mode changes never reparent items.
                 if (result.instance != null && !string.IsNullOrEmpty(cleanTarget))
@@ -511,6 +522,7 @@ namespace OutfitToggleGenerator
                 if (!string.IsNullOrEmpty(menuGroup))
                     AvatarWardrobePresets.UpdateMenuGroup(cleanTarget, menuGroup, null,
                         AnimationUtility.CalculateTransformPath(result.instance.transform, SceneAvatar.transform), guid, "assign");
+                OutfitToggleGenerator.SyncMenuGroups(SceneAvatar);
                 if (createToggles) OutfitToggleGenerator.GeneratePartToggles(SceneAvatar, result.instance);
                 else OutfitToggleGenerator.RemovePartToggles(result.instance);
                 InvalidateInstalled();
@@ -533,15 +545,18 @@ namespace OutfitToggleGenerator
             });
         }
 
-        private static ResultDto RemovePresetItem(string guid, string target, string itemPath)
+        private static ResultDto RemovePresetItem(string guid, string target, string itemPath, string instanceId)
         {
             if (SceneAvatar == null) return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
             if (string.IsNullOrEmpty(target)) return new ResultDto { message = "Select a preset to remove the item from." };
             var instances = AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
                 .Where(item => AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == target).ToList();
-            if (!string.IsNullOrEmpty(itemPath))
+            if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(itemPath))
+                return new ResultDto { message = "Choose the exact worn copy before removing it." };
             {
-                var item = SceneAvatar.transform.Find(itemPath);
+                var item = WardrobeEditPolicy.ExactInstance(instances, instanceId, candidate => candidate.GetInstanceID())?.transform;
+                if (item != null && AnimationUtility.CalculateTransformPath(item, SceneAvatar.transform) != itemPath)
+                    return new ResultDto { message = "The item moved. Refresh before removing it." };
                 if (item == null || item == SceneAvatar.transform || AvatarWardrobePresets.ItemPreset(item.gameObject, SceneAvatar) != target)
                     return new ResultDto { message = "The item is no longer in this preset." };
                 if (!string.IsNullOrEmpty(guid) && AssetDatabase.AssetPathToGUID(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(item.gameObject)) != guid)
@@ -557,6 +572,8 @@ namespace OutfitToggleGenerator
             {
                 var paths = instances.Select(item => AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform)).ToList();
                 foreach (var instance in instances) AvatarWardrobeCatalog.Remove(instance);
+                paths.RemoveAll(path => SceneAvatar.GetComponentsInChildren<Transform>(true)
+                    .Any(t => AnimationUtility.CalculateTransformPath(t, SceneAvatar.transform) == path));
                 AvatarWardrobePresets.ForgetRemovedItems(target, paths);
                 OutfitToggleGenerator.SyncPresetSelection(SceneAvatar);
                 OutfitToggleGenerator.SyncMenuGroups(SceneAvatar);
@@ -566,26 +583,12 @@ namespace OutfitToggleGenerator
 
         private static ResultDto Remove(string guid)
         {
-            if (SceneAvatar == null)
-                return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
-            var outfit = AvatarWardrobeCatalog.GetRecord(guid);
-            if (outfit == null) return new ResultDto { message = WardrobeStrings.T("err.notfound") };
-            GameObject instance;
-            if (!AvatarWardrobeCatalog.TryFindInstalled(SceneAvatar, outfit, out instance) || instance == null)
-                return new ResultDto { message = WardrobeStrings.T("install.notinstalled") };
-            return EditAvatar("Remove wardrobe outfit", () =>
-            {
-                AvatarWardrobeCatalog.Remove(instance);
-                string baseKey, baseName;
-                AvatarWardrobePresets.CurrentBase(out baseKey, out baseName);
-                AvatarWardrobePresets.SetAssignment(guid, baseKey, string.Empty);
-                OutfitToggleGenerator.SyncPresetSelection(SceneAvatar);
-                return new ResultDto { ok = 1, message = WardrobeStrings.T("install.removed") };
-            });
+            return new ResultDto { message = "Choose a worn copy and use its Remove action. GUID-only removal is no longer supported." };
         }
 
         private static ShiroTools.OutfitBatchUploader.WebJobDto StartBatchRequest(string query, Func<ShiroTools.OutfitBatchUploader.WebJobDto> start)
         {
+            AssertOperationsSettled();
             Query(query).TryGetValue("requestId", out var id);
             if (!string.IsNullOrEmpty(id) && !Guid.TryParseExact(id, "N", out _))
                 return new ShiroTools.OutfitBatchUploader.WebJobDto { message = "Invalid request identity." };
@@ -596,31 +599,39 @@ namespace OutfitToggleGenerator
             finally { ShiroTools.OutfitBatchUploader.WebRequestId = null; }
         }
 
-        internal static ResultDto EditAvatar(string label, Func<ResultDto> edit)
+        internal static ResultDto EditAvatar(string label, Func<ResultDto> edit, bool migratePresets = true)
         {
+            if (UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow)
+                return new ResultDto { message = "Finish the upload or batch before editing the avatar." };
             if (EditorApplication.isPlayingOrWillChangePlaymode)
                 return new ResultDto { message = "Leave Play Mode before editing the avatar." };
-            // Keep scene objects and their authoritative metadata in the same Undo group.
             var settings = AvatarWardrobePresets.CaptureSettings();
+            var overrides = AvatarWardrobeCatalog.CaptureOverrides();
             var uploadSettings = ShiroTools.OutfitProjectData.CaptureSettings();
             Undo.IncrementCurrentGroup();
             var group = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName(label);
             try
             {
-                WardrobeSettingsUndo.Begin(label);
-                AvatarWardrobePresets.MigrateCurrentOwner();
+                WardrobeEditHistory.Begin(label);
+                if (migratePresets) AvatarWardrobePresets.MigrateCurrentOwner();
                 var result = edit();
                 if (result.ok != 1)
                 {
+                    // Run every rollback even when another store or an Undo callback fails.
                     try { Undo.RevertAllDownToGroup(group); }
                     finally
                     {
                         try { AvatarWardrobePresets.RestoreSettings(settings); }
-                        finally { ShiroTools.OutfitProjectData.RestoreSettings(uploadSettings); }
+                        finally
+                        {
+                            try { AvatarWardrobeCatalog.RestoreOverrides(overrides); }
+                            finally { ShiroTools.OutfitProjectData.RestoreSettings(uploadSettings); }
+                        }
                     }
+                    WardrobeEditHistory.Capture();
                 }
-                else { WardrobeSettingsUndo.Capture(); Undo.CollapseUndoOperations(group); }
+                else { WardrobeEditHistory.Capture(); Undo.CollapseUndoOperations(group); }
                 return result;
             }
             catch (Exception error)
@@ -631,6 +642,9 @@ namespace OutfitToggleGenerator
                 catch (Exception rollback) { Debug.LogError("Wardrobe preset rollback failed: " + rollback); }
                 try { ShiroTools.OutfitProjectData.RestoreSettings(uploadSettings); }
                 catch (Exception rollback) { Debug.LogError("Wardrobe upload settings rollback failed: " + rollback); }
+                try { AvatarWardrobeCatalog.RestoreOverrides(overrides); }
+                catch (Exception rollback) { Debug.LogError("Wardrobe compatibility rollback failed: " + rollback); }
+                WardrobeEditHistory.Capture();
                 Debug.LogException(error);
                 return new ResultDto { message = "Avatar edit failed and rollback was attempted: " + error.Message };
             }
