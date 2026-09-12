@@ -566,8 +566,7 @@
           ? '<div class="variant-control"><button class="variant-nav" id="dPrevVar" aria-label="'+esc(T("nav.prev.variant"))+'">&#8249;</button><div class="filmstrip" id="dFilm"></div><button class="variant-nav" id="dNextVar" aria-label="'+esc(T("nav.next.variant"))+'">&#8250;</button></div>'
           : '<div class="single-variant-label" id="dSingleVariant"></div>')+
         '</section><section class="detail-options"><div id="dCompatibility"></div><div id="dPresetWrap"></div><div id="dVarBody"></div><div id="dAllowWrap"></div></section></div>'+
-        '<footer class="detail-footer"><button id="dReportItem">'+esc(T("report.item"))+'</button><button id="dClose">'+esc(T("detail.close"))+'</button><div class="actions" id="dActs"></div></footer>';
-      document.getElementById("dClose").onclick=closeDetail;
+        '<footer class="detail-footer"><button id="dReportItem">'+esc(T("report.item"))+'</button><div class="actions" id="dActs"></div></footer>';
       document.getElementById("dReportItem").onclick=function(){window.WardrobeReporting.openItem(d,v);};
       if(multi) buildFilm();
       selectVariant(startIndex);
