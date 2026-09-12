@@ -1,16 +1,146 @@
 /* Preset/upload UI extracted from the supplied 1.0 page; same Unity endpoints. */
 (function(global){
   "use strict";
+  // Drafts use the installed avatar's GlobalObjectId, never its display name or
+  // source prefab GUID (several scene avatars can share either of those).
+  function draftIdentity(installed, transientContext){
+    if(installed&&installed.projectId&&installed.avatarId)
+      return {key:JSON.stringify([installed.projectId,installed.avatarId]),persistent:!installed.avatarId.startsWith('session:')};
+    return {key:'transient:'+transientContext,persistent:false};
+  }
+  function createDraftStore(storage){
+    var memory={};
+    return {
+      read:function(scope){
+        if(!scope)return null;
+        var json=memory[scope.key]||'null';
+        try{if(scope.persistent&&storage)json=storage.getItem('wardrobe.uploadDraft.'+scope.key)||json;}catch(error){}
+        try{return JSON.parse(json);}catch(error){return null;}
+      },
+      write:function(scope,value){
+        if(!scope)return;
+        var key='wardrobe.uploadDraft.'+scope.key;
+        if(!value){delete memory[scope.key];try{if(scope.persistent&&storage)storage.removeItem(key);}catch(error){}return;}
+        var json=JSON.stringify(value);memory[scope.key]=json;
+        try{if(scope.persistent&&storage)storage.setItem(key,json);}catch(error){}
+      }
+    };
+  }
+  function presetReview(state,ids,avatarName){
+    function failure(key,message,name){var error=new Error(message);error.copyKey=key;error.copyArgs=name?[name]:[];return error;}
+    var presets=ids.map(function(id){return (state.presets||[]).find(function(p){return p.id===id;});});
+    if(!presets.length||presets.some(function(p){return !p;}))throw failure('review.missing','A selected preset is no longer available. Refresh and choose it again.');
+    if(state.batchActive)throw failure('review.busy','An upload is already running. Wait for it to finish.');
+    var rows=presets.map(function(p){
+      var platforms=[p.win?'Windows':'',p.and?'Android':'',p.ios?'iOS':''].filter(Boolean);
+      if(!platforms.length)throw failure('review.noPlatform','Choose at least one platform for '+p.name+' before uploading.',p.name);
+      var blueprint=String(p.blueprintId||'').trim();
+      if(blueprint&&!/^avtr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(blueprint))throw failure('review.invalidId','Save a valid Avatar ID for '+p.name+' before uploading.',p.name);
+      return {id:p.id,name:p.name,platforms:platforms,blueprint:blueprint,configuration:p};
+    });
+    return {avatar:avatarName||state.avatarRoot||'Selected avatar',presets:rows,defaults:state.defaults||{}};
+  }
+  function uploadConfigWrite(path){
+    var endpoint=path.split('?')[0].split('/').pop(),query=path.split('?')[1]||'';
+    var opMatch=query.match(/(?:^|&)op=([^&]*)/),op=opMatch?decodeURIComponent(opMatch[1]):'';
+    var mutation=op&&op!=='get';
+    if(['batch_defaults_set','batch_config_set','batch_preset_config','preset_include','preset_save','preset_delete','preset_remove_item','preset_show','batch_preset_from_scene','batch_import'].includes(endpoint))return true;
+    if(endpoint==='batch_preset_blends')return !!mutation||/(?:^|&)(bs|weight|pinned)=/.test(query);
+    if(endpoint==='batch_preset_items')return !!mutation||/(?:^|&)(item|include)=/.test(query);
+    if(['menu_groups','batch_preset_faceemo','batch_item'].includes(endpoint))return !!mutation;
+    return false;
+  }
+  global.WardrobeUploadModels={draftIdentity:draftIdentity,createDraftStore:createDraftStore,presetReview:presetReview,uploadConfigWrite:uploadConfigWrite};
+  global.WardrobeUploadCopy={
+  "upload.draft.discard": "Discard changes",
+  "upload.draft.discardConfirm": "Discard unsaved Defaults and Avatar ID changes for this avatar?",
+  "upload.defaults.identity": "Upload identity",
+  "upload.defaults.hint": "Defaults apply when presets are uploaded. Save changes with the Save button above.",
+  "upload.defaults.name": "Name template",
+  "upload.defaults.description": "Description template",
+  "upload.defaults.release": "Release",
+  "upload.defaults.private": "Private",
+  "upload.defaults.public": "Public",
+  "upload.defaults.tags": "Tags",
+  "upload.defaults.version": "Description version text",
+  "upload.defaults.versionReplace": "Replace description",
+  "upload.defaults.versionAppend": "Append a line",
+  "upload.defaults.thumbnail": "Thumbnail",
+  "upload.defaults.capture": "Capture method",
+  "upload.defaults.captureAuto": "Automatic front view",
+  "upload.defaults.captureScene": "Current Unity Scene view",
+  "upload.defaults.captureImage": "Image file",
+  "upload.defaults.imagePath": "Image path",
+  "upload.defaults.imageHelp": "Use a project path such as Assets/Thumbnails/avatar.png, or an absolute image path on the computer running Unity. Missing files fall back to an avatar capture.",
+  "upload.defaults.background": "Background color",
+  "upload.defaults.colorHelp": "Hex color: RRGGBB or RRGGBBAA, with or without #.",
+  "upload.defaults.automation": "Advanced automation",
+  "upload.defaults.sps": "Detect SPS/DPS content",
+  "upload.defaults.spsHelp": "Adds the Sexually Suggestive tag when SPS or DPS components are detected.",
+  "upload.defaults.sdkFix": "Apply suggested SDK fixes",
+  "upload.defaults.sdkFixHelp": "Attempts to accept fixes offered by VRChat SDK alerts during setup.",
+  "upload.defaults.consent": "Confirm SDK ownership dialog in Unity",
+  "upload.defaults.consentHelp": "Automatically confirms the SDK copyright and ownership dialog in the Unity setup flow. Browser preset uploads confirm this dialog automatically.",
+  "upload.defaults.optimization": "Texture optimization",
+  "upload.defaults.optimize": "Optimize textures when creating a new avatar",
+  "upload.defaults.optimizeHelp": "Reduces texture import resolution to lower video memory use during Express setup.",
+  "upload.defaults.optimizeAsk": "Ask before optimizing in Unity",
+  "upload.defaults.optimizeAskHelp": "Browser uploads apply enabled optimization without a separate prompt.",
+  "upload.defaults.maxResolution": "Maximum resolution (pixels)",
+  "upload.defaults.minResolution": "Minimum resolution (pixels)",
+  "upload.defaults.includeShared": "Include shared items",
+  "upload.defaults.invalidColor": "Enter a background color as RRGGBB or RRGGBBAA.",
+  "upload.defaults.invalidResolution": "Minimum texture resolution cannot exceed the maximum.",
+  "upload.review.title": "Review preset upload",
+  "upload.review.back": "Back to presets",
+  "upload.review.create": "Create a new VRChat avatar",
+  "upload.review.warning": "This upload cannot be cancelled once it starts. Unity will stage and upload the selected presets in order.",
+  "upload.review.changed": "Settings changed while this review was open. Check the updated details before uploading.",
+  "upload.review.dirty": "Save or discard the unsaved changes shown above before reviewing an upload.",
+  "upload.review.saving": "Settings are still saving. Wait for them to finish, then review the upload again.",
+  "upload.review.busy": "An upload is already running. Wait for it to finish.",
+  "upload.review.sdk": "Connect the VRChat SDK and sign in before uploading.",
+  "upload.review.avatarChanged": "The dressing avatar changed. Close this review and choose the upload again.",
+  "upload.review.connectionChanged": "The avatar connection changed. Close this review and try again.",
+  "upload.preset.commonHelp": "Items here are included with every preset.",
+  "upload.preset.remove": "Remove preset",
+  "upload.preset.noPlatform": "No platform selected"
+};
+  Object.assign(global.WardrobeUploadCopy,{
+    'upload.draft.ids':'Avatar IDs ({0})',
+    'upload.draft.unsaved':'Unsaved changes: {0}. Save them before uploading.',
+    'upload.draft.restored':'Restored unsaved changes: {0}. Save them before uploading.',
+    'upload.draft.kept':'Draft kept for this avatar in this browser tab.',
+    'upload.draft.temporary':'Draft kept while this avatar session is connected.',
+    'upload.review.avatarLabel':'Dressing avatar:',
+    'upload.review.oneSelected':'1 preset selected. Common Preset items are included.',
+    'upload.review.manySelected':'{0} presets selected. Common Preset items are included with each.',
+    'upload.review.update':'Update existing avatar:',
+    'upload.review.release':'Release setting:',
+    'upload.review.uploadOne':'Upload 1 preset',
+    'upload.review.uploadMany':'Upload {0} presets',
+    'upload.preset.sharedCount':'Shared items: {0}',
+    'upload.preset.itemCount':'Items: {0}',
+    'upload.preset.include':'Include in batch upload',
+    'upload.review.missing':'A selected preset is no longer available. Refresh and choose it again.',
+    'upload.review.noPlatform':'Choose at least one platform for {0} before uploading.',
+    'upload.review.invalidId':'Save a valid Avatar ID for {0} before uploading.',
+    'upload.review.unappliedItems':'Unapplied item edits: {0}. Review and apply or discard them before uploading.',
+    'upload.review.reviewItemEdits':'Review item edits'
+  });
   global.WardrobeUpload=function(options){
-    var request=options.api,avatarContext="",contextRevision=0;
+    var request=options.api,avatarContext="",contextRevision=0,pendingConfigWrites=0;
     function api(path,opts){
       var revision=contextRevision;
+      var writing=uploadConfigWrite(path);
+      if(writing)pendingConfigWrites++;
       return request(path,opts).then(function(result){
         if(revision!==contextRevision)throw new Error("Avatar changed; previous response discarded.");
         return result;
-      });
+      }).finally(function(){if(writing)pendingConfigWrites--;});
     }
     var T=options.T,toast=options.toast,esc=options.esc,spinner=options.spinner;
+    function U(key){key="upload."+key;var value=T(key);if(value===key)value=global.WardrobeUploadCopy[key]||key;for(var i=1;i<arguments.length;i++)value=value.split('{'+(i-1)+'}').join(arguments[i]);return value;}
   var separateUploads=false,sdkReady=false,sdkLoggedIn=false,sdkKnown=false;
   function paintSdkReadiness(){
     var notice=upEl("upSdkNotice");
@@ -21,9 +151,35 @@
       button.disabled=!sdkReady;button.title=sdkReady?'':message;
     });
   }
-  var BS=null, upTab="presets", upJobTimer=null, upJobPolling=false, upStateFlight=null, upJobToken=0;
+  var BS=null, upTab="presets", upJobTimer=null, upJobPolling=false, upStateFlight=null, upJobToken=0,upRunning=false;
   var R=global.WardrobeRuntime, defaultsDirty=false, defaultsSignature="", unassignedToken=0;
   var upEl=function(id){ return document.getElementById(id); };
+  var draftStorage;try{draftStorage=global.sessionStorage;}catch(error){}
+  var draftStore=createDraftStore(draftStorage),draftScope=null,defaultsPendingDraft=null,draftRestored=false,reviewAvatarName='';
+  function formValues(){var values={};upEl('upDefsForm').querySelectorAll('input,select').forEach(function(input){values[input.id||'tag:'+input.dataset.dtag]=input.type==='checkbox'?input.checked:input.value;});return values;}
+  function saveDraft(){
+    if(!draftScope)return;
+    var defaults=defaultsDirty?(defaultsPendingDraft||formValues()):null;
+    draftStore.write(draftScope,defaults||Object.keys(upBlueprintDrafts).length?{defaults:defaults,blueprints:upBlueprintDrafts}:null);
+    paintDraftStatus();
+  }
+  function paintDraftStatus(){
+    var status=upEl('upDraftStatus');
+    if(!status){status=document.createElement('div');status.id='upDraftStatus';status.className='up-draft-status';status.setAttribute('role','status');status.innerHTML=("<span></span><button type=\"button\">"+esc(U("draft.discard"))+"</button>");upEl('upload').insertBefore(status,upEl('upSdkNotice'));
+      status.querySelector('button').onclick=function(){if(!confirm(U("draft.discardConfirm")))return;defaultsDirty=false;defaultsPendingDraft=null;defaultsSignature='';upBlueprintDrafts={};draftRestored=false;draftStore.write(draftScope,null);renderDefs();renderPresets();paintDraftStatus();};}
+    var count=Object.keys(upBlueprintDrafts).length;status.hidden=!defaultsDirty&&!count;
+    status.querySelector('button').textContent=U('draft.discard');
+    var parts=[];if(defaultsDirty)parts.push(T('nav.defaults'));if(count)parts.push(U('draft.ids',count));
+    status.querySelector('span').textContent=U(draftRestored?'draft.restored':'draft.unsaved',parts.join(' · '))+' '+U(draftScope&&draftScope.persistent?'draft.kept':'draft.temporary');
+  }
+  function loadDraftScope(installed){
+    var next=draftIdentity(installed,avatarContext);reviewAvatarName=installed.avatarName||'';
+    if(draftScope&&draftScope.key===next.key)return;
+    draftScope=next;var saved=draftStore.read(next);
+    defaultsPendingDraft=saved&&saved.defaults||null;defaultsDirty=!!defaultsPendingDraft;
+    upBlueprintDrafts=saved&&saved.blueprints||{};draftRestored=!!saved;defaultsSignature='';
+    paintDraftStatus();
+  }
   function upSetTab(t){
     upTab=t;
     upEl("upTabPresets").classList.toggle("on",t==="presets");
@@ -41,6 +197,7 @@
     upStateFlight=Promise.all([api("/api/batch_state"),api("/api/installed")]).then(function(results){
       var d=results[0],installed=results[1];
       if(!d||!d.ok){ toast((d&&d.message)||T("upload.failed"),"err"); return null; }
+      loadDraftScope(installed||{});
       d.common={id:'common',name:T('preset.common'),members:((installed&&installed.items)||[]).filter(function(item){return !item.target||item.target==='common';}).map(function(item){return {guid:item.guid,path:item.path||'',name:item.family+(item.variant&&item.variant!=='Default'?' — '+item.variant:'')};})};
       BS=d;
       if(upTab==="presets"){ renderPresets(); renderUnassigned(); }
@@ -50,6 +207,7 @@
     return upStateFlight;
   }
   function upShowJob(label,canCancel){
+    upRunning=true;
     upEl("upJob").hidden=false;
     upEl("upJobLabel").textContent=label;
     upEl("upJobBar").style.width="0%";
@@ -60,6 +218,7 @@
   }
   function upStopPoll(){ if(upJobTimer){ clearInterval(upJobTimer); upJobTimer=null; } }
   function upEndJob(ok,msg){
+    upRunning=false;
     upEl("upJobSpin").innerHTML="";
     upEl("upJobLabel").textContent=T(ok?"upload.complete":"upload.finishedErrors");
     if(ok)upEl("upJobBar").style.width="100%";
@@ -158,14 +317,14 @@
     if(!presets.length){ list.innerHTML="<div class="+qq("up-empty")+">"+esc(T("upload.noSets"))+"</div>"; return; }
     R.reconcile(list,presets,function(p){return p.id;},function(){var node=document.createElement("div");node.className="up-card";return node;},function(node,p){
       if(Object.prototype.hasOwnProperty.call(upBlueprintDrafts,p.id)&&node.contains(document.activeElement)&&document.activeElement.hasAttribute("data-blueprint")) return;
-      var signature=JSON.stringify(p)+"|"+!!upExpanded[p.id]+"|"+separateUploads+"|"+T("upload.upload");
+      var open=!separateUploads||!!upExpanded[p.id];
+      var signature=JSON.stringify(p)+"|"+open+"|"+separateUploads+"|"+T("upload.upload")+'|'+(upBlueprintDrafts[p.id]||'');
       if(node._signature===signature) return;
       node._signature=signature;node.dataset.preset=p.id;
       var html="";
-      var open=true;
       if(p.id==='common'){
-        node.innerHTML=(separateUploads?'<div class="up-row"><span class="up-name">'+esc(T('preset.common'))+'</span></div><p class="subtle">Common Preset contains items shared by all other presets.</p>':'')+'<section class="up-panel up-items-section" data-panel="items"><div data-itembody></div></section>';
-        wirePresetPanels(p.id,node);return;
+        node.innerHTML=(separateUploads?'<div class="up-row up-preset-summary"><button class="up-name" data-pact="exp" aria-expanded="'+open+'">'+esc(T('preset.common'))+'</button><span class="up-preset-meta">'+esc(U('preset.sharedCount',(p.members||[]).length))+'</span></div>':'')+(open?'<div class="up-detail">'+(separateUploads?("<p class=\"subtle\">"+esc(U("preset.commonHelp"))+"</p>"):'')+'<section class="up-panel up-items-section" data-panel="items"><div data-itembody></div></section></div>':'');
+        if(open)wirePresetPanels(p.id,node);return;
       }
       if(!separateUploads){
         node.innerHTML='<div class="up-row"><span class="up-name">'+esc(p.name)+'</span><button data-pact="rename">Rename</button><button class="danger" data-pact="removepreset">Remove</button><button data-pact="showunity">Show in Unity</button></div><section class="up-panel up-items-section" data-panel="items"><div data-itembody></div></section>';
@@ -173,15 +332,13 @@
         return;
       }
       var plats=((p.win?"Windows ":"")+(p.and?"Android ":"")+(p.ios?"iOS":"")).replace(/ +$/,"");
-      html+="<div class="+qq("up-row")+">"
+      html+="<div class="+qq("up-row up-preset-summary")+">"
         
-        +"<span class="+qq("up-name")+">"+esc(p.name)+"</span>"
-        +'<button data-pact="rename">Rename</button><button class="danger" data-pact="removepreset">Remove</button>'
-        +"<span class="+qq("up-plats")+">"+esc(plats)+"</span>"
-        +'<button data-pact="showunity">Show in Unity</button>'
+        +'<button class="up-name" data-pact="exp" aria-expanded="'+open+'">'+esc(p.name)+'</button>'
+        +'<span class="up-preset-meta">'+esc(U('preset.itemCount',(p.members||[]).length))+' · '+esc(plats||U("preset.noPlatform"))+'</span>'
         
         +"<button data-pact="+qq("upload")+">"+esc(T("upload.upload"))+"</button>"
-      html+='</div><label class="up-formrow"><input type="checkbox" role="switch" data-pinc'+(p.include?' checked':'')+'> Include in batch upload</label>';
+      html+='</div><label class="up-formrow"><input type="checkbox" role="switch" data-pinc'+(p.include?' checked':'')+'> '+esc(U('preset.include'))+'</label>';
       if(open) html+="<div class="+qq("up-detail")+"></div>";
       node.innerHTML=html;
       var detail=node.querySelector(".up-detail");
@@ -194,7 +351,7 @@
   function upFillPreset(id,box){
     var p=upFindPreset(id);
     if(!p){ box.innerHTML=""; return; }
-    var h="";
+    var h=("<div class=\"up-formrow\"><button data-pact=\"rename\">Rename</button><button data-pact=\"showunity\">Show in Unity</button><button class=\"danger\" data-pact=\"removepreset\">"+esc(U("preset.remove"))+"</button></div>");
     h+='<div class="up-formrow"><label><input type="checkbox" data-pcfg="win"'+(p.win?' checked':'')+'> Windows</label>';
     h+='<label><input type="checkbox" data-pcfg="and"'+(p.and?' checked':'')+'> Android</label>';
     h+='<label><input type="checkbox" data-pcfg="ios"'+(p.ios?' checked':'')+'> iOS</label></div>';
@@ -321,7 +478,7 @@
         .then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||'Assignment failed.');upGroups[id]=r.groups||[];upItemsRender(id,card.querySelector('[data-itembody]'));toast('Menu group saved in Unity and toggles regenerated.','ok');upRefreshState();if(options.onChange)options.onChange();})
         .catch(function(e){toast(e.message,'err');upItemsRender(id,card.querySelector('[data-itembody]'));}).finally(function(){if(el.isConnected)el.disabled=false;});
     }
-    else if(act==="exp"){ if(upExpanded[id]) delete upExpanded[id]; else upExpanded[id]=true; renderPresets(); }
+    else if(act==="exp"){var open=!upExpanded[id];upExpanded={};if(open)upExpanded[id]=true;renderPresets();var summary=Array.from(upEl('upList').children).find(function(node){return node.dataset.preset===id;});if(summary)summary.querySelector('[data-pact="exp"]').focus();}
     else if(act==="showunity"){
       el.disabled=true;
       api("/api/preset_show?id="+encodeURIComponent(id)).then(function(result){
@@ -337,11 +494,12 @@
       el.disabled=true;
       api('/api/batch_preset_config?id='+encodeURIComponent(id)+'&blueprint='+encodeURIComponent(value)).then(function(result){
         if(!result||!result.ok) throw new Error(result&&result.message||T("upload.failed"));
-        delete upBlueprintDrafts[id];var p=upFindPreset(id);if(p)p.blueprintId=value;
+        if(upBlueprintDrafts[id]===input.value&&input.value.trim()===value)delete upBlueprintDrafts[id];var p=upFindPreset(id);if(p)p.blueprintId=value;
+        saveDraft();
         toast(T("upload.saved"),"ok");upRefreshState();
       }).catch(function(error){toast(error.message,"err");}).finally(function(){el.disabled=false;});
     }
-    else if(act==="upload"){ if(!confirm(T("upload.confirmOne"))) return; upStartJob("/api/batch_upload_presets?ids="+encodeURIComponent(id),T("upload.uploading"),false); }
+    else if(act==="upload"){ openUploadReview([id]); }
     else if(act==="locate"){ api("/api/batch_ping_object?guid="+encodeURIComponent(el.getAttribute("data-guid")||"")); }
     else if(act==="bscap"){ api("/api/batch_preset_blends?id="+encodeURIComponent(id)+"&op=capture").then(function(d){ if(d&&!d.ok) toast(d.message,"err"); var b=card.querySelector("[data-bsbody]"); if(b) upBsLoad(id,b); upRefreshState(); }); }
     else if(act==="bsclear"){ api("/api/batch_preset_blends?id="+encodeURIComponent(id)+"&op=clear").then(function(){ var b=card.querySelector("[data-bsbody]"); if(b) upBsLoad(id,b); upRefreshState(); }); }
@@ -367,7 +525,7 @@
     else if(act) upGo(act,t);
   });
   upEl("upList").addEventListener("input",function(e){
-    if(e.target.hasAttribute('data-blueprint')){upBlueprintDrafts[upPid(e.target)]=e.target.value;return;}
+    if(e.target.hasAttribute('data-blueprint')){var id=upPid(e.target),saved=(upFindPreset(id)||{}).blueprintId||'';if(e.target.value===saved)delete upBlueprintDrafts[id];else upBlueprintDrafts[id]=e.target.value;saveDraft();return;}
     var t=e.target;
     if(!t||!t.getAttribute) return;
     if(t.hasAttribute("data-bssearch")){ var nm=upPid(t); upBsSearch[nm]=t.value; var pos=t.selectionStart; var card=t; while(card&&!(card.getAttribute&&card.getAttribute("data-preset"))) card=card.parentNode; var body=card?card.querySelector("[data-bsbody]"):null; if(body){ upBsRender(nm,body); var ni=body.querySelector("[data-bssearch]"); if(ni){ ni.focus(); try{ ni.setSelectionRange(pos,pos); }catch(x){} } } }
@@ -399,7 +557,7 @@
     var button=upEl("upNew");button.disabled=true;
     api("/api/preset_save?name="+encodeURIComponent(name)).then(async function(result){
       if(!result||!result.ok)throw new Error(result&&result.message||'Could not create preset.');
-      if(result.id)upExpanded[result.id]=true;
+      if(result.id){upExpanded={};upExpanded[result.id]=true;}
       if(options.onPresetCreated)await options.onPresetCreated(result);
       await upRefreshState();
       toast(result.message||'Preset created.','ok');
@@ -409,9 +567,65 @@
     if(!BS||!BS.presets) return;
     var ids=BS.presets.filter(function(p){ return p.include; }).map(function(p){ return p.id; });
     if(!ids.length){ toast(T("upload.noneIncluded"),"err"); return; }
-    if(!confirm(T("upload.confirmAll"))) return;
-    upStartJob("/api/batch_upload_presets?ids="+encodeURIComponent(ids.join("\n")),T("upload.uploading"),false);
+    openUploadReview(ids,true);
   };
+  function uploadEditBlocker(){
+    if(upRunning)return U('review.busy');
+    var itemEdits=unappliedItemEditCount();if(itemEdits)return U('review.unappliedItems',itemEdits);
+    if(pendingConfigWrites||(options.hasPendingChanges&&options.hasPendingChanges()))return U('review.saving');
+    if(defaultsDirty||Object.keys(upBlueprintDrafts).length)return U('review.dirty');
+    if(!sdkReady)return U('review.sdk');
+    return '';
+  }
+  function unappliedItemEditCount(){
+    var count=options.getUnappliedItemEdits?Number(options.getUnappliedItemEdits()):0;
+    return Number.isFinite(count)&&count>0?Math.floor(count):0;
+  }
+  function showUnappliedItemEdits(){
+    var count=unappliedItemEditCount();if(!count)return false;
+    upOpenModal(U('review.title'),'<p id="upReviewMessage" role="status">'+esc(U('review.unappliedItems',count))+'</p><div class="up-review-actions"><button id="upReviewBack">'+esc(U('review.back'))+'</button><button id="upReviewItemEdits" class="primary">'+esc(U('review.reviewItemEdits'))+'</button></div>');
+    upEl('upReviewBack').onclick=closeUploadModal;
+    var review=upEl('upReviewItemEdits');review.hidden=typeof options.reviewUnappliedItemEdits!=='function';
+    review.onclick=function(){closeUploadModal();if(options.reviewUnappliedItemEdits)options.reviewUnappliedItemEdits();};
+    return true;
+  }
+  function uploadErrorText(error){return error.copyKey?U.apply(null,[error.copyKey].concat(error.copyArgs||[])):error.message;}
+  async function openUploadReview(ids,all){
+    var blocked=uploadEditBlocker();if(blocked){if(!showUnappliedItemEdits()){toast(blocked,'err');paintDraftStatus();}return;}
+    var revision=contextRevision,state=await upRefreshState();
+    if(!state||revision!==contextRevision)return;
+    blocked=uploadEditBlocker();if(blocked){if(!showUnappliedItemEdits())toast(blocked,'err');return;}
+    try{
+      var selected=all?state.presets.filter(function(p){return p.include;}).map(function(p){return p.id;}):ids;
+      showUploadReview(presetReview(state,selected,reviewAvatarName),selected,all,revision,'');
+    }catch(error){toast(uploadErrorText(error),'err');}
+  }
+  function showUploadReview(model,ids,all,revision,message){
+    var count=model.presets.length;
+    var html='<div class="up-review-summary"><p>'+esc(U('review.avatarLabel'))+' <strong>'+esc(model.avatar)+'</strong></p><p>'+esc(U(count===1?'review.oneSelected':'review.manySelected',count))+'</p></div>'+
+      '<ul class="up-review-list">'+model.presets.map(function(p){return '<li><strong>'+esc(p.name)+'</strong><p>'+esc(p.platforms.join(', '))+'</p><p>'+(p.blueprint?esc(U('review.update'))+' <code>'+esc(p.blueprint)+'</code>':esc(U('review.create')))+'</p></li>';}).join('')+'</ul>'+
+      '<p>'+esc(U('review.release'))+' <strong>'+esc(U(model.defaults.release==='public'?'defaults.public':'defaults.private'))+'</strong></p><p class="up-review-warning">'+esc(U('review.warning'))+'</p>'+
+      '<p id="upReviewMessage" role="status">'+esc(message)+'</p><div class="up-review-actions"><button id="upReviewBack">'+esc(U('review.back'))+'</button><button id="upReviewConfirm" class="primary">'+esc(U(count===1?'review.uploadOne':'review.uploadMany',count))+'</button></div>';
+    upOpenModal(U('review.title'),html);
+    upEl('upReviewBack').onclick=closeUploadModal;
+    upEl('upReviewConfirm').onclick=async function(){
+      var button=this;button.disabled=true;
+      try{
+        var blocked=uploadEditBlocker();if(blocked){if(showUnappliedItemEdits())return;throw new Error(blocked);}
+        if(revision!==contextRevision)throw new Error(U('review.avatarChanged'));
+        // Read again at commitment: never upload a changed target using an old review.
+        var state=await upRefreshState();
+        if(!state||revision!==contextRevision)throw new Error(U('review.connectionChanged'));
+        blocked=uploadEditBlocker();if(blocked){if(showUnappliedItemEdits())return;throw new Error(blocked);}
+        var selected=all?state.presets.filter(function(p){return p.include;}).map(function(p){return p.id;}):ids;
+        var current=presetReview(state,selected,reviewAvatarName);
+        if(JSON.stringify(current)!==JSON.stringify(model)){showUploadReview(current,selected,all,revision,U('review.changed'));return;}
+        closeUploadModal();
+        upStartJob('/api/batch_upload_presets?ids='+encodeURIComponent(selected.join('\n')),T('upload.uploading'),false);
+      }catch(error){if(upEl('upReviewMessage'))upEl('upReviewMessage').textContent=uploadErrorText(error);}
+      finally{if(button.isConnected)button.disabled=false;}
+    };
+  }
   var upContentTags = ["content_sex", "content_adult", "content_violence", "content_gore", "content_horror"];
   var upTagLabels = {"content_sex": "Sexually Suggestive", "content_adult": "Adult Language and Themes", "content_violence": "Graphic Violence", "content_gore": "Excessive Gore", "content_horror": "Extreme Horror"};
   function renderDefs(){
@@ -420,34 +634,38 @@
     var d = BS.defaults || {};
     var signature=JSON.stringify(d)+"|"+T("upload.saved");
     upEl("upLog").textContent=BS.logTail||"";
-    if(defaultsDirty||defaultsSignature===signature) return;
+    if((defaultsDirty&&!defaultsPendingDraft)||defaultsSignature===signature) return;
     defaultsSignature=signature;
-    var h = "";
-    h += "<label>Name template <input id=" + qq("upDname") + " value=" + qq(esc(d.nameTemplate)) + "></label>";
+    var h = ("<fieldset class=\"up-default-group\"><legend>"+esc(U("defaults.identity"))+"</legend><p class=\"up-field-help\">"+esc(U("defaults.hint"))+"</p>");
+    h += ("<label>"+esc(U("defaults.name"))+" <input id=") + qq("upDname") + " value=" + qq(esc(d.nameTemplate)) + "></label>";
     h += "<div class=" + qq("up-sub") + ">Tokens: {preset}, {avatar}</div>";
-    h += "<label>Description template <input id=" + qq("upDdesc") + " value=" + qq(esc(d.descTemplate)) + "></label>";
-    h += "<label>Release <select id=" + qq("upDrel") + "><option value=" + qq("private") + (d.release === "public" ? "" : " selected") + ">private</option><option value=" + qq("public") + (d.release === "public" ? " selected" : "") + ">public</option></select></label>";
-    h += "<div>Tags ";
+    h += ("<label>"+esc(U("defaults.description"))+" <input id=") + qq("upDdesc") + " value=" + qq(esc(d.descTemplate)) + "></label>";
+    h += ("<label>"+esc(U("defaults.release"))+" <select id=") + qq("upDrel") + "><option value=" + qq("private") + (d.release === "public" ? "" : " selected") + (">"+esc(U("defaults.private"))+"</option><option value=") + qq("public") + (d.release === "public" ? " selected" : "") + (">"+esc(U("defaults.public"))+"</option></select></label>");
+    h += ("<div>"+esc(U("defaults.tags"))+" ");
     var tagmap = {};
     (d.tags || []).forEach(function(t){ tagmap[t.key] = t.on; });
     upContentTags.forEach(function(t){ h += "<label><input type=" + qq("checkbox") + " data-dtag=" + qq(t) + (tagmap[t] ? " checked" : "") + "> " + esc(upTagLabels[t] || t) + "</label> "; });
-    h += "</div>";
-    h += "<label>Thumb mode <select id=" + qq("upDthumb") + "><option value=" + qq("scene") + (d.thumbMode === "scene" ? " selected" : "") + ">auto</option><option value=" + qq("sceneview") + (d.thumbMode === "sceneview" ? " selected" : "") + ">scene view</option><option value=" + qq("image") + (d.thumbMode === "image" ? " selected" : "") + ">image</option></select></label>";
-    h += "<label>Thumb image <input id=" + qq("upDthumbimg") + " value=" + qq(esc(d.thumbImage)) + "></label>";
-    h += "<label>BG color <input id=" + qq("upDbg") + " value=" + qq(esc(d.bgColor)) + " size=" + qq("8") + "></label>";
-    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDautosps") + (d.autoSps ? " checked" : "") + "> Auto SPS tag</label>";
-    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDautofix") + (d.autoFix ? " checked" : "") + "> Auto SDK fixes</label>";
-    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDautoconsent") + (d.autoConsent ? " checked" : "") + "> Auto consent</label>";
-    h += "<div>VRAM: <label><input type=" + qq("checkbox") + " id=" + qq("upDopten") + (d.optEnabled ? " checked" : "") + "> optimize on Express</label>";
-    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDoptask") + (d.optAsk ? " checked" : "") + "> ask first</label>";
-    h += "<label>cap <select id=" + qq("upDoptmax") + ">";
+    h += ("</div><label>"+esc(U("defaults.version"))+" <select id=\"upDvmode\"><option value=\"0\"")+(d.versionMode?'':' selected')+(">"+esc(U("defaults.versionReplace"))+"</option><option value=\"1\"")+(d.versionMode?' selected':'')+(">"+esc(U("defaults.versionAppend"))+"</option></select></label></fieldset>");
+    h += ("<fieldset class=\"up-default-group\"><legend>"+esc(U("defaults.thumbnail"))+"</legend>");
+    h += ("<label>"+esc(U("defaults.capture"))+" <select id=") + qq("upDthumb") + "><option value=" + qq("scene") + (d.thumbMode === "scene" ? " selected" : "") + (">"+esc(U("defaults.captureAuto"))+"</option><option value=") + qq("sceneview") + (d.thumbMode === "sceneview" ? " selected" : "") + (">"+esc(U("defaults.captureScene"))+"</option><option value=") + qq("image") + (d.thumbMode === "image" ? " selected" : "") + (">"+esc(U("defaults.captureImage"))+"</option></select></label>");
+    h += ("<div id=\"upThumbFileFields\" class=\"up-dependent\"><label>"+esc(U("defaults.imagePath"))+" <input id=\"upDthumbimg\" aria-describedby=\"upThumbFileHelp\" value=\"")+esc(d.thumbImage)+("\"></label><p id=\"upThumbFileHelp\" class=\"up-field-help\">"+esc(U("defaults.imageHelp"))+"</p></div>");
+    h += ("<div id=\"upThumbCaptureFields\" class=\"up-dependent\"><label>"+esc(U("defaults.background"))+" <input id=\"upDbg\" aria-describedby=\"upColorHelp\" value=\"")+esc(d.bgColor)+("\" size=\"10\"></label><p id=\"upColorHelp\" class=\"up-field-help\">"+esc(U("defaults.colorHelp"))+"</p></div></fieldset>");
+    h += ("<fieldset class=\"up-default-group\"><legend>"+esc(U("defaults.automation"))+"</legend>");
+    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDautosps") + (d.autoSps ? " checked" : "") + ("> "+esc(U("defaults.sps"))+"</label><p class=\"up-field-help\">"+esc(U("defaults.spsHelp"))+"</p>");
+    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDautofix") + (d.autoFix ? " checked" : "") + ("> "+esc(U("defaults.sdkFix"))+"</label><p class=\"up-field-help\">"+esc(U("defaults.sdkFixHelp"))+"</p>");
+    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDautoconsent") + (d.autoConsent ? " checked" : "") + ("> "+esc(U("defaults.consent"))+"</label><p class=\"up-field-help\">"+esc(U("defaults.consentHelp"))+"</p></fieldset>");
+    h += ("<fieldset class=\"up-default-group\"><legend>"+esc(U("defaults.optimization"))+"</legend>");
+    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDopten") + (d.optEnabled ? " checked" : "") + ("> "+esc(U("defaults.optimize"))+"</label><p class=\"up-field-help\">"+esc(U("defaults.optimizeHelp"))+"</p><div id=\"upOptimizationFields\" class=\"up-dependent\">");
+    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDoptask") + (d.optAsk ? " checked" : "") + ("> "+esc(U("defaults.optimizeAsk"))+"</label><p class=\"up-field-help\">"+esc(U("defaults.optimizeAskHelp"))+"</p>");
+    h += ("<label>"+esc(U("defaults.maxResolution"))+" <select id=") + qq("upDoptmax") + ">";
     [256, 512, 1024, 2048, 4096].forEach(function(n){ h += "<option" + (d.optMaxRes === n ? " selected" : "") + ">" + n + "</option>"; });
-    h += "</select></label><label>floor <select id=" + qq("upDoptmin") + ">";
+    h += ("</select></label><label>"+esc(U("defaults.minResolution"))+" <select id=") + qq("upDoptmin") + ">";
     [0, 256, 512, 1024, 2048].forEach(function(n){ h += "<option value=" + qq(String(n)) + (d.optMinRes === n ? " selected" : "") + ">" + (n === 0 ? "none" : n) + "</option>"; });
     h += "</select></label>";
-    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDoptitems") + (d.optItems ? " checked" : "") + "> include items</label></div>";
-    h += "<div>Version mode <select id=" + qq("upDvmode") + "><option value=" + qq("0") + (d.versionMode ? "" : " selected") + ">replace description</option><option value=" + qq("1") + (d.versionMode ? " selected" : "") + ">append line</option></select></div>";
+    h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDoptitems") + (d.optItems ? " checked" : "") + ("> "+esc(U("defaults.includeShared"))+"</label></div></fieldset>");
     el.innerHTML = h;
+    if(defaultsPendingDraft){var restored=defaultsPendingDraft;el.querySelectorAll('input,select').forEach(function(input){var key=input.id||'tag:'+input.dataset.dtag;if(Object.prototype.hasOwnProperty.call(restored,key)){if(input.type==='checkbox')input.checked=!!restored[key];else input.value=restored[key];}});defaultsPendingDraft=null;}
+    paintDefaultDependencies();paintDraftStatus();
     api("/api/batch_item").then(function(it){
       var box = upEl("upItemDefs");
       if(!it || !it.ok){ box.textContent = (it && it.message) || ""; return; }
@@ -462,11 +680,15 @@
     });
     upEl("upLog").textContent = BS.logTail || "";
   }
-  upEl("upDefsForm").addEventListener("input",function(){defaultsDirty=true;});
-  upEl("upDefsForm").addEventListener("change",function(){defaultsDirty=true;});
+  function paintDefaultDependencies(){if(!upEl('upDthumb'))return;upEl('upThumbFileFields').hidden=upEl('upDthumb').value!=='image';upEl('upThumbCaptureFields').hidden=upEl('upDthumb').value==='image';upEl('upOptimizationFields').hidden=!upEl('upDopten').checked;}
+  upEl("upDefsForm").addEventListener("input",function(){defaultsDirty=true;saveDraft();});
+  upEl("upDefsForm").addEventListener("change",function(){defaultsDirty=true;paintDefaultDependencies();saveDraft();});
   upEl("upDefsSave").onclick = function(){
     var g = function(id){ var n = upEl(id); return n ? n.value : ""; };
     var c = function(id){ var n = upEl(id); return n && n.checked ? "1" : "0"; };
+    if(g('upDthumb')!=='image'&&!/^#?(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(g('upDbg'))){toast(U('defaults.invalidColor'),'err');upEl('upDbg').focus();return;}
+    if(c('upDopten')==='1'&&Number(g('upDoptmin'))>Number(g('upDoptmax'))){toast(U('defaults.invalidResolution'),'err');upEl('upDoptmin').focus();return;}
+    var savingValues=JSON.stringify(formValues());
     var url = "/api/batch_defaults_set?nameTemplate=" + encodeURIComponent(g("upDname"))
       + "&descTemplate=" + encodeURIComponent(g("upDdesc"))
       + "&release=" + encodeURIComponent(g("upDrel"))
@@ -487,7 +709,8 @@
       return api("/api/batch_config_set?versionMode="+encodeURIComponent(versionMode));
     }).then(function(d){
       if(!d||!d.ok)throw new Error((d&&d.message)||T("upload.failed"));
-      defaultsDirty=false;defaultsSignature="";
+      if(JSON.stringify(formValues())===savingValues){defaultsDirty=false;defaultsSignature="";}
+      saveDraft();
       toast(T("upload.saved"),"ok");
       upRefreshState();
     }).catch(function(error){toast(error.message||T("upload.failed"),"err");})
@@ -519,6 +742,7 @@
       var result=await api("/api/batch_import", {method:"POST", headers:{"Content-Type":"application/json"}, body:text});
       if(!result||!result.ok)throw new Error((result&&result.message)||T("upload.failed"));
       defaultsDirty=false;defaultsSignature="";
+      defaultsPendingDraft=null;saveDraft();
       toast(result.message||T("upload.saved"),"ok");
       upRefreshState();
     }catch(error){toast(error.message||T("upload.failed"),"err");}
@@ -530,20 +754,24 @@
       sdkKnown=true;sdkLoggedIn=!!loggedIn;sdkReady=!!ready;paintSdkReadiness();
     },setContext:function(key){
       if(avatarContext===key)return;
+      saveDraft();
       avatarContext=key;contextRevision++;unassignedToken++;
       BS=null;upStateFlight=null;
       upExpanded={};upPanelOpen={};upBlueprintDrafts={};
       upBlendCache={};upItemCache={};upBsSearch={};upGroups={};
       defaultsDirty=false;defaultsSignature="";
+      draftScope=null;defaultsPendingDraft=null;draftRestored=false;reviewAvatarName='';
+      if(!upEl('upModal').hidden)closeUploadModal();
       // Upload jobs belong to the server session, not to the browsed avatar.
       // Keep their progress and polling alive while avatar-specific panels reset.
       ["upList","upUnassigned","upDefsForm","upItemDefs","upLog"].forEach(function(id){var node=upEl(id);if(node)node.innerHTML="";});
       renderPresets();
+      paintDraftStatus();
     },setSeparateUploads:function(enabled){
       if(separateUploads===enabled) return;
       separateUploads=enabled;
       if(!enabled&&upTab==="defs") upSetTab("presets");
       renderPresets();
-    },localize:function(){if(!upEl("upload").hidden) upRefreshState();}};
+    },localize:function(){paintDraftStatus();if(!upEl("upload").hidden) upRefreshState();}};
   };
 })(window);

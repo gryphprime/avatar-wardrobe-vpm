@@ -84,6 +84,86 @@ namespace OutfitToggleGenerator
             Undo.PerformRedo(); Assert.IsTrue(body.sharedMaterial == original); Assert.AreEqual(35, body.GetBlendShapeWeight(0)); Assert.IsTrue(coat.activeSelf);
             Assert.AreEqual(savedPosition, coat.transform.localPosition); Assert.AreEqual(1, coat.transform.GetSiblingIndex()); Assert.IsTrue(option.isDefault);
         }
+
+        [Test] public void ItemSettingsGroupOnlyUpdatesAllCopiesInSelectedPreset()
+        {
+            var selected = AvatarWardrobePresets.SavePreset("", "Selected settings"); Assert.IsTrue(selected.ok, selected.message);
+            var other = AvatarWardrobePresets.SavePreset("", "Other settings"); Assert.IsTrue(other.ok, other.message);
+            var selectedHolder = root.transform.Find(selected.preset.legacyPath); var otherHolder = root.transform.Find(other.preset.legacyPath);
+            Assert.IsNotNull(selectedHolder); Assert.IsNotNull(otherHolder);
+            coat.transform.SetParent(selectedHolder, false);
+            var prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(folder + "/Coat.prefab");
+            var selectedCopy = (GameObject)PrefabUtility.InstantiatePrefab(prefabAsset); selectedCopy.transform.SetParent(selectedHolder, false); selectedCopy.name = "Coat Copy";
+            var otherCopy = (GameObject)PrefabUtility.InstantiatePrefab(prefabAsset); otherCopy.transform.SetParent(otherHolder, false); otherCopy.name = "Other Coat";
+            var guid = AssetDatabase.AssetPathToGUID(folder + "/Coat.prefab");
+            var group = AvatarWardrobePresets.UpdateMenuGroup(selected.preset.id, "", "Settings group", "", guid, "save");
+            Assert.IsNotEmpty(group);
+            var beforeOther = AvatarWardrobePresets.MenuGroups(other.preset.id).SelectMany(g => g.paths).ToArray();
+            var result = AvatarWardrobeServer.SetItemSettings(guid, selected.preset.id, true, group, false, false);
+            Assert.AreEqual(1, result.ok, result.message);
+            var paths = AvatarWardrobePresets.MenuGroups(selected.preset.id).SelectMany(g => g.paths).ToArray();
+            Assert.AreEqual(2, paths.Length);
+            Assert.IsTrue(paths.Contains(AnimationUtility.CalculateTransformPath(coat.transform, avatar.transform)));
+            Assert.IsTrue(paths.Contains(AnimationUtility.CalculateTransformPath(selectedCopy.transform, avatar.transform)));
+            Assert.AreEqual(beforeOther, AvatarWardrobePresets.MenuGroups(other.preset.id).SelectMany(g => g.paths).ToArray());
+            Assert.IsNotNull(otherCopy);
+            Assert.IsFalse(OutfitToggleGenerator.HasPartToggles(coat));
+            Assert.IsFalse(OutfitToggleGenerator.HasPartToggles(selectedCopy));
+        }
+        [Test] public void ItemSettingsToggleOnlyPreservesGroupsAndOtherPresets()
+        {
+            var selected = AvatarWardrobePresets.SavePreset("", "Toggle settings"); Assert.IsTrue(selected.ok, selected.message);
+            var other = AvatarWardrobePresets.SavePreset("", "Untouched settings"); Assert.IsTrue(other.ok, other.message);
+            var holder = root.transform.Find(selected.preset.legacyPath);
+            coat.transform.SetParent(holder, false);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(folder + "/Coat.prefab");
+            var copy = (GameObject)PrefabUtility.InstantiatePrefab(prefab, holder); copy.name = "Second Coat";
+            var untouched = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform.Find(other.preset.legacyPath));
+            var guid = AssetDatabase.AssetPathToGUID(folder + "/Coat.prefab");
+            var group = AvatarWardrobePresets.UpdateMenuGroup(selected.preset.id, "", "Keep group", "", guid, "save");
+            AvatarWardrobePresets.UpdateMenuGroup(selected.preset.id, group, null, AnimationUtility.CalculateTransformPath(coat.transform, avatar.transform), guid, "assign");
+            var before = AvatarWardrobePresets.MenuGroups(selected.preset.id).SelectMany(g => g.paths).ToArray();
+            var result = AvatarWardrobeServer.SetItemSettings(guid, selected.preset.id, false, null, true, true);
+            Assert.AreEqual(1, result.ok, result.message);
+            Assert.IsTrue(OutfitToggleGenerator.HasPartToggles(coat));
+            Assert.IsTrue(OutfitToggleGenerator.HasPartToggles(copy));
+            Assert.IsFalse(OutfitToggleGenerator.HasPartToggles(untouched));
+            CollectionAssert.AreEqual(before, AvatarWardrobePresets.MenuGroups(selected.preset.id).SelectMany(g => g.paths).ToArray());
+        }
+        [Test] public void ItemSettingsFailureRollsBackEarlierMenuAssignment()
+        {
+            var selected = AvatarWardrobePresets.SavePreset("", "Rollback settings"); Assert.IsTrue(selected.ok, selected.message);
+            coat.transform.SetParent(root.transform.Find(selected.preset.legacyPath), false);
+            var guid = AssetDatabase.AssetPathToGUID(folder + "/Coat.prefab");
+            var group = AvatarWardrobePresets.UpdateMenuGroup(selected.preset.id, "", "Atomic group", "", guid, "save");
+            OutfitToggleGenerator.GeneratePartToggles(avatar, coat);
+            var host = coat.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true).First(x => x.generatedKind == "part-toggles");
+            var custom = new GameObject("User-owned content"); custom.transform.SetParent(host.transform, false);
+            Undo.FlushUndoRecordObjects();
+            var before = AvatarWardrobePresets.CaptureSettings();
+            var invalid = AvatarWardrobeServer.SetItemSettings(guid, selected.preset.id, true, "unknown-group", false, false);
+            Assert.AreEqual(0, invalid.ok); Assert.AreEqual(before, AvatarWardrobePresets.CaptureSettings());
+            // Group assignment succeeds first; removing a mixed generated/user tree
+            // then fails. The transaction must restore the earlier settings write.
+            LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("InvalidOperationException: Part toggles contain user content"));
+            var result = AvatarWardrobeServer.SetItemSettings(guid, selected.preset.id, true, group, true, false);
+            Assert.AreEqual(0, result.ok);
+            Assert.AreEqual(before, AvatarWardrobePresets.CaptureSettings());
+            Assert.IsEmpty(AvatarWardrobePresets.MenuGroups(selected.preset.id).SelectMany(g => g.paths));
+            Assert.IsTrue(custom != null); Assert.AreEqual(host.transform, custom.transform.parent);
+            Assert.IsTrue(OutfitToggleGenerator.HasPartToggles(coat));
+        }
+        [Test] public void ItemSettingsRejectsDuplicateTransformPathsBeforeMutation()
+        {
+            var selected = AvatarWardrobePresets.SavePreset("", "Duplicate settings"); Assert.IsTrue(selected.ok, selected.message);
+            var holder = root.transform.Find(selected.preset.legacyPath); coat.transform.SetParent(holder, false);
+            var copy = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(folder + "/Coat.prefab")); copy.transform.SetParent(holder, false); copy.name = coat.name;
+            var guid = AssetDatabase.AssetPathToGUID(folder + "/Coat.prefab");
+            var group = AvatarWardrobePresets.UpdateMenuGroup(selected.preset.id, "", "Duplicate group", "", guid, "save");
+            var result = AvatarWardrobeServer.SetItemSettings(guid, selected.preset.id, true, group, false, false);
+            Assert.AreEqual(0, result.ok); StringAssert.Contains("same transform path", result.message);
+            Assert.IsEmpty(AvatarWardrobePresets.MenuGroups(selected.preset.id).SelectMany(g => g.paths));
+        }
         [Test] public void RestoreIncludesCommonBodyAndSelectedPresetButLeavesOtherPresetCopiesAlone()
         {
             var selected = AvatarWardrobePresets.SavePreset("", "Saved selection"); Assert.IsTrue(selected.ok, selected.message);

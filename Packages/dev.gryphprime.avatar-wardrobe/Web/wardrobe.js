@@ -26,6 +26,7 @@
   var listCache=new Map(),detailCache=new Map(),cardCache=new Map(),listItems=[];
   var listToken=0,listInflight=false,listController=null,gridNotice="",installedFlight=null,stateFlight=null;
   var previewActivity={active:0,queued:0},activityEntries=[],pollTimer=null;
+  var detailSettingDrafts=new Map(),installedIdentity=null;
   function cacheSet(map,key,value,cap){ map.delete(key); map.set(key,value); while(map.size>cap) map.delete(map.keys().next().value); }
   function dropCaches(){ listCache.clear(); detailCache.clear(); }
   function api(path,options){
@@ -352,6 +353,7 @@
       var signature=JSON.stringify([result.items,(lastState||{}).workflowPresets||[]])+"|"+avatarMode+"|"+effectivePreset()+"|"+langCode+"|"+previewContext;
       if(signature===sideContent.dataset.signature) return;
       sideContent.dataset.signature=signature; installedItems=result.items;
+      installedIdentity=result.projectId&&result.avatarId?JSON.stringify([result.projectId,result.avatarId]):null;
       var list=$("instlist"),groups=groupInstalledItems(installedItems,(lastState||{}).workflowPresets||[],!!avatarMode);
       R.reconcile(list,Array.from(groups.values()),function(group){return group.id;},function(){
         var group=document.createElement("details");group.className="installed-preset";group.open=true;
@@ -380,13 +382,14 @@
     return installedFlight;
   }
   function hud(){
-    var s=lastState||{},percent=s.hiTotal>0?Math.min(100,Math.round(100*s.hiBaked/s.hiTotal)):0;
-    R.text($("hudLow"),T(!connected?(s.desktop?"library.offlineReady":"status.reconnecting"):indexing?"banner.indexing":previewActivity.active?"status.rendering":"status.ready",indexDone,indexTotal));
+    var s=lastState||{},pending=previewActivity.active+previewActivity.queued;
+    R.text($("hudLow"),T(!connected?(s.desktop?"library.offlineReady":"status.reconnecting"):indexing?"banner.indexing":pending?"status.rendering":"status.browseReady",indexDone,indexTotal));
     R.text($("indexedCount"),s.outfits?T("status.indexed",s.outfits):"");
     R.text($("pendingCount"),s.dirty?"· "+T(s.dirty===1?"status.pending":"status.pending.other",s.dirty):"");
-    R.text($("hudHi"),s.hiTotal>0?T("hud.hi",s.hiBaked,s.hiTotal):T("activity.previews"));
-    R.text($("hudPercent"),s.hiTotal>0?percent+"%":"—");
-    $("hudHiBar").style.width=percent+"%"; $("hudHiBar").parentNode.setAttribute("aria-valuenow",String(percent));
+    R.text($("hudHi"),pending?T("preview.queue",previewActivity.active,previewActivity.queued):T("preview.idle"));
+    // Cache coverage is not a completion target: only the current grid and
+    // nearby items are warmed. Keep it in Activity, separate from actual work.
+    $("hudPercent").hidden=true; $("hudHiBar").parentNode.hidden=true;
     $("connectionDot").classList.toggle("offline",!connected);
     R.text($("connectionLabel"),T(connected?"status.connected":"status.disconnected"));
   }
@@ -394,7 +397,7 @@
     var s=lastState||{};
     R.text($("activityCatalog"),T("status.indexed",s.outfits||0));
     R.text($("activityIndexState"),indexing?T("banner.indexing",indexDone,indexTotal):s.dirty?T("banner.dirty",s.dirty):T("activity.current"));
-    R.text($("activityPreviews"),s.hiTotal?T("hud.hi",s.hiBaked,s.hiTotal):"—");
+    R.text($("activityPreviews"),s.hiTotal?T("preview.cacheCoverage",s.hiBaked,s.hiTotal):"—");
     R.text($("activityConnection"),T(connected?"status.connected":"status.disconnected"));
     if(activityEntries.length) R.reconcile($("activityLog"),activityEntries,function(e){return e.id;},function(){var n=document.createElement("li");n.innerHTML='<time></time><span></span>';return n;},function(n,e){R.text(n.querySelector("time"),e.time);R.text(n.querySelector("span"),e.message);n.className=e.type;});
   }
@@ -426,7 +429,7 @@
       var avatarChanged=nextContext!==contextKey;
       if(avatarChanged){
         closeModal(true);detailLoadToken++;detailToken++;
-        installedFlight=null;installedItems=[];sideContent.dataset.signature="";$("instlist").innerHTML="";
+        installedFlight=null;installedItems=[];installedIdentity=null;sideContent.dataset.signature="";$("instlist").innerHTML="";
         listToken++;if(listController)listController.abort();listInflight=false;
         dropCaches();listItems=[];cardCache.clear();renderGrid();
         selectedPreset="common";$("workflowPreset").innerHTML="";
@@ -498,7 +501,12 @@
       if(token!==detailLoadToken) return;
       if(!d||!d.variants) throw new Error((d&&d.message)||T("err.notfound"));
       cacheSet(detailCache,id,d,96);renderDetail(d,selGuid,instance);
-    }).catch(function(error){if(token===detailLoadToken){toast(error.message||T("err.notfound"),"err");closeModal();}});
+    }).catch(function(error){if(token===detailLoadToken){
+      R.text(modalTitle,T("detail.loadFailed"));
+      modalContent.innerHTML='<div class="detail-load-error" role="status"><p></p><button type="button">'+esc(T("grid.retry"))+'</button></div>';
+      R.text(modalContent.querySelector('p'),error.message||T("err.notfound"));
+      modalContent.querySelector('button').onclick=function(){openDetail(id,selGuid,instance);};
+    }});
   }
 
   function renderDetail(d,selGuid,instance){
@@ -587,6 +595,7 @@
     }
     function selectVariant(n){
       if(detailBusy()) return;
+      presetsReady=false;settingsReady=false;
       i=n; v=variants[n]; detailVariantGuid=v.guid;detailIndex=n; detailSelect=selectVariant;
       var count=document.getElementById("dVariantCount");
       if(count) count.textContent=variants.length>1?T("detail.variant.count",n+1,variants.length):"";
@@ -601,7 +610,7 @@
       document.getElementById("dVarBody").innerHTML=variantBody();
       var familyInstalled=d.variants.some(function(x){ return !!x.installed; });
       document.getElementById("dAllowWrap").innerHTML=
-        '<details class="technical"><summary>'+esc(T("detail.advancedOptions"))+'</summary><label class="allow"><input type="checkbox" id="dCreateToggles" disabled> Generate toggles</label><div class="subtle">Create independent toggles for each child object in the prefab.</div><div id="dToggleStatus" class="subtle" role="status" aria-live="polite"></div>'+
+        '<details class="technical"><summary>'+esc(T("detail.advancedOptions"))+'</summary><label class="allow"><input type="checkbox" id="dCreateToggles" disabled> '+esc(T('detail.generateToggles'))+'</label><div class="subtle">'+esc(T('detail.generateTogglesHint'))+'</div><div id="dToggleStatus" class="subtle" role="status" aria-live="polite"></div>'+
         '<label class="allow"><input type="checkbox" id="dCompatibleOverride"'+(v.compatibleOverride?' checked':'')+'> '+esc(T("detail.compatibleOverride"))+'</label>' +'</details>';
       document.getElementById("dCompatibleOverride").onchange=function(){
         var box=this, guid=v.guid, enabled=box.checked, saved=false;
@@ -621,20 +630,20 @@
           toast(error.message,"err");
         });
       };
-      document.getElementById("dPresetWrap").innerHTML='<label for="dPreset">'+esc(T("detail.preset.tag"))+'</label><div class="preset-row"><select id="dPreset"></select><button id="dNewPreset" title="'+esc(T("detail.newPreset"))+'">+</button></div>';
-      document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend','<div id="dGroupWrap" hidden><label for="dGroup">Menu Group</label><div class="preset-row"><select id="dGroup"><option value="">No menu group</option></select><button id="dNewGroup" title="New menu group">+</button></div><div id="dGroupStatus" class="subtle" role="status" aria-live="polite"></div></div>');
+      document.getElementById("dPresetWrap").innerHTML='<label for="dPreset">'+esc(T("detail.preset.tag"))+'</label><div class="preset-row"><select id="dPreset" disabled></select><button id="dNewPreset" title="'+esc(T("detail.newPreset"))+'">+</button></div><div id="dPresetFeedback" class="detail-load-error" hidden><p id="dPresetStatus" class="subtle" role="status"></p><button id="dPresetRetry" type="button" hidden>'+esc(T('grid.retry'))+'</button></div>';
+      document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend','<div id="dGroupWrap" hidden><label for="dGroup">'+esc(T('detail.menuGroup'))+'</label><div class="preset-row"><select id="dGroup"><option value="">No menu group</option></select><button id="dNewGroup" title="New menu group">+</button></div><div id="dGroupStatus" class="subtle" role="status" aria-live="polite"></div></div>');
       var wornFamily=installedItems.filter(function(item){return item.familyId===d.id && item.target===effectivePreset();});
       document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend',
         '<label for="dWearMode">'+esc(T('wear.action'))+'</label><select id="dWearMode"><option value="wear">'+esc(T('wear.apply'))+'</option>'+
         (wornFamily.length?'<option value="replace">'+esc(T('wear.replace'))+'</option>':'')+'<option value="copy">'+esc(T('wear.copy'))+'</option></select>'+
         '<label for="dReplaceCopy">'+esc(T('wear.replaceCopy'))+'</label><select id="dReplaceCopy">'+wornFamily.map(function(item){return '<option value="'+item.instanceId+'">'+esc(item.path+' — '+item.variant)+'</option>';}).join('')+'</select>'+
-        '<p class="subtle">'+esc(T('wear.semantics'))+'</p>');
+        '<p id="dSaveSemantics" class="subtle"></p><div id="dSettingsStatus" class="subtle" role="status" aria-live="polite"></div>');
       document.getElementById('dWearMode').value=wornFamily.length&&!v.installed?'replace':'wear';
       var replaceSelect=document.getElementById('dReplaceCopy');
       function paintWearMode(){replaceSelect.hidden=document.getElementById('dWearMode').value!=='replace';replaceSelect.previousElementSibling.hidden=replaceSelect.hidden;}
       document.getElementById('dWearMode').onchange=paintWearMode;paintWearMode();
       var action='<button id="dTryOn">Try on</button><button id="dRemove" class="danger" hidden>Remove</button>'+
-        '<button id="dAddPreset" class="primary">'+esc(T("wear.apply"))+"</button>";
+        '<button id="dAddPreset" class="primary">'+esc(T("wear.apply"))+'</button><button id="dCancelSettings" type="button" hidden>'+esc(T('detail.cancelSettings'))+'</button><button id="dApplySettings" type="button" class="primary" hidden>'+esc(T('detail.applySettings'))+'</button>';
       document.getElementById("dActs").innerHTML=action+
         (aiAvailable?'<button id="dAi">'+esc(T("detail.ai"))+"</button>":"");
       wireActions();
@@ -642,61 +651,75 @@
       var dtok=++detailToken;
       loadDetailThumb(v.guid,dtok);
     }
-    var lastPresets=[],installedPresets=[],groupLoadToken=0;
+    var lastPresets=[],installedPresets=[],groupLoadToken=0,presetLoadToken=0,presetsReady=false,settingsReady=false;
     function refreshPresets(){
       var guid=v.guid;
       return Promise.all([api("/api/presets"),api('/api/prefab_presets?guid='+encodeURIComponent(guid))]).then(function(results){
-        var p=results[0];p.installedPresets=results[1].presets||[];return p;
-      }).catch(function(){ return null; });
+        var p=results[0],memberships=results[1];
+        if(!p||!Array.isArray(p.presets)||!memberships||!Array.isArray(memberships.presets))throw new Error(T('detail.presetLoadFailed'));
+        p.installedPresets=memberships.presets;return p;
+      });
     }
     function presetNameOf(id){
-      for(var k=0;k<lastPresets.length;k++) if(lastPresets[k]&&lastPresets[k].id===id) return lastPresets[k].name||"";
-      return "";
+      var choices=lastPresets.concat((lastState||{}).workflowPresets||[]);
+      for(var k=0;k<choices.length;k++)if(choices[k]&&choices[k].id===id)return choices[k].name||'';
+      return '';
     }
-    function fillPresetSelect(sel,list){
-      lastPresets=(list&&list.presets)||[];
-      installedPresets=(list&&list.installedPresets)||[];
-      function installed(id){return installedPresets.some(function(p){return p.id===id;})?" (installed)":"";}
+    function validPreset(id){return id==='common'||lastPresets.some(function(p){return p.id===id;});}
+    function fillPresetSelect(sel,list,desired){
+      var cur=desired||(sel.value&&sel.value!=='__new'?sel.value:instance?instance.target||'common':effectivePreset());
+      lastPresets=list.presets;installedPresets=list.installedPresets;
+      function installed(id){return installedPresets.some(function(p){return p.id===id;})?" ("+T('detail.installed')+")":"";}
       sel.innerHTML="";
-      var common=document.createElement("option");common.value="common";common.textContent=T("preset.common")+installed("common");sel.appendChild(common);
-      lastPresets.forEach(function(p){
-        var o=document.createElement("option");
-        o.value=p.id;
-        o.textContent=p.name+installed(p.id);
-        sel.appendChild(o);
-      });
-      var n=document.createElement("option");
-      n.value="__new";
-      n.textContent=T("detail.newPreset");
-      sel.appendChild(n);
-      var cur=instance?instance.target||"common":effectivePreset();
-      var has=false;
-      for(var k=0;k<sel.options.length;k++) if(sel.options[k].value===cur){ has=true; break; }
-      sel.value=has?cur:"common";
+      function option(id,name,disabled){var o=document.createElement('option');o.value=id;o.textContent=name;o.disabled=!!disabled;sel.appendChild(o);}
+      option('common',T('preset.common')+installed('common'));
+      lastPresets.forEach(function(p){option(p.id,p.name+installed(p.id));});
+      if(!validPreset(cur))option(cur,T('detail.presetUnavailable'),true);
+      option('__new',T('detail.newPreset'));
+      sel.value=cur;
+    }
+    function setDetailReady(ready){
+      var add=$('dAddPreset'),tryOn=$('dTryOn'),remove=$('dRemove');
+      if(remove)remove.disabled=!ready||!detailInstanceId||installInFlight;
+      if(add)add.disabled=!ready||installInFlight;
+      if(tryOn)tryOn.disabled=!ready||!operations.enabled()||installInFlight;
     }
     function loadPresetSelect(sel){
-      sel.disabled=true;
+      var token=++presetLoadToken,desired=sel.value&&sel.value!=='__new'?sel.value:instance?instance.target||'common':effectivePreset();
+      presetsReady=false;settingsReady=false;groupLoadToken++;sel.disabled=true;setDetailReady(false);
+      if(!sel.options.length){var option=document.createElement('option');option.value=desired;option.textContent=desired==='common'?T('preset.common'):presetNameOf(desired)||T('detail.selectedPreset');sel.appendChild(option);sel.value=desired;}
+      $('dPresetFeedback').hidden=false;R.text($('dPresetStatus'),T('detail.loadingPresets'));$('dPresetRetry').hidden=true;
       refreshPresets().then(function(list){
-        if(!sel.isConnected) return;
-        fillPresetSelect(sel,list);
-        sel.disabled=false;
+        if(!sel.isConnected||token!==presetLoadToken)return;
+        fillPresetSelect(sel,list,desired);presetsReady=true;sel.disabled=false;
         paintPresetStatus();
+      }).catch(function(error){
+        if(!sel.isConnected||token!==presetLoadToken)return;
+        presetsReady=false;settingsReady=false;setDetailReady(false);$('dPresetFeedback').hidden=false;
+        R.text($('dPresetStatus'),T('detail.presetLoadFailed')+' '+error.message);
+        $('dPresetRetry').hidden=false;$('dPresetRetry').onclick=function(){loadPresetSelect(sel);};
       });
     }
     function createPresetFlow(sel){
+      if(installInFlight)return;
       var name=prompt(T("detail.presetName"));
       if(name==null){ if(sel.value==="__new") loadPresetSelect(sel); else paintPresetStatus(); return; }
+      var token=++presetLoadToken,button=$('dNewPreset');
+      presetsReady=false;settingsReady=false;groupLoadToken++;sel.disabled=true;setDetailReady(false);
+      installInFlight=true;if(button)button.disabled=true;
       api("/api/preset_save?name="+encodeURIComponent(name)).then(function(r){
-        if(r&&r.ok){
-          toast(r.message,"ok");
-          return presetCreated(r).then(refreshPresets).then(function(list){
-            if(!sel.isConnected) return;
-            fillPresetSelect(sel,list);
-            if(r.id) sel.value=r.id;
-            paintPresetStatus();
-          });
-        }else toast((r&&r.message)||T("detail.install.fail"),"err");
-      }).catch(function(){ toast(T("detail.install.fail"),"err"); });
+        if(!r||!r.ok)throw new Error(r&&r.message||T("detail.install.fail"));
+        toast(r.message,"ok");
+        return presetCreated(r).then(function(){
+          if(!sel.isConnected||token!==presetLoadToken)return;
+          // Preserve the newly created destination even if its follow-up read fails.
+          sel.innerHTML='';var option=document.createElement('option');option.value=r.id;option.textContent=name;sel.appendChild(option);sel.value=r.id;
+        });
+      }).catch(function(error){toast(error.message,"err");}).finally(function(){
+        installInFlight=false;
+        if(!sel.isConnected||token!==presetLoadToken)return;
+        if(button)button.disabled=false;loadPresetSelect(sel);
+      });
     }
     function deletePresetFlow(sel){
       var pid=sel.value;
@@ -708,18 +731,19 @@
       }).catch(function(){ toast(T("detail.install.fail"),"err"); });
     }
     function presetInstall(sel,common){
+      if(!presetsReady||!settingsReady||!sel||sel.disabled||($('dAddPreset')&&$('dAddPreset').disabled)||!validPreset(effectivePreset(common?'common':sel.value))){toast(T('detail.verifyPreset'),'err');return;}
       if(operations.enabled()){
         var target=effectivePreset(common?'common':sel.value);
         if(target==='__new'){createPresetFlow(sel);return;}
         var mode=$('dWearMode').value,replacement=$('dReplaceCopy').value,group=$('dGroup');
-        var input={variantId:v.guid,assetVersion:v.assetVersion,scopeId:target,createToggles:!!($('dCreateToggles')&&$('dCreateToggles').checked),menuGroup:group?group.value:'',addCopy:mode==='copy'};
+        var input={variantId:v.guid,assetVersion:v.assetVersion,scopeId:target,createToggles:!!($('dCreateToggles')&&$('dCreateToggles').checked),menuGroup:group&&group.value!=='__mixed'?group.value:'',addCopy:mode==='copy'};
         if(mode==='replace')input.instanceId=replacement;
         queueOutfit(mode==='replace'?'replace-outfit':'wear-outfit',input,d.name+' · '+v.variant);return;
       }
       if(installInFlight) return;
       var target=effectivePreset(common?"common":sel.value);
       common=target==="common";
-      var groupSelect=document.getElementById("dGroup"),groupId=groupSelect?groupSelect.value:"";
+      var groupSelect=document.getElementById("dGroup"),groupId=groupSelect&&groupSelect.value!=="__mixed"?groupSelect.value:"";
       if(!common&&(!target||target==="__new")){ createPresetFlow(sel); return; }
             installInFlight=true;
       var btn=document.getElementById("dAddPreset");
@@ -753,6 +777,9 @@
     function paintPresetStatus() {
       var preset=document.getElementById('dPreset'),wrap=document.getElementById('dGroupWrap'),select=document.getElementById('dGroup');
       if(!preset||!wrap)return;
+      settingsReady=false;setDetailReady(false);
+      if(!presetsReady||!validPreset(preset.value)){$('dPresetFeedback').hidden=false;R.text($('dPresetStatus'),T('detail.presetUnavailable'));return;}
+      R.text($('dPresetStatus'),'');$('dPresetRetry').hidden=true;$('dPresetFeedback').hidden=true;
       wrap.hidden=!preset.value||preset.value==='__new';
       if(wrap.hidden){select.value='';return;}
       var id=instance&&instance.guid===v.guid?instance.target||'common':effectivePreset(preset.value);
@@ -783,77 +810,68 @@
       if(!installedList){installedList=document.createElement('div');installedList.id='dInstalledPresets';installedList.className='subtle';document.getElementById('dPresetWrap').appendChild(installedList);}
       installedList.hidden=!avatarMode;
       installedList.textContent=installedPresets.length?'Installed in: '+installedPresets.map(function(p){return p.name;}).join(', '):'Not installed in any preset.';
-      var scope=id+'|'+v.guid,token=++groupLoadToken,add=document.getElementById('dAddPreset');
-      function feedback(kind,message,state){
-        var node=document.getElementById(kind==='group'?'dGroupStatus':'dToggleStatus');
-        if(node){node.textContent=message;node.dataset.state=state||'';}
+      var scope=id+'|'+v.guid,token=++groupLoadToken,guid=v.guid;
+      var partBox=$('dCreateToggles'),membership=installedPresets.find(function(p){return p.id===id;});
+      var draftKey=JSON.stringify([installedIdentity||contextKey,id,guid]),partKey='wardrobePartToggles|'+[(lastState||{}).avatarGuid||'',(lastState||{}).avatarName||'',scope].join('|');
+      var savedGroup='',savedToggles=membership?!!membership.partToggles:R.stored(partKey,'0')==='1',savedMixed=!!(membership&&membership.partTogglesMixed);
+      var apply=$('dApplySettings'),cancel=$('dCancelSettings'),status=$('dSettingsStatus');
+      R.text($('dSaveSemantics'),T(membership?'detail.editSemantics':'detail.newSemantics'));
+      function current(){return select.isConnected&&preset.value===id&&token===groupLoadToken;}
+      function pending(){return select.value!==savedGroup||partBox.checked!==savedToggles||partBox.indeterminate!==savedMixed;}
+      function paintPending(){
+        if(!current())return;
+        var dirty=pending();
+        if(dirty)cacheSet(detailSettingDrafts,draftKey,{identity:installedIdentity||contextKey,target:id,guid:guid,familyId:d.id,worn:!!membership,group:select.value,toggles:partBox.checked,mixed:partBox.indeterminate},64);else detailSettingDrafts.delete(draftKey);
+        apply.hidden=!membership||!dirty;cancel.hidden=!dirty;
+        $('dAddPreset').hidden=$('dTryOn').hidden=!!membership&&dirty;
+        var remove=$('dRemove');if(remove)remove.hidden=!membership||dirty;
+        apply.disabled=!settingsReady||installInFlight;cancel.disabled=installInFlight;
+        R.text(status,dirty?T(membership?'detail.settingsPending':'detail.settingsForWear'):'');
+        setDetailReady(settingsReady&&(!dirty||!membership));
       }
-      feedback('group','');feedback('toggles','');
-      var partBox=document.getElementById('dCreateToggles'),membership=installedPresets.find(function(p){return p.id===id;}),partKey='wardrobePartToggles|'+[(lastState||{}).avatarGuid||'',(lastState||{}).avatarName||'',scope].join('|');
-      if(partBox){
-        partBox.checked=membership?!!membership.partToggles:R.stored(partKey,"0")==="1";
-        partBox.indeterminate=!!(membership&&membership.partTogglesMixed);
-        partBox.disabled=true;
-        partBox.onchange=async function(){
-          var enabled=partBox.checked,guid=v.guid;
-          if(!membership){R.store(partKey,enabled?"1":"0");feedback('toggles','Will apply when you add this outfit.','pending');return;}
-          var previous=!!membership.partToggles,mixed=!!membership.partTogglesMixed;
-          feedback('toggles','Applying in Unity…','pending');
-          installInFlight=true;partBox.disabled=true;select.disabled=true;preset.disabled=true;if(add)add.disabled=true;
-          try{
-            var result=await api('/api/part_toggles?guid='+encodeURIComponent(guid)+'&target='+encodeURIComponent(id)+'&enabled='+(enabled?'1':'0'));
-            if(!result||!result.ok)throw new Error(result&&result.message||'Could not update part toggles.');
-            R.store(partKey,enabled?"1":"0");membership.partToggles=enabled?1:0;membership.partTogglesMixed=0;partBox.indeterminate=false;
-            feedback('toggles',enabled?'✓ Toggles generated in Unity.':'✓ Toggles removed in Unity.','saved');
-            toast(result.message,'ok');refreshState();
-          }catch(error){partBox.checked=previous;partBox.indeterminate=mixed;feedback('toggles',error.message,'error');toast(error.message,'err');}
-          finally{installInFlight=false;if(partBox.isConnected){partBox.disabled=false;select.disabled=false;preset.disabled=false;if(add)add.disabled=false;}}
-        };
-      }
-      if(select.dataset.scope!==scope){select.dataset.scope=scope;delete select.dataset.userChoice;select.value='';}
-      select.onchange=async function(){
-        select.dataset.userChoice='1';
-        var membership=installedPresets.find(function(p){return p.id===id;});
-        // New installs keep the choice until Add; existing copies save it immediately.
-        if(!membership){feedback('group','Will apply when you add this outfit.','pending');return;}
-        feedback('group','Applying in Unity…','pending');
-        var group=select.value,guid=v.guid,previous=select.dataset.savedGroup||'';
-        var paths=membership.paths&&membership.paths.length?membership.paths:[''];
-        installInFlight=true;select.disabled=true;preset.disabled=true;if(partBox)partBox.disabled=true;if(add)add.disabled=true;
+      function controls(busy){select.disabled=partBox.disabled=preset.disabled=busy;apply.disabled=cancel.disabled=busy;setDetailReady(!busy&&settingsReady&&(!pending()||!membership));}
+      partBox.checked=savedToggles;partBox.indeterminate=savedMixed;partBox.disabled=true;select.disabled=true;
+      select.onchange=partBox.onchange=paintPending;
+      cancel.onclick=function(){detailSettingDrafts.delete(draftKey);select.value=savedGroup;partBox.checked=savedToggles;partBox.indeterminate=savedMixed;paintPending();};
+      apply.onclick=async function(){
+        if(!current()||!settingsReady||!membership||installInFlight||!pending())return;
+        var group=select.value,toggles=partBox.checked,changeGroup=group!==savedGroup,changeToggles=toggles!==savedToggles||partBox.indeterminate!==savedMixed;
+        installInFlight=true;controls(true);R.text(status,T('detail.settingsApplying'));
         try{
-          for(var path of paths){
-            var result=await api('/api/menu_groups?id='+encodeURIComponent(id)+'&op=assign&group='+encodeURIComponent(group)+'&guid='+encodeURIComponent(guid)+'&item='+encodeURIComponent(path));
-            if(!result||!result.ok)throw new Error(result&&result.message||'Could not update the menu group.');
-          }
-          select.dataset.savedGroup=group;
-          feedback('group',group?'✓ Saved in Unity: '+select.selectedOptions[0].textContent+'.':'✓ Removed from menu group in Unity.','saved');
-          toast('Menu group updated and toggles regenerated.','ok');
-          dropCaches();refreshState();
-        }catch(error){
-          select.value=previous;delete select.dataset.userChoice;
-          feedback('group',error.message,'error');toast(error.message,'err');
-        }finally{
-          installInFlight=false;
-          if(select.isConnected){select.disabled=false;preset.disabled=false;if(partBox)partBox.disabled=false;if(add)add.disabled=false;}
-        }
+          var url='/api/item_settings?guid='+encodeURIComponent(guid)+'&target='+encodeURIComponent(id)+(changeGroup?'&group='+encodeURIComponent(group):'')+(changeToggles?'&toggles='+(toggles?'1':'0'):'');
+          var result=await api(url,{method:'POST'});
+          if(!result||!result.ok)throw new Error(result&&result.message||T('detail.settingsFailed'));
+          detailSettingDrafts.delete(draftKey);R.store(partKey,toggles?'1':'0');
+          if(changeGroup)savedGroup=group;
+          if(changeToggles){savedToggles=toggles;savedMixed=false;partBox.indeterminate=false;membership.partToggles=toggles?1:0;membership.partTogglesMixed=0;}
+          dropCaches();refreshState();loadInstalled();
+          if(current()){paintPending();R.text(status,T('detail.settingsSaved'));}
+        }catch(error){if(current())R.text(status,error.message);}
+        finally{installInFlight=false;if(current()){controls(false);apply.disabled=false;cancel.disabled=false;}}
       };
-      select.disabled=true;if(add)add.disabled=true;
       api('/api/menu_groups?id='+encodeURIComponent(id)).then(function(r){
-        if(!select.isConnected||preset.value!==id||token!==groupLoadToken)return;
-        if(!r||!r.ok)throw new Error(r&&r.message||'Could not load menu groups.');
-        var current=select.value,groups=r.groups||[],membership=installedPresets.find(function(p){return p.id===id;}),paths=membership?membership.paths||[]:[];
-        var assigned=groups.find(function(g){return (g.paths||[]).some(function(path){return paths.indexOf(path)>=0;});});
-        select.innerHTML='<option value="">No menu group</option>'+groups.map(function(g){return '<option value="'+esc(g.id)+'">'+esc(g.name)+'</option>';}).join('');
-        select.value=select.dataset.userChoice&&Array.from(select.options).some(function(o){return o.value===current;})?current:assigned?assigned.id:'';
-        select.dataset.savedGroup=assigned?assigned.id:'';
-        select.disabled=false;if(partBox)partBox.disabled=false;if(add&&!installInFlight)add.disabled=false;
-      }).catch(function(error){if(select.isConnected&&token===groupLoadToken)toast(error.message,'err');});
-      document.getElementById('dNewGroup').onclick=function(){
-        var name=prompt('Menu group name');if(name===null||!name.trim())return;
-        api('/api/menu_groups?id='+encodeURIComponent(id)+'&op=save&name='+encodeURIComponent(name.trim())).then(function(r){
-          if(!r||!r.ok){toast(r&&r.message||'Could not create menu group.','err');return;}
-          select.add(new Option(name.trim(),r.id));select.value=r.id;select.onchange();
-        });
+        if(!current())return;
+        if(!r||!r.ok||!Array.isArray(r.groups))throw new Error(r&&r.message||T('detail.groupsLoadFailed'));
+        var groups=r.groups,paths=membership?membership.paths||[]:[],assigned=paths.map(function(path){var group=groups.find(function(g){return (g.paths||[]).indexOf(path)>=0;});return group?group.id:'';});
+        var mixed=assigned.some(function(value){return value!==assigned[0];});savedGroup=mixed?'__mixed':assigned[0]||'';
+        select.innerHTML='<option value="">'+esc(T('detail.noMenuGroup'))+'</option>'+groups.map(function(g){return '<option value="'+esc(g.id)+'">'+esc(g.name)+'</option>';}).join('')+(mixed?'<option value="__mixed" disabled>'+esc(T('detail.mixedGroups'))+'</option>':'');
+        select.value=savedGroup;
+        var draft=detailSettingDrafts.get(draftKey);
+        if(draft){if(Array.from(select.options).some(function(o){return o.value===draft.group;}))select.value=draft.group;partBox.checked=draft.toggles;partBox.indeterminate=draft.mixed;}
+        settingsReady=true;select.disabled=false;partBox.disabled=false;paintPending();
+      }).catch(function(error){
+        if(!current())return;
+        settingsReady=false;setDetailReady(false);R.text($('dPresetStatus'),error.message);$('dPresetFeedback').hidden=false;
+        $('dPresetRetry').hidden=false;$('dPresetRetry').onclick=paintPresetStatus;
+      });
+      $('dNewGroup').onclick=async function(){
+        if(!settingsReady||installInFlight)return;
+        var name=prompt(T('detail.menuGroupName'));if(name===null||!name.trim())return;
+        try{
+          var r=await api('/api/menu_groups?id='+encodeURIComponent(id)+'&op=save&name='+encodeURIComponent(name.trim()));
+          if(!r||!r.ok)throw new Error(r&&r.message||T('detail.groupCreateFailed'));
+          if(!current())return;select.add(new Option(name.trim(),r.id));select.value=r.id;paintPending();
+        }catch(error){if(current())R.text(status,error.message);}
       };
     }
     function wireActions(){
@@ -925,13 +943,15 @@
         }
       };
       var tryOn=$('dTryOn');
-      if(tryOn){tryOn.disabled=!operations.enabled();tryOn.title=operations.enabled()?'Preview the complete avatar without changing the scene':'Open Library and Dressing Room from Unity first';tryOn.onclick=function(){
+      if(tryOn){tryOn.disabled=true;tryOn.title=T(operations.enabled()?'detail.tryOnHint':'detail.tryOnSetup');if(!operations.enabled()){var setup=document.createElement('p');setup.className='subtle';setup.textContent=T('detail.tryOnSetup');$('dPresetWrap').appendChild(setup);}tryOn.onclick=function(){
+        if(!presetsReady||!settingsReady||!validPreset($('dPreset').value))return;
         var input={variantId:v.guid,assetVersion:v.assetVersion,scopeId:effectivePreset($('dPreset').value),label:d.name+' · '+v.variant,createToggles:!!($('dCreateToggles')&&$('dCreateToggles').checked)};
         if($('dWearMode').value==='replace')input.instanceId=$('dReplaceCopy').value;
         snapshots.begin(input);closeModal();
       };}
       var rem=document.getElementById("dRemove");
       if(rem) rem.onclick=function(){
+        if(!presetsReady||!settingsReady||rem.disabled)return;
         var target=instance&&instance.guid===v.guid?instance.target||'common':effectivePreset(document.getElementById('dPreset').value);
         var name=avatarMode?(target==='common'?T('preset.common'):presetNameOf(target)):'avatar';
         var membership=installedPresets.find(function(p){return p.id===target;}),copy=document.getElementById('dInstance');
@@ -1036,7 +1056,18 @@
   window.WardrobeDragDrop.target($('side'),{outfit:function(payload){dropOutfit(payload,'wear-outfit');},error:function(message){toast(message,'err');}});
   window.WardrobeDragDrop.target($('library'),{files:function(files){window.WardrobeLibrary.addFiles(files);},error:function(message){toast(message,'err');}});
 
-  var uploadUI=new WardrobeUpload({api:api,T:T,toast:toast,esc:esc,spinner:spinner,onChange:refreshState,onPresetCreated:presetCreated});
+  function unappliedItemEdits(){
+    var identity=installedIdentity||contextKey;
+    return Array.from(detailSettingDrafts.values()).filter(function(draft){
+      return draft.worn&&draft.identity===identity&&installedItems.some(function(item){return item.guid===draft.guid&&item.target===draft.target;});
+    });
+  }
+  function reviewUnappliedItemEdits(){
+    var draft=unappliedItemEdits()[0];if(!draft)return;
+    var worn=installedItems.find(function(item){return item.guid===draft.guid&&item.target===draft.target;});
+    setBatchView('wardrobe');openDetail(draft.familyId,draft.guid,worn);
+  }
+  var uploadUI=new WardrobeUpload({api:api,T:T,toast:toast,esc:esc,spinner:spinner,onChange:refreshState,onPresetCreated:presetCreated,getUnappliedItemEdits:function(){return unappliedItemEdits().length;},reviewUnappliedItemEdits:reviewUnappliedItemEdits,hasPendingChanges:function(){return detailBusy()||modeSaving||baseSaving||R.pendingWrites()>0||operations.pending().length>0;}});
   function setBatchView(view){
     schedulePreviewDemand();
     if(Object.prototype.hasOwnProperty.call(viewFeatures,view)&&!viewFeatures[view]) return;

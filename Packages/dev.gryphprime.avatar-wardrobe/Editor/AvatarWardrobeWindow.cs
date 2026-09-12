@@ -65,6 +65,7 @@ namespace OutfitToggleGenerator
             GUILayout.Label(WardrobeStrings.T("win.browser"), EditorStyles.boldLabel);
             using (new EditorGUILayout.HorizontalScope())
             {
+                if (GUILayout.Button(WardrobeStrings.T("win.openDesktop"))) WardrobeDesktopLauncher.Open();
                 if (GUILayout.Button(WardrobeStrings.T("win.open")))
                 {
                     if (!AvatarWardrobeServer.Running && !AvatarWardrobeServer.Start())

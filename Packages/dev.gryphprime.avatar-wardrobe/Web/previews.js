@@ -11,7 +11,7 @@
     var activeCached = 0, activeRender = 0, maxCached = 4, maxRender = 3;
 
     function key(guid) { return epoch + ":" + guid; }
-    function notify() { if (options.onActivity) options.onActivity({active: active, queued: queue.length}); }
+    function notify() { if (options.onActivity) options.onActivity({active: active, queued: Math.max(0, jobs.size - active)}); }
     function remember(id, entry) {
       if (cache.get(id) === entry) return;
       if (cache.has(id)) bytes -= cache.get(id).blob.size;
@@ -306,6 +306,6 @@
     return {get: get, bind: bind, observe: observe, resume: resume, reset: reset, decode: decode, fallback: fallback, sweep: sweep,
       isUnavailable: function (guid) { return unavailable.has(key(guid)); },
       refresh: refresh,
-      stats: function () { return {active: active, queued: queue.length, cached: cache.size, bytes: bytes}; }};
+      stats: function () { return {active: active, queued: Math.max(0, jobs.size - active), cached: cache.size, bytes: bytes}; }};
   };
 })(window);

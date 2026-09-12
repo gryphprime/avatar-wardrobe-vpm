@@ -1114,7 +1114,7 @@
         },
         {
           "k": "activity.previews",
-          "v": "Previews"
+          "v": "High-res cache"
         },
         {
           "k": "activity.connection",
@@ -1414,7 +1414,7 @@
         },
         {
           "k": "wear.semantics",
-          "v": "New items apply with Wear. Existing menu and toggle changes save immediately; use Unity Undo to reverse them. Replacing preserves placement and menu position; material and body overrides need review."
+          "v": "New outfits apply with Wear. Menu and toggle edits on worn items use Apply settings or Cancel."
         },
         {
           "k": "library.empty",
@@ -1823,6 +1823,458 @@
         {
           "k": "grid.openLibrary",
           "v": "Open local library"
+        },
+        {
+          "k": "status.browseReady",
+          "v": "Ready to browse"
+        },
+        {
+          "k": "preview.queue",
+          "v": "Previews: {0} loading · {1} waiting"
+        },
+        {
+          "k": "preview.idle",
+          "v": "Previews idle"
+        },
+        {
+          "k": "preview.cacheCoverage",
+          "v": "{0} / {1} cached"
+        },
+        {
+          "k": "activity.cacheHint",
+          "v": "Current and nearby outfits warm while this page is open, including in background tabs. The uncached remainder is not a queued job."
+        },
+        {
+          "k": "detail.loadFailed",
+          "v": "Could not load this outfit"
+        },
+        {
+          "k": "detail.generateToggles",
+          "v": "Generate part toggles"
+        },
+        {
+          "k": "detail.generateTogglesHint",
+          "v": "Create independent toggles for each child object in this prefab."
+        },
+        {
+          "k": "detail.menuGroup",
+          "v": "Menu group"
+        },
+        {
+          "k": "detail.noMenuGroup",
+          "v": "No menu group"
+        },
+        {
+          "k": "detail.mixedGroups",
+          "v": "Different groups across copies"
+        },
+        {
+          "k": "detail.applySettings",
+          "v": "Apply settings"
+        },
+        {
+          "k": "detail.cancelSettings",
+          "v": "Cancel edits"
+        },
+        {
+          "k": "detail.presetLoadFailed",
+          "v": "Could not verify the destination preset. Retry before applying changes."
+        },
+        {
+          "k": "detail.presetUnavailable",
+          "v": "This preset is unavailable. Choose a destination."
+        },
+        {
+          "k": "detail.selectedPreset",
+          "v": "Selected preset"
+        },
+        {
+          "k": "detail.loadingPresets",
+          "v": "Checking destination and installed copies…"
+        },
+        {
+          "k": "detail.verifyPreset",
+          "v": "Wait for the destination preset to be verified, or retry loading it."
+        },
+        {
+          "k": "detail.editSemantics",
+          "v": "Applies to every copy of this variant in this preset. Use Apply settings to save."
+        },
+        {
+          "k": "detail.newSemantics",
+          "v": "Your menu and toggle choices apply when you choose Wear."
+        },
+        {
+          "k": "detail.settingsPending",
+          "v": "Unapplied changes · kept here while you browse."
+        },
+        {
+          "k": "detail.settingsForWear",
+          "v": "These choices will apply with Wear."
+        },
+        {
+          "k": "detail.settingsApplying",
+          "v": "Applying settings in Unity…"
+        },
+        {
+          "k": "detail.settingsFailed",
+          "v": "Could not apply settings. Your unapplied changes are kept here."
+        },
+        {
+          "k": "detail.settingsSaved",
+          "v": "Settings applied in Unity."
+        },
+        {
+          "k": "detail.groupsLoadFailed",
+          "v": "Could not load menu groups. Retry to continue."
+        },
+        {
+          "k": "detail.menuGroupName",
+          "v": "New menu group name"
+        },
+        {
+          "k": "detail.groupCreateFailed",
+          "v": "Could not create the menu group."
+        },
+        {
+          "k": "detail.tryOnHint",
+          "v": "Preview the complete avatar without changing the scene."
+        },
+        {
+          "k": "detail.tryOnSetup",
+          "v": "For Try on, open Tools > Avatar Wardrobe Desktop Library in Unity."
+        },
+        {
+          "k": "win.openDesktop",
+          "v": "Open Library and Dressing Room"
+        },
+        {
+          "k": "help.desktopSetup",
+          "v": "For the desktop Dressing room, open Tools > Avatar Wardrobe Desktop Library in Unity."
+        },
+        {
+          "k": "help.chooseTitle",
+          "v": "Choose your avatar"
+        },
+        {
+          "k": "help.chooseBody",
+          "v": "Select the avatar you want to dress in the header."
+        },
+        {
+          "k": "help.previewTitle",
+          "v": "Find a look"
+        },
+        {
+          "k": "help.previewBody",
+          "v": "Browse outfits and variants. In the desktop Dressing room, use Try on to preview the complete avatar before changing the scene."
+        },
+        {
+          "k": "help.wearTitle",
+          "v": "Wear it"
+        },
+        {
+          "k": "help.wearBody",
+          "v": "Wear applies a new outfit. For menu and toggle edits on worn items, choose Apply settings or Cancel."
+        },
+        {
+          "k": "help.uploadTitle",
+          "v": "Save a preset or upload"
+        },
+        {
+          "k": "help.uploadBody",
+          "v": "Use Upload Avatar for your current look, or enable Multiple avatars below to manage separate looks in Presets. Review the avatar and destination before uploading."
+        },
+        {
+          "k": "upload.draft.discard",
+          "v": "Discard changes"
+        },
+        {
+          "k": "upload.draft.discardConfirm",
+          "v": "Discard unsaved Defaults and Avatar ID changes for this avatar?"
+        },
+        {
+          "k": "upload.defaults.identity",
+          "v": "Upload identity"
+        },
+        {
+          "k": "upload.defaults.hint",
+          "v": "Defaults apply when presets are uploaded. Save changes with the Save button above."
+        },
+        {
+          "k": "upload.defaults.name",
+          "v": "Name template"
+        },
+        {
+          "k": "upload.defaults.description",
+          "v": "Description template"
+        },
+        {
+          "k": "upload.defaults.release",
+          "v": "Release"
+        },
+        {
+          "k": "upload.defaults.private",
+          "v": "Private"
+        },
+        {
+          "k": "upload.defaults.public",
+          "v": "Public"
+        },
+        {
+          "k": "upload.defaults.tags",
+          "v": "Tags"
+        },
+        {
+          "k": "upload.defaults.version",
+          "v": "Description version text"
+        },
+        {
+          "k": "upload.defaults.versionReplace",
+          "v": "Replace description"
+        },
+        {
+          "k": "upload.defaults.versionAppend",
+          "v": "Append a line"
+        },
+        {
+          "k": "upload.defaults.thumbnail",
+          "v": "Thumbnail"
+        },
+        {
+          "k": "upload.defaults.capture",
+          "v": "Capture method"
+        },
+        {
+          "k": "upload.defaults.captureAuto",
+          "v": "Automatic front view"
+        },
+        {
+          "k": "upload.defaults.captureScene",
+          "v": "Current Unity Scene view"
+        },
+        {
+          "k": "upload.defaults.captureImage",
+          "v": "Image file"
+        },
+        {
+          "k": "upload.defaults.imagePath",
+          "v": "Image path"
+        },
+        {
+          "k": "upload.defaults.imageHelp",
+          "v": "Use a project path such as Assets/Thumbnails/avatar.png, or an absolute image path on the computer running Unity. Missing files fall back to an avatar capture."
+        },
+        {
+          "k": "upload.defaults.background",
+          "v": "Background color"
+        },
+        {
+          "k": "upload.defaults.colorHelp",
+          "v": "Hex color: RRGGBB or RRGGBBAA, with or without #."
+        },
+        {
+          "k": "upload.defaults.automation",
+          "v": "Advanced automation"
+        },
+        {
+          "k": "upload.defaults.sps",
+          "v": "Detect SPS/DPS content"
+        },
+        {
+          "k": "upload.defaults.spsHelp",
+          "v": "Adds the Sexually Suggestive tag when SPS or DPS components are detected."
+        },
+        {
+          "k": "upload.defaults.sdkFix",
+          "v": "Apply suggested SDK fixes"
+        },
+        {
+          "k": "upload.defaults.sdkFixHelp",
+          "v": "Attempts to accept fixes offered by VRChat SDK alerts during setup."
+        },
+        {
+          "k": "upload.defaults.consent",
+          "v": "Confirm SDK ownership dialog in Unity"
+        },
+        {
+          "k": "upload.defaults.consentHelp",
+          "v": "Automatically confirms the SDK copyright and ownership dialog in the Unity setup flow. Browser preset uploads confirm this dialog automatically."
+        },
+        {
+          "k": "upload.defaults.optimization",
+          "v": "Texture optimization"
+        },
+        {
+          "k": "upload.defaults.optimize",
+          "v": "Optimize textures when creating a new avatar"
+        },
+        {
+          "k": "upload.defaults.optimizeHelp",
+          "v": "Reduces texture import resolution to lower video memory use during Express setup."
+        },
+        {
+          "k": "upload.defaults.optimizeAsk",
+          "v": "Ask before optimizing in Unity"
+        },
+        {
+          "k": "upload.defaults.optimizeAskHelp",
+          "v": "Browser uploads apply enabled optimization without a separate prompt."
+        },
+        {
+          "k": "upload.defaults.maxResolution",
+          "v": "Maximum resolution (pixels)"
+        },
+        {
+          "k": "upload.defaults.minResolution",
+          "v": "Minimum resolution (pixels)"
+        },
+        {
+          "k": "upload.defaults.includeShared",
+          "v": "Include shared items"
+        },
+        {
+          "k": "upload.defaults.invalidColor",
+          "v": "Enter a background color as RRGGBB or RRGGBBAA."
+        },
+        {
+          "k": "upload.defaults.invalidResolution",
+          "v": "Minimum texture resolution cannot exceed the maximum."
+        },
+        {
+          "k": "upload.review.title",
+          "v": "Review preset upload"
+        },
+        {
+          "k": "upload.review.back",
+          "v": "Back to presets"
+        },
+        {
+          "k": "upload.review.create",
+          "v": "Create a new VRChat avatar"
+        },
+        {
+          "k": "upload.review.warning",
+          "v": "This upload cannot be cancelled once it starts. Unity will stage and upload the selected presets in order."
+        },
+        {
+          "k": "upload.review.changed",
+          "v": "Settings changed while this review was open. Check the updated details before uploading."
+        },
+        {
+          "k": "upload.review.dirty",
+          "v": "Save or discard the unsaved changes shown above before reviewing an upload."
+        },
+        {
+          "k": "upload.review.saving",
+          "v": "Settings are still saving. Wait for them to finish, then review the upload again."
+        },
+        {
+          "k": "upload.review.busy",
+          "v": "An upload is already running. Wait for it to finish."
+        },
+        {
+          "k": "upload.review.sdk",
+          "v": "Connect the VRChat SDK and sign in before uploading."
+        },
+        {
+          "k": "upload.review.avatarChanged",
+          "v": "The dressing avatar changed. Close this review and choose the upload again."
+        },
+        {
+          "k": "upload.review.connectionChanged",
+          "v": "The avatar connection changed. Close this review and try again."
+        },
+        {
+          "k": "upload.preset.commonHelp",
+          "v": "Items here are included with every preset."
+        },
+        {
+          "k": "upload.preset.remove",
+          "v": "Remove preset"
+        },
+        {
+          "k": "upload.preset.noPlatform",
+          "v": "No platform selected"
+        },
+        {
+          "k": "upload.draft.ids",
+          "v": "Avatar IDs ({0})"
+        },
+        {
+          "k": "upload.draft.unsaved",
+          "v": "Unsaved changes: {0}. Save them before uploading."
+        },
+        {
+          "k": "upload.draft.restored",
+          "v": "Restored unsaved changes: {0}. Save them before uploading."
+        },
+        {
+          "k": "upload.draft.kept",
+          "v": "Draft kept for this avatar in this browser tab."
+        },
+        {
+          "k": "upload.draft.temporary",
+          "v": "Draft kept while this avatar session is connected."
+        },
+        {
+          "k": "upload.review.avatarLabel",
+          "v": "Dressing avatar:"
+        },
+        {
+          "k": "upload.review.oneSelected",
+          "v": "1 preset selected. Common Preset items are included."
+        },
+        {
+          "k": "upload.review.manySelected",
+          "v": "{0} presets selected. Common Preset items are included with each."
+        },
+        {
+          "k": "upload.review.update",
+          "v": "Update existing avatar:"
+        },
+        {
+          "k": "upload.review.release",
+          "v": "Release setting:"
+        },
+        {
+          "k": "upload.review.uploadOne",
+          "v": "Upload 1 preset"
+        },
+        {
+          "k": "upload.review.uploadMany",
+          "v": "Upload {0} presets"
+        },
+        {
+          "k": "upload.preset.sharedCount",
+          "v": "Shared items: {0}"
+        },
+        {
+          "k": "upload.preset.itemCount",
+          "v": "Items: {0}"
+        },
+        {
+          "k": "upload.preset.include",
+          "v": "Include in batch upload"
+        },
+        {
+          "k": "upload.review.missing",
+          "v": "A selected preset is no longer available. Refresh and choose it again."
+        },
+        {
+          "k": "upload.review.noPlatform",
+          "v": "Choose at least one platform for {0} before uploading."
+        },
+        {
+          "k": "upload.review.invalidId",
+          "v": "Save a valid Avatar ID for {0} before uploading."
+        },
+        {
+          "k": "upload.review.unappliedItems",
+          "v": "Unapplied item edits: {0}. Review and apply or discard them before uploading."
+        },
+        {
+          "k": "upload.review.reviewItemEdits",
+          "v": "Review item edits"
         }
       ]
     },
@@ -3068,7 +3520,7 @@
         },
         {
           "k": "wear.semantics",
-          "v": "新規アイテムは「着用」で適用されます。着用中のメニューとトグルの変更は即時保存され、Unity の元に戻すで復元できます。置換後のマテリアルと体型設定をご確認ください。"
+          "v": "新しい衣装は「着用」で適用します。着用済みアイテムのメニューとトグルの変更には「設定を適用」または「キャンセル」を使います。"
         },
         {
           "k": "library.empty",
@@ -3485,6 +3937,462 @@
         {
           "k": "settings.previewHint",
           "v": "このページを開いている間は、現在のグリッドを優先して高解像度プレビューをバックグラウンドで生成します。"
+        },
+        {
+          "k": "status.browseReady",
+          "v": "閲覧できます"
+        },
+        {
+          "k": "preview.queue",
+          "v": "プレビュー：{0} 件読み込み中・{1} 件待機中"
+        },
+        {
+          "k": "preview.idle",
+          "v": "プレビューの待機中"
+        },
+        {
+          "k": "preview.cacheCoverage",
+          "v": "{0} / {1} 件をキャッシュ済み"
+        },
+        {
+          "k": "activity.previews",
+          "v": "高解像度キャッシュ"
+        },
+        {
+          "k": "activity.cacheHint",
+          "v": "このページを開いている間は、バックグラウンドのタブでも現在表示中とその付近の衣装のプレビューを準備します。未キャッシュの残りすべてが処理待ちという意味ではありません。"
+        },
+        {
+          "k": "detail.loadFailed",
+          "v": "この衣装を読み込めませんでした"
+        },
+        {
+          "k": "detail.generateToggles",
+          "v": "パーツのトグルを生成"
+        },
+        {
+          "k": "detail.generateTogglesHint",
+          "v": "このプレハブの各子オブジェクトに個別のトグルを作成します。"
+        },
+        {
+          "k": "detail.menuGroup",
+          "v": "メニューグループ"
+        },
+        {
+          "k": "detail.noMenuGroup",
+          "v": "メニューグループなし"
+        },
+        {
+          "k": "detail.mixedGroups",
+          "v": "コピーごとに異なるグループ"
+        },
+        {
+          "k": "detail.applySettings",
+          "v": "設定を適用"
+        },
+        {
+          "k": "detail.cancelSettings",
+          "v": "編集をキャンセル"
+        },
+        {
+          "k": "detail.presetLoadFailed",
+          "v": "適用先のプリセットを確認できませんでした。変更を適用する前に再試行してください。"
+        },
+        {
+          "k": "detail.presetUnavailable",
+          "v": "このプリセットは利用できません。適用先を選択してください。"
+        },
+        {
+          "k": "detail.selectedPreset",
+          "v": "選択中のプリセット"
+        },
+        {
+          "k": "detail.loadingPresets",
+          "v": "適用先と着用中のコピーを確認中…"
+        },
+        {
+          "k": "detail.verifyPreset",
+          "v": "適用先の確認が終わるまで待つか、読み込みを再試行してください。"
+        },
+        {
+          "k": "detail.editSemantics",
+          "v": "このプリセット内のこのバリエーションのすべてのコピーに適用します。「設定を適用」で保存します。"
+        },
+        {
+          "k": "detail.newSemantics",
+          "v": "メニューとトグルの選択は「着用」を選ぶと適用されます。"
+        },
+        {
+          "k": "detail.settingsPending",
+          "v": "未適用の変更・閲覧中も保持されます。"
+        },
+        {
+          "k": "detail.settingsForWear",
+          "v": "この選択は「着用」で適用されます。"
+        },
+        {
+          "k": "detail.settingsApplying",
+          "v": "Unity に設定を適用中…"
+        },
+        {
+          "k": "detail.settingsFailed",
+          "v": "設定を適用できませんでした。未適用の変更は保持されています。"
+        },
+        {
+          "k": "detail.settingsSaved",
+          "v": "Unity に設定を適用しました。"
+        },
+        {
+          "k": "detail.groupsLoadFailed",
+          "v": "メニューグループを読み込めませんでした。再試行してください。"
+        },
+        {
+          "k": "detail.menuGroupName",
+          "v": "新しいメニューグループ名"
+        },
+        {
+          "k": "detail.groupCreateFailed",
+          "v": "メニューグループを作成できませんでした。"
+        },
+        {
+          "k": "detail.tryOnHint",
+          "v": "シーンを変更せずにアバター全体をプレビューします。"
+        },
+        {
+          "k": "detail.tryOnSetup",
+          "v": "試着するには、Unity で Tools > Avatar Wardrobe Desktop Library を開いてください。"
+        },
+        {
+          "k": "win.openDesktop",
+          "v": "ライブラリとドレッシングルームを開く"
+        },
+        {
+          "k": "help.desktopSetup",
+          "v": "デスクトップのドレッシングルームを使うには、Unity で Tools > Avatar Wardrobe Desktop Library を開いてください。"
+        },
+        {
+          "k": "help.chooseTitle",
+          "v": "アバターを選ぶ"
+        },
+        {
+          "k": "help.chooseBody",
+          "v": "ヘッダーで着せ替えるアバターを選択します。"
+        },
+        {
+          "k": "help.previewTitle",
+          "v": "衣装を探す"
+        },
+        {
+          "k": "help.previewBody",
+          "v": "衣装とバリエーションを閲覧します。デスクトップのドレッシングルームでは「試着」でシーンを変更する前にアバター全体を確認できます。"
+        },
+        {
+          "k": "help.wearTitle",
+          "v": "着用する"
+        },
+        {
+          "k": "help.wearBody",
+          "v": "「着用」で新しい衣装を適用します。着用済みアイテムのメニューとトグルの変更には「設定を適用」または「キャンセル」を選びます。"
+        },
+        {
+          "k": "help.uploadTitle",
+          "v": "プリセットを保存・アップロードする"
+        },
+        {
+          "k": "help.uploadBody",
+          "v": "現在の衣装をアップロードするには「アバターをアップロード」を使います。複数の衣装は、下の「複数のアバター」を有効にしてプリセットで管理できます。アップロード前にアバターと適用先を確認してください。"
+        },
+        {
+          "k": "upload.draft.discard",
+          "v": "変更を破棄"
+        },
+        {
+          "k": "upload.draft.discardConfirm",
+          "v": "このアバターの「既定値」とアバター ID に加えた未保存の変更を破棄しますか？"
+        },
+        {
+          "k": "upload.defaults.identity",
+          "v": "アップロード時のアバター情報"
+        },
+        {
+          "k": "upload.defaults.hint",
+          "v": "既定値はプリセットのアップロード時に適用されます。変更は上の「保存」ボタンで保存してください。"
+        },
+        {
+          "k": "upload.defaults.name",
+          "v": "名前のテンプレート"
+        },
+        {
+          "k": "upload.defaults.description",
+          "v": "説明文のテンプレート"
+        },
+        {
+          "k": "upload.defaults.release",
+          "v": "公開設定"
+        },
+        {
+          "k": "upload.defaults.private",
+          "v": "非公開"
+        },
+        {
+          "k": "upload.defaults.public",
+          "v": "公開"
+        },
+        {
+          "k": "upload.defaults.tags",
+          "v": "タグ"
+        },
+        {
+          "k": "upload.defaults.version",
+          "v": "説明文の更新方法"
+        },
+        {
+          "k": "upload.defaults.versionReplace",
+          "v": "説明文を置き換える"
+        },
+        {
+          "k": "upload.defaults.versionAppend",
+          "v": "1 行追加する"
+        },
+        {
+          "k": "upload.defaults.thumbnail",
+          "v": "サムネイル"
+        },
+        {
+          "k": "upload.defaults.capture",
+          "v": "撮影方法"
+        },
+        {
+          "k": "upload.defaults.captureAuto",
+          "v": "正面から自動撮影"
+        },
+        {
+          "k": "upload.defaults.captureScene",
+          "v": "現在の Unity Scene ビュー"
+        },
+        {
+          "k": "upload.defaults.captureImage",
+          "v": "画像ファイル"
+        },
+        {
+          "k": "upload.defaults.imagePath",
+          "v": "画像のパス"
+        },
+        {
+          "k": "upload.defaults.imageHelp",
+          "v": "Assets/Thumbnails/avatar.png のようなプロジェクト内のパス、または Unity を実行しているコンピューター上の画像の絶対パスを指定します。ファイルが見つからない場合は、アバターを撮影して代用します。"
+        },
+        {
+          "k": "upload.defaults.background",
+          "v": "背景色"
+        },
+        {
+          "k": "upload.defaults.colorHelp",
+          "v": "16 進数の色コード: RRGGBB または RRGGBBAA。先頭の # は省略できます。"
+        },
+        {
+          "k": "upload.defaults.automation",
+          "v": "高度な自動化"
+        },
+        {
+          "k": "upload.defaults.sps",
+          "v": "SPS/DPS コンテンツを検出"
+        },
+        {
+          "k": "upload.defaults.spsHelp",
+          "v": "SPS または DPS コンポーネントが検出された場合に、Sexually Suggestive タグを追加します。"
+        },
+        {
+          "k": "upload.defaults.sdkFix",
+          "v": "SDK が提案する修正を適用"
+        },
+        {
+          "k": "upload.defaults.sdkFixHelp",
+          "v": "セットアップ中に VRChat SDK の警告で提示された修正の適用を試みます。"
+        },
+        {
+          "k": "upload.defaults.consent",
+          "v": "Unity で SDK の所有権確認ダイアログに同意"
+        },
+        {
+          "k": "upload.defaults.consentHelp",
+          "v": "Unity のセットアップ中に、SDK の著作権・所有権確認ダイアログへ自動的に同意します。ブラウザーからのプリセットアップロードでも、このダイアログへ自動的に同意します。"
+        },
+        {
+          "k": "upload.defaults.optimization",
+          "v": "テクスチャの最適化"
+        },
+        {
+          "k": "upload.defaults.optimize",
+          "v": "新しいアバターを作成するときにテクスチャを最適化"
+        },
+        {
+          "k": "upload.defaults.optimizeHelp",
+          "v": "Express セットアップ時に、テクスチャのインポート解像度を下げてビデオメモリの使用量を減らします。"
+        },
+        {
+          "k": "upload.defaults.optimizeAsk",
+          "v": "Unity で最適化する前に確認"
+        },
+        {
+          "k": "upload.defaults.optimizeAskHelp",
+          "v": "ブラウザーからのアップロードでは、有効な最適化が追加の確認なしに適用されます。"
+        },
+        {
+          "k": "upload.defaults.maxResolution",
+          "v": "最大解像度（ピクセル）"
+        },
+        {
+          "k": "upload.defaults.minResolution",
+          "v": "最小解像度（ピクセル）"
+        },
+        {
+          "k": "upload.defaults.includeShared",
+          "v": "共通アイテムを含める"
+        },
+        {
+          "k": "upload.defaults.invalidColor",
+          "v": "背景色を RRGGBB または RRGGBBAA で入力してください。"
+        },
+        {
+          "k": "upload.defaults.invalidResolution",
+          "v": "テクスチャの最小解像度は最大解像度以下にしてください。"
+        },
+        {
+          "k": "upload.review.title",
+          "v": "プリセットのアップロード内容を確認"
+        },
+        {
+          "k": "upload.review.back",
+          "v": "プリセットに戻る"
+        },
+        {
+          "k": "upload.review.create",
+          "v": "新しい VRChat アバターを作成"
+        },
+        {
+          "k": "upload.review.warning",
+          "v": "開始後はこのアップロードをキャンセルできません。Unity が選択したプリセットを順番に準備し、アップロードします。"
+        },
+        {
+          "k": "upload.review.changed",
+          "v": "確認画面を開いている間に設定が変更されました。最新の内容を確認してからアップロードしてください。"
+        },
+        {
+          "k": "upload.review.dirty",
+          "v": "アップロード内容を確認する前に、上に表示された未保存の変更を保存または破棄してください。"
+        },
+        {
+          "k": "upload.review.saving",
+          "v": "設定の保存中です。完了してから、もう一度アップロード内容を確認してください。"
+        },
+        {
+          "k": "upload.review.busy",
+          "v": "アップロードが実行中です。完了するまでお待ちください。"
+        },
+        {
+          "k": "upload.review.sdk",
+          "v": "アップロード前に VRChat SDK に接続し、サインインしてください。"
+        },
+        {
+          "k": "upload.review.avatarChanged",
+          "v": "着せ替え対象のアバターが変わりました。この確認画面を閉じて、もう一度アップロードを選択してください。"
+        },
+        {
+          "k": "upload.review.connectionChanged",
+          "v": "アバターへの接続状態が変わりました。この確認画面を閉じて、もう一度お試しください。"
+        },
+        {
+          "k": "upload.preset.commonHelp",
+          "v": "ここのアイテムはすべてのプリセットに含まれます。"
+        },
+        {
+          "k": "upload.preset.remove",
+          "v": "プリセットを削除"
+        },
+        {
+          "k": "upload.preset.noPlatform",
+          "v": "プラットフォーム未選択"
+        },
+        {
+          "k": "upload.draft.ids",
+          "v": "アバター ID（{0} 件）"
+        },
+        {
+          "k": "upload.draft.unsaved",
+          "v": "未保存の変更: {0}。アップロード前に保存してください。"
+        },
+        {
+          "k": "upload.draft.restored",
+          "v": "未保存の変更を復元しました: {0}。アップロード前に保存してください。"
+        },
+        {
+          "k": "upload.draft.kept",
+          "v": "このアバターの下書きを、このブラウザータブに保持しています。"
+        },
+        {
+          "k": "upload.draft.temporary",
+          "v": "このアバターのセッションが接続されている間、下書きを保持します。"
+        },
+        {
+          "k": "upload.review.avatarLabel",
+          "v": "着せ替え対象:"
+        },
+        {
+          "k": "upload.review.oneSelected",
+          "v": "1 件のプリセットを選択しています。共通プリセットのアイテムも含まれます。"
+        },
+        {
+          "k": "upload.review.manySelected",
+          "v": "{0} 件のプリセットを選択しています。それぞれに共通プリセットのアイテムが含まれます。"
+        },
+        {
+          "k": "upload.review.update",
+          "v": "既存のアバターを更新:"
+        },
+        {
+          "k": "upload.review.release",
+          "v": "公開設定:"
+        },
+        {
+          "k": "upload.review.uploadOne",
+          "v": "1 件のプリセットをアップロード"
+        },
+        {
+          "k": "upload.review.uploadMany",
+          "v": "{0} 件のプリセットをアップロード"
+        },
+        {
+          "k": "upload.preset.sharedCount",
+          "v": "共有アイテム数: {0}"
+        },
+        {
+          "k": "upload.preset.itemCount",
+          "v": "アイテム数: {0}"
+        },
+        {
+          "k": "upload.preset.include",
+          "v": "一括アップロードに含める"
+        },
+        {
+          "k": "upload.review.missing",
+          "v": "選択したプリセットが見つかりません。最新の状態に更新してから、もう一度選択してください。"
+        },
+        {
+          "k": "upload.review.noPlatform",
+          "v": "アップロード前に「{0}」のプラットフォームを 1 つ以上選択してください。"
+        },
+        {
+          "k": "upload.review.invalidId",
+          "v": "アップロード前に「{0}」の有効なアバター ID を保存してください。"
+        },
+        {
+          "k": "upload.review.unappliedItems",
+          "v": "未適用のアイテム編集: {0} 件。アップロード前に内容を確認し、適用または破棄してください。"
+        },
+        {
+          "k": "upload.review.reviewItemEdits",
+          "v": "アイテムの編集を確認"
         }
       ]
     }

@@ -1,20 +1,23 @@
-Keep high-resolution previews loading while Avatar Wardrobe is unfocused.
+Make wardrobe editing clearer and more resilient.
 
-Switching apps, switching browser tabs, or minimizing the browser no longer pauses
-thumbnail requests and cache upgrades. Unity continues warming the last visible
-catalog grid and its existing look-ahead queue. Hidden pages send a light heartbeat
-without refreshing the full catalog; the server allows two minutes between beats
-to tolerate browser timer throttling. Closing the page releases the preview lease.
+Preset loading failures now keep the selected destination and offer Retry. Late
+responses cannot replace a newly created preset. Worn-item menu and part-toggle
+changes use explicit Apply settings and Cancel edits; applying both is one Unity
+transaction with rollback on failure.
 
-Rendering still yields to Unity's foreground work and pauses during compilation,
-imports, play mode, and uploads. Image request limits, cache bounds, and selected
-preview priority are preserved. Activity and Settings explain the new behavior in
-English and Japanese.
+Defaults and Avatar ID drafts are retained per project and avatar in the browser
+tab. Upload review lists the avatar, presets, platforms, and whether each upload
+creates or updates an avatar. It blocks pending writes and unapplied edits, with
+a direct return to the item that needs attention.
 
-Validation: all 11 repository JavaScript test scripts and 10 Python tests passed,
-including 16 preview scheduler cases and 2 page-lifecycle cases. Supported Unity
-Runtime, Editor, and Test assemblies compile. Source and package preflight checks
-passed; local browser fixture loaded thumbnails without console errors. Hidden-tab
-and focus-loss behavior was verified with controlled browser API fixtures in tests.
+Keyboard navigation now passes correctly through Technical details. Preset rows
+are compact, Defaults and Help explain the workflow, scrollbars and action labels
+are easier to see, and the Unity launcher opens Desktop Library directly. Preview
+activity shows actual loading and waiting requests instead of a misleading global
+cache percentage. Background high-resolution loading remains enabled.
+
+Validation: 30 focused Unity EditMode tests, 45 JavaScript tests reported by the
+Node runner, and 10 Python tests passed. English/Japanese browser fixture QA and
+package/archive validation passed. Real VRChat uploads were not performed.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.

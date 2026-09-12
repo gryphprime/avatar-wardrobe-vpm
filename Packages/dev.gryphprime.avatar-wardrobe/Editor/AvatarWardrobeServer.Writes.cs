@@ -36,7 +36,7 @@ namespace OutfitToggleGenerator
         private static readonly Dictionary<string, WriteReceipt> writes = new Dictionary<string, WriteReceipt>();
         private static readonly HashSet<string> queuedWriteRoutes = new HashSet<string>(StringComparer.Ordinal)
         {
-            "/api/cache_clear", "/api/install", "/api/remove", "/api/preset_remove_item", "/api/part_toggles",
+            "/api/cache_clear", "/api/install", "/api/remove", "/api/preset_remove_item", "/api/part_toggles", "/api/item_settings",
             "/api/menu_groups", "/api/menu_execute", "/api/scene_execute", "/api/appearance_apply",
             "/api/appearance_tool", "/api/appearance_optimizer_apply", "/api/regenerate_toggles",
             "/api/migrate_avatar", "/api/preset_save", "/api/preset_delete", "/api/preset_assign",

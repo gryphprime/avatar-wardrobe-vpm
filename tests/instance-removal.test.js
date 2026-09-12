@@ -4,7 +4,7 @@ const begin=source.indexOf('if(rem) rem.onclick=function(){');
 const end=source.indexOf('\n      };',begin)+9;
 for(const avatarMode of [false,true]){
  const calls=[];
- const context={rem:{},instance:{guid:'asset',target:'owner-preset',path:'Outfits/Owner/Second copy'},v:{guid:'asset'},avatarMode,
+ const context={presetsReady:true,settingsReady:true,rem:{},instance:{guid:'asset',target:'owner-preset',path:'Outfits/Owner/Second copy'},v:{guid:'asset'},avatarMode,
   effectivePreset:()=> 'common',document:{getElementById:id=>id==='dInstance'?{value:'2'}:{value:'common'}},presetNameOf:()=> 'Owner',
   installedPresets:[{id:'owner-preset',instanceIds:[1,2],paths:['Outfits/Owner/First copy','Outfits/Owner/Second copy']},{id:'common',instanceIds:[3],paths:['Outfits/Common']}],
   operations:{enabled:()=>false},confirm:()=>true,removeInFlight:false,

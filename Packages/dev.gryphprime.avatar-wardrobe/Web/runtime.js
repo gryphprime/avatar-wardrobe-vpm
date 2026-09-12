@@ -37,7 +37,7 @@
     });
     Array.from(parent.children).forEach(function (node) { if (!retained.has(node)) node.remove(); });
   }
-  var queuedWrites = new Set(["cache_clear", "install", "remove", "preset_remove_item", "part_toggles", "menu_groups", "menu_execute", "scene_execute", "appearance_apply", "appearance_tool", "appearance_optimizer_apply", "regenerate_toggles", "migrate_avatar", "preset_save", "preset_delete", "preset_assign", "preset_show", "preset_include", "avatar_base", "workflow", "preset_appearance_save", "preset_appearance_apply", "batch_preset_config", "batch_preset_blends", "batch_preset_items", "batch_preset_faceemo", "batch_preset_from_scene", "batch_outfit_set", "batch_import", "batch_config_set", "batch_defaults_set", "batch_blendshape", "batch_item", "batch_faceemo"]);
+  var queuedWrites = new Set(["cache_clear", "install", "remove", "preset_remove_item", "part_toggles", "item_settings", "menu_groups", "menu_execute", "scene_execute", "appearance_apply", "appearance_tool", "appearance_optimizer_apply", "regenerate_toggles", "migrate_avatar", "preset_save", "preset_delete", "preset_assign", "preset_show", "preset_include", "avatar_base", "workflow", "preset_appearance_save", "preset_appearance_apply", "batch_preset_config", "batch_preset_blends", "batch_preset_items", "batch_preset_faceemo", "batch_preset_from_scene", "batch_outfit_set", "batch_import", "batch_config_set", "batch_defaults_set", "batch_blendshape", "batch_item", "batch_faceemo"]);
   async function request(path, options) {
     options = options || {};
     var controller = new AbortController(), upstream = options.signal;
@@ -67,7 +67,7 @@
       }
     } else if (!init.method) init.method = "GET";
     var writeId = queuedWrites.has(endpoint) && !read && init.headers && init.headers["X-Wardrobe-Write-Id"];
-    if (writeId) rememberWrite(writeId, true);
+    if (writeId) { rememberWrite(writeId, true); pendingWriteRequests++; }
     try {
       var response, body;
       try { response = await fetch(path, init); if (!options.binary) body = await response.text(); }
@@ -100,11 +100,12 @@
       if (writeId) rememberWrite(writeId, false);
       return value;
     } finally {
+      if (writeId) pendingWriteRequests--;
       clearTimeout(timer);
       if (upstream) upstream.removeEventListener("abort", relay);
     }
   }
-  var pendingWrites = 0, writePolls = new Map();
+  var pendingWrites = 0, pendingWriteRequests = 0, writePolls = new Map();
   function rememberWrite(id, pending) {
     try {
       var ids = JSON.parse(global.localStorage.getItem('wardrobe.pendingWrites') || '[]');
@@ -154,18 +155,57 @@
     var previous = savedFocus.get(node); savedFocus.delete(node);
     if (previous && previous.isConnected) previous.focus({preventScroll:true});
   }
+  function visible(node) {
+    if (!node.getClientRects().length || node.closest('[hidden],[inert]')) return false;
+    var style = global.getComputedStyle(node);
+    if (style.visibility === "hidden" || style.visibility === "collapse") return false;
+    // A closed disclosure exposes only its first summary, including nested controls.
+    for (var parent = node.parentElement; parent; parent = parent.parentElement) {
+      if (parent.tagName !== "DETAILS" || parent.open) continue;
+      var summary = Array.from(parent.children).find(function (child) { return child.tagName === "SUMMARY"; });
+      if (!summary || !summary.contains(node)) return false;
+    }
+    return true;
+  }
+  function tabOrderIndex(node) {
+    if (!node.hasAttribute("tabindex") && node.isContentEditable && !(node.parentElement && node.parentElement.isContentEditable)) return 0;
+    return node.tabIndex;
+  }
+  function dialogTabStops(dialog) {
+    var targets = Array.from(dialog.querySelectorAll('button,input,select,textarea,a[href],area[href],summary,iframe,object,embed,audio[controls],video[controls],[contenteditable],[tabindex]')).filter(function (node) {
+      if (tabOrderIndex(node) < 0 || node.matches(':disabled') || !visible(node)) return false;
+      // Only the first native summary is a tab stop unless explicitly opted in.
+      if (node.tagName === "SUMMARY" && !node.hasAttribute("tabindex")) {
+        var parent = node.parentElement;
+        if (!parent || parent.tagName !== "DETAILS" || Array.from(parent.children).find(function (child) { return child.tagName === "SUMMARY"; }) !== node) return false;
+      }
+      return true;
+    });
+    targets = targets.filter(function (node) {
+      if (node.tagName !== "INPUT" || node.type !== "radio" || !node.name) return true;
+      var group = targets.filter(function (other) { return other.tagName === "INPUT" && other.type === "radio" && other.name === node.name && other.form === node.form && other.getRootNode() === node.getRootNode(); });
+      // A radio group is one sequential stop. Keep its active member when no choice
+      // is checked, since browsers enter an unchecked group differently in reverse.
+      var selected = group.find(function (other) { return other.checked; }) || group.find(function (other) { return other === document.activeElement; }) || group[0];
+      return node === selected;
+    });
+    return targets.map(function (node, index) { return {node:node,index:index}; }).sort(function (a, b) {
+      var at = tabOrderIndex(a.node), bt = tabOrderIndex(b.node);
+      return (at > 0 ? at : Infinity) - (bt > 0 ? bt : Infinity) || a.index - b.index;
+    }).map(function (entry) { return entry.node; });
+  }
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Tab") return;
     var dialogs = Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]'));
-    var dialog = dialogs.filter(function (node) { return node.getClientRects().length; }).pop();
+    var dialog = dialogs.filter(visible).pop();
     if (!dialog) return;
-    var targets = Array.from(dialog.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')).filter(function (node) { return node.getClientRects().length; });
+    var targets = dialogTabStops(dialog);
     if (!targets.length) { event.preventDefault(); dialog.focus(); return; }
     var index = targets.indexOf(document.activeElement);
     if (event.shiftKey && index <= 0) { event.preventDefault(); targets[targets.length-1].focus(); }
     else if (!event.shiftKey && (index < 0 || index === targets.length-1)) { event.preventDefault(); targets[0].focus(); }
   });
-  global.WardrobeRuntime = {text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,setContext:function(value,id){var previous=session;session=value||"";avatarId=id||0;if(session&&previous!==session)recoverWrites();},openDialog:openDialog,closeDialog:closeDialog};
+  global.WardrobeRuntime = {text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,pendingWrites:function(){return pendingWriteRequests+pendingWrites;},setContext:function(value,id){var previous=session;session=value||"";avatarId=id||0;if(session&&previous!==session)recoverWrites();},openDialog:openDialog,closeDialog:closeDialog};
 })(window);
 
 /* Update checks run in the browser, never on Unity's editor thread. */

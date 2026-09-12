@@ -886,6 +886,17 @@ namespace OutfitToggleGenerator
                 WriteMainJson(context, () => SetPartToggles(guid, target, enabled == "1"), requestCode);
                 return;
             }
+            if (path == "/api/item_settings")
+            {
+                var query = Query(request.Url.Query);
+                query.TryGetValue("guid", out var guid); query.TryGetValue("target", out var target);
+                var hasGroup = query.ContainsKey("group"); query.TryGetValue("group", out var group);
+                var hasToggles = query.ContainsKey("toggles"); query.TryGetValue("toggles", out var toggleValue);
+                if (hasToggles && toggleValue != "0" && toggleValue != "1")
+                { WriteMainJson(context, () => new ResultDto { message = "toggles must be 0 or 1." }, requestCode); return; }
+                WriteMainJson(context, () => SetItemSettings(guid, target, hasGroup, group, hasToggles, toggleValue == "1"), requestCode);
+                return;
+            }
             if (path == "/api/prefab_presets")
             {
                 var query = Query(request.Url.Query);

@@ -32,5 +32,10 @@ function setup(replies) {
   assert.equal(t.calls.filter(c=>c.init.method==='POST').length,1,'Never automatically repeat an uncertain mutation');
   t=setup([{body:{ok:1}}]);
   assert.equal((await t.runtime.request('/api/part_toggles')).ok,1,'Older bridge compatibility');
+  t=setup([{status:202,body:{writeJob:'item-settings'}},{body:{state:'completed',result:{ok:1}}}]);
+  const settings=t.runtime.request('/api/item_settings?guid=asset&target=preset&group=group',{method:'POST'});
+  assert.ok(t.runtime.pendingWrites()>0,'outbound item settings block uploads before receipt acceptance');
+  assert.ok(t.calls[0].init.headers['X-Wardrobe-Write-Id'],'item settings use a durable identity');
+  assert.equal((await settings).ok,1);assert.equal(t.runtime.pendingWrites(),0);
   console.log('Browser write receipt, failure, uncertain acceptance, and compatibility checks passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

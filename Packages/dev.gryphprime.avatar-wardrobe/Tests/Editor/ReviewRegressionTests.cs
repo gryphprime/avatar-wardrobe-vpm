@@ -109,6 +109,17 @@ namespace OutfitToggleGenerator
             OutfitToggleGenerator.RemovePartToggles(prefab);
             Assert.IsFalse(OutfitToggleGenerator.HasPartToggles(prefab));
         }
+        [Test] public void ItemSettingsRejectsUnspecifiedOrUnmatchedEditsWithoutMutation()
+        {
+            var before = AvatarWardrobePresets.CaptureSettings();
+            var missing = AvatarWardrobeServer.SetItemSettings("", "missing", false, null, false, false);
+            Assert.AreEqual(0, missing.ok); StringAssert.Contains("required", missing.message);
+            var unspecified = AvatarWardrobeServer.SetItemSettings("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "missing", false, null, false, false);
+            Assert.AreEqual(0, unspecified.ok); StringAssert.Contains("Specify", unspecified.message);
+            var unmatched = AvatarWardrobeServer.SetItemSettings("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "missing", true, "", true, false);
+            Assert.AreEqual(0, unmatched.ok); StringAssert.Contains("not installed", unmatched.message);
+            Assert.AreEqual(before, AvatarWardrobePresets.CaptureSettings());
+        }
         [Test] public void RenameAllocatesUniqueSanitizedHolderAndUndoRestoresIdentity()
         {
             var a = AvatarWardrobeServer.EditAvatar("Create", () => AvatarWardrobeServer.SavePreset("", "A/B"));

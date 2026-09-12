@@ -545,6 +545,39 @@ namespace OutfitToggleGenerator
             });
         }
 
+        internal static ResultDto SetItemSettings(string guid, string target, bool hasGroup, string groupId, bool hasToggles, bool toggles)
+        {
+            if (SceneAvatar == null) return new ResultDto { message = "Select an avatar first." };
+            if (string.IsNullOrEmpty(guid) || string.IsNullOrEmpty(target)) return new ResultDto { message = "Item and preset are required." };
+            if (!hasGroup && !hasToggles) return new ResultDto { message = "Specify a menu group or part-toggle setting." };
+            var instances = AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
+                .Where(item => AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == target).ToList();
+            if (instances.Count == 0) return new ResultDto { message = "The prefab is not installed in this preset." };
+            if (hasGroup)
+            {
+                var duplicatePath = instances.GroupBy(item => AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform))
+                    .FirstOrDefault(group => group.Count() > 1);
+                if (duplicatePath != null || instances.Any(item => SceneAvatar.transform.Find(AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform)) != item.transform))
+                    return new ResultDto { message = "Item copies have the same transform path. Rename the copies before assigning a menu group." };
+            }
+            if (hasGroup && !string.IsNullOrEmpty(groupId) && !AvatarWardrobePresets.MenuGroups(target).Any(group => group.id == groupId))
+                return new ResultDto { message = "Menu group not found." };
+            return EditAvatar("Apply wardrobe item settings", () =>
+            {
+                foreach (var instance in instances)
+                {
+                    var path = AnimationUtility.CalculateTransformPath(instance.transform, SceneAvatar.transform);
+                    if (hasGroup) AvatarWardrobePresets.UpdateMenuGroup(target, groupId ?? "", null, path, guid, "assign");
+                    if (hasToggles)
+                    {
+                        if (toggles) OutfitToggleGenerator.GeneratePartToggles(SceneAvatar, instance);
+                        else OutfitToggleGenerator.RemovePartToggles(instance);
+                    }
+                }
+                return new ResultDto { ok = 1, message = "Item settings applied." };
+            });
+        }
+
         private static ResultDto RemovePresetItem(string guid, string target, string itemPath, string instanceId)
         {
             if (SceneAvatar == null) return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
