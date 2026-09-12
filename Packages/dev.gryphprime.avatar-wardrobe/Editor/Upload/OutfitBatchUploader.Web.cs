@@ -303,7 +303,9 @@ namespace ShiroTools
         private OutfitEntry WebFindOutfit(string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
-            return _outfits.FirstOrDefault(o => o != null && o.Go != null && o.Name == name);
+            var matches = _outfits.Where(o => o != null && o.Go != null && o.Name == name).ToArray();
+            if (matches.Length > 1) throw new InvalidOperationException("Multiple preset holders share this name. Rename the holder before using this control.");
+            return matches.SingleOrDefault();
         }
         internal static WebResultDto WebOutfitSet(string name, string blueprint, string include, string win, string and, string ios)
         {
@@ -1104,53 +1106,15 @@ namespace ShiroTools
             return r;
 
         }
-        private static readonly Dictionary<string, StringBuilder> _webImports = new Dictionary<string, StringBuilder>();
-        private static readonly object _webImportsLock = new object();
-        internal static WebResultDto WebImportBegin()
+        internal static WebResultDto WebImport(string json)
         {
-            string token = Guid.NewGuid().ToString("N");
-            lock (_webImportsLock) _webImports[token] = new StringBuilder();
-            return new WebResultDto { ok = 1, message = token };
-        }
-        internal static WebResultDto WebImportChunk(string token, string data)
-        {
-            lock (_webImportsLock)
-            {
-                StringBuilder sb;
-                if (string.IsNullOrEmpty(token) || !_webImports.TryGetValue(token, out sb))
-                    return new WebResultDto { message = "Unknown import session." };
-                sb.Append(data ?? "");
-            }
-            return new WebResultDto { ok = 1 };
-        }
-        internal static WebResultDto WebImportCommit(string token)
-        {
-            var r = new WebResultDto();
             try
             {
-                string json;
-                lock (_webImportsLock)
-                {
-                    StringBuilder sb;
-                    if (string.IsNullOrEmpty(token) || !_webImports.TryGetValue(token, out sb))
-                        return new WebResultDto { message = "Unknown import session." };
-                    json = sb.ToString();
-                    _webImports.Remove(token);
-                }
-                var bundle = JsonUtility.FromJson<SettingsBundle>(json);
-                bool ok;
-                if (bundle != null && !string.IsNullOrEmpty(bundle.data))
-                {
-                    ok = OutfitProjectData.ImportRaw(bundle.data);
-                    if (ok && !string.IsNullOrEmpty(bundle.versions)) AvatarVersionManager.ImportRaw(bundle.versions);
-                }
-                else ok = OutfitProjectData.ImportRaw(json);
-                if (!ok) return new WebResultDto { message = "Import failed — not a valid settings file." };
+                ImportSettingsBundle(json);
                 WebEngine().ScanScene();
-                r.ok = 1; r.message = "Settings imported.";
+                return new WebResultDto { ok = 1, message = "Settings imported." };
             }
-            catch (Exception ex) { r.message = ex.Message; }
-            return r;
+            catch (Exception ex) { return new WebResultDto { message = ex.Message }; }
         }
         private sealed class WebThumbEntry { public string outfit = ""; public string path = ""; }
         private static readonly Dictionary<string, WebThumbEntry> _webThumbs = new Dictionary<string, WebThumbEntry>();
@@ -1217,8 +1181,8 @@ namespace ShiroTools
                 var o = eng.WebFindOutfit(outfit);
                 if (o == null) throw new Exception("Preset not found in the scene: " + outfit);
                 WebJobProgress(jobId, 0, 1, outfit);
-                await eng.UploadThumbnailAsync(o, path);
-                WebJobFinish(jobId, true, string.IsNullOrEmpty(eng._statusMessage) ? "Thumbnail updated." : eng._statusMessage, null);
+                bool succeeded = await eng.UploadThumbnailAsync(o, path, false);
+                WebJobFinish(jobId, succeeded, string.IsNullOrEmpty(eng._statusMessage) ? "Thumbnail updated." : eng._statusMessage, null);
             }
             catch (Exception ex) { try { WebJobFinish(jobId, false, ex.Message, null); } catch { } }
             finally

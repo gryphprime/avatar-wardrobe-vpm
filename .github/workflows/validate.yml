@@ -18,6 +18,7 @@ jobs:
           node-version: '22'
       - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       - run: for test in tests/*.test.js; do node "$test" || exit; done
+      - run: python3 scripts/package_preflight.py Packages/dev.gryphprime.avatar-wardrobe
   unity-tests:
     # Disabled until the dedicated licensed Unity runner is provisioned.
     # Remove this gate when a runner with the avatar-wardrobe-unity label is online.

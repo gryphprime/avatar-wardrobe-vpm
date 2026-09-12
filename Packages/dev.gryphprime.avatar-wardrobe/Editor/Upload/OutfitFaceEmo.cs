@@ -39,10 +39,10 @@ namespace ShiroTools
         private readonly Dictionary<string, bool> _faceEmoExpanded = new Dictionary<string, bool>();
 
         private string GetFaceEmoName(string outfitName) =>
-            OutfitProjectData.GetFaceEmoName(_avatarRoot != null ? _avatarRoot.name : "", outfitName);
+            OutfitProjectData.GetFaceEmoName(UploadAvatarKey, UploadOutfitKey(outfitName));
 
         private void SetFaceEmoName(string outfitName, string value) =>
-            OutfitProjectData.SetFaceEmoName(_avatarRoot != null ? _avatarRoot.name : "", outfitName, value);
+            OutfitProjectData.SetFaceEmoName(UploadAvatarKey, UploadOutfitKey(outfitName), value);
 
         private GameObject FindAvatarChild(string name)
         {

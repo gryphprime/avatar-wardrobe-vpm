@@ -211,7 +211,24 @@ class Library:
                     avatar TEXT, instance TEXT, scene TEXT, session TEXT,
                     guid TEXT, source_sha256 TEXT, dependency_hash TEXT, match TEXT,
                     observed REAL, PRIMARY KEY(hash, project, avatar_id, instance_id));
+                CREATE TABLE IF NOT EXISTS prefab_provenance (
+                    hash TEXT, guid TEXT, path TEXT, sha256 TEXT, PRIMARY KEY(hash,path));
+                CREATE INDEX IF NOT EXISTS prefab_guid ON prefab_provenance(guid);
+                CREATE TABLE IF NOT EXISTS product_index (hash TEXT PRIMARY KEY);
+                CREATE TABLE IF NOT EXISTS usage_observations (
+                    project TEXT, avatar TEXT, fingerprint TEXT, observed REAL, PRIMARY KEY(project,avatar));
             ''')
+            for row in db.execute('SELECT hash,manifest FROM products WHERE hash NOT IN (SELECT hash FROM product_index)').fetchall():
+                self._index_product(db, row['hash'], json.loads(row['manifest']))
+
+    @staticmethod
+    def _index_product(db, sha, manifest):
+        db.execute('DELETE FROM prefab_provenance WHERE hash=?', (sha,))
+        db.executemany('INSERT INTO prefab_provenance VALUES(?,?,?,?)',
+                       [(sha, asset['guid'], asset['path'], asset['sha256']) for asset in manifest
+                        if asset['path'].lower().endswith('.prefab')])
+        db.execute('INSERT OR REPLACE INTO product_index VALUES(?)', (sha,))
+        db.execute('DELETE FROM usage_observations')
 
     def connect(self):
         connection = sqlite3.connect(self.db, timeout=30)
@@ -284,21 +301,26 @@ class Library:
             with self.connect() as db:
                 db.execute('INSERT OR IGNORE INTO products(hash,filename,creator,product,source_url,manifest) VALUES(?,?,?,?,?,?)',
                            (sha, source.name, creator, product or source.stem, source_url, json.dumps(manifest)))
+                self._index_product(db, sha, manifest)
             return {'hash': sha, 'duplicate': False, 'files': len(manifest)}
         finally:
             if stage.exists():
                 shutil.rmtree(stage)
 
-    def list(self):
+    def list(self, limit=100, offset=0):
+        limit, offset = max(1, min(int(limit), 100)), max(0, int(offset))
         with self.connect() as db:
-            rows = db.execute('SELECT * FROM products ORDER BY added DESC, hash').fetchall()
-            result = []
-            for row in rows:
-                value = dict(row)
-                value['files'] = json.loads(value.pop('manifest'))
-                value['usage'] = [dict(x) for x in db.execute('SELECT project,avatar,instance,paths FROM usage WHERE hash=?', (row['hash'],))]
-                value['usage'].extend(dict(x) for x in db.execute('SELECT * FROM instance_usage WHERE hash=?', (row['hash'],)))
-                result.append(value)
+            rows = db.execute('SELECT hash,filename,creator,product,source_url,added FROM products ORDER BY added DESC, hash LIMIT ? OFFSET ?', (limit, offset)).fetchall()
+            result = [dict(row, files=[], usage=[]) for row in rows]
+            by_hash = {row['hash']: row for row in result}
+            if not result: return result
+            placeholders = ','.join('?' for _ in result)
+            ids = tuple(by_hash)
+            for row in db.execute('SELECT * FROM prefab_provenance WHERE hash IN (' + placeholders + ')', ids):
+                by_hash[row['hash']]['files'].append(dict(row))
+            for table in ('usage', 'instance_usage'):
+                for row in db.execute('SELECT * FROM ' + table + ' WHERE hash IN (' + placeholders + ')', ids):
+                    by_hash[row['hash']]['usage'].append(dict(row))
             return result
 
     def record(self, sha):
@@ -518,11 +540,17 @@ class Library:
                 return False
             seen.add(item['instanceId'])
         with self.write_lock, self.connect() as db:
+            fingerprint = hashlib.sha256(json.dumps({key: snapshot[key] for key in ('avatarId', 'avatarName', 'scene', 'session', 'usage')}, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            previous = db.execute('SELECT fingerprint,observed FROM usage_observations WHERE project=? AND avatar=?', (project, avatar_id)).fetchone()
+            if previous and previous['fingerprint'] == fingerprint:
+                if time.time() - previous['observed'] >= 300:
+                    observed = time.time()
+                    db.execute('UPDATE instance_usage SET observed=? WHERE project=? AND avatar_id=?', (observed, project, avatar_id))
+                    db.execute('UPDATE usage_observations SET observed=? WHERE project=? AND avatar=?', (observed, project, avatar_id))
+                return True
             candidates = {}
-            for row in db.execute('SELECT hash,manifest FROM products'):
-                for asset in json.loads(row['manifest']):
-                    if asset['guid'] and asset['path'].lower().endswith('.prefab'):
-                        candidates.setdefault(asset['guid'], set()).add((row['hash'], asset['sha256']))
+            for guid in {item['guid'] for item in items}:
+                candidates[guid] = {(row['hash'], row['sha256']) for row in db.execute('SELECT hash,sha256 FROM prefab_provenance WHERE guid=?', (guid,))}
             rows = []
             observed = time.time()
             for item in items:
@@ -532,6 +560,7 @@ class Library:
                                  snapshot['scene'], snapshot['session'], item['guid'], item['sourceSha256'], item['dependencyHash'], match, observed))
             db.execute('DELETE FROM instance_usage WHERE project=? AND avatar_id=?', (project, avatar_id))
             db.executemany('INSERT OR REPLACE INTO instance_usage VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+            db.execute('INSERT OR REPLACE INTO usage_observations VALUES(?,?,?,?)', (project, avatar_id, fingerprint, observed))
         return True
 
     def update_impact(self, old_hash, new_hash):

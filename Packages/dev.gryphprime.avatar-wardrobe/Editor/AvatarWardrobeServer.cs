@@ -397,5 +397,29 @@ namespace OutfitToggleGenerator
             context.Response.OutputStream.Write(bytes, 0, bytes.Length);
             context.Response.OutputStream.Close();
         }
+
+        // Preview paths include the catalog dependency fingerprint (for
+        // example, <guid>_<fingerprint>.png).  Those names are immutable for
+        // the lifetime of the cached pixels, so allow the browser to retain
+        // them and avoid re-downloading 512px images while scrolling back to
+        // an already-seen card. Legacy paths have no fingerprint and must
+        // remain revalidatable after a retry/reset.
+        private static void WriteThumbnailBytes(HttpListenerContext context, int status, string path, byte[] bytes, bool currentEpoch = true)
+        {
+            context.Response.StatusCode = status;
+            context.Response.ContentType = "image/png";
+            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            context.Response.Headers["X-Frame-Options"] = "DENY";
+            context.Response.Headers["Referrer-Policy"] = "no-referrer";
+            var fileName = string.IsNullOrEmpty(path) ? string.Empty : Path.GetFileNameWithoutExtension(path);
+            var fingerprinted = fileName.LastIndexOf('_') > 0;
+            context.Response.Headers["Cache-Control"] = fingerprinted && currentEpoch
+                ? "public, max-age=31536000, immutable"
+                : "no-store";
+            context.Response.ContentLength64 = bytes == null ? 0 : bytes.Length;
+            if (bytes != null && bytes.Length > 0)
+                context.Response.OutputStream.Write(bytes, 0, bytes.Length);
+            context.Response.OutputStream.Close();
+        }
     }
 }

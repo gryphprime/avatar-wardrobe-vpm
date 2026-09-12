@@ -65,3 +65,31 @@ Unity checks or accept the existence of an empty test report.
 The local test run is evidence for this branch, not a substitute for the CI gate.
 Real VRChat uploads, platform/domain-reload resume and a full user-avatar catalog
 scan remain integration checks for a later release candidate.
+
+## Thumbnail performance and release QA — September 12, 2026
+
+`dev/thumbnail-performance-qa` carries the validated installed package back into
+this source repository, including pending desktop/operation reliability work.
+Repository version metadata is unchanged: the main-branch release workflow assigns
+the release version. Development branch pushes validate without publishing.
+
+The full package EditMode run in a disposable Unity 2022.3.22f1 project passed
+105 tests, with no failures and 3 optional integrations skipped. C# files match the
+tested package exactly. The new preview and saved-appearance cases live in the
+package test assembly. The currently disabled CI Unity job runs only the older
+review filter; local full-suite evidence therefore remains necessary until the
+licensed runner and its test scope are updated.
+
+Portable regressions now include `previews.test.js`, `preset-appearance.test.js`,
+`worn-copy-identity.test.js`, and `write-queue.test.js`. The preview test measures
+queue delay under controlled requests, not end-to-end rendering on a user avatar.
+Run package integrity checks with:
+
+```sh
+python3 scripts/package_preflight.py Packages/dev.gryphprime.avatar-wardrobe
+```
+
+The earlier runner-provisioning section describes the intended gate. The Unity
+job is presently disabled in `validate.yml`; green CI covers fast tests only.
+Fresh VCC/ALCOM installation, Windows runtime validation, real large-avatar timing,
+and confirmed VRChat upload smoke tests remain release integration checks.

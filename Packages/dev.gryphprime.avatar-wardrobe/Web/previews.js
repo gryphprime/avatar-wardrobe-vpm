@@ -7,7 +7,8 @@
     var cache = new Map(), jobs = new Map(), unavailable = new Set();
     var queue = [], bindings = new WeakMap(), observers = new Map(), observed = new Map();
     var epoch = "", serial = 0, active = 0, bytes = 0, stopped = false;
-    var maxBytes = 32 * 1024 * 1024, maxEntries = 256, maxActive = 3;
+    var maxBytes = 32 * 1024 * 1024, maxEntries = 256;
+    var activeCached = 0, activeRender = 0, maxCached = 4, maxRender = 3;
 
     function key(guid) { return epoch + ":" + guid; }
     function notify() { if (options.onActivity) options.onActivity({active: active, queued: queue.length}); }
@@ -58,7 +59,8 @@
     async function fetchImage(job, hi, retry, cachedOnly) {
       var path = "/api/thumb?guid=" + encodeURIComponent(job.guid) + "&v=" + encodeURIComponent(job.epoch) +
         (hi ? "&hi=1" : "") + (retry ? "&retry=1" : "") + (cachedOnly ? "&cached=1" : "");
-      var response = await runtime.request(path, {binary: true, signal: job.controller.signal, timeout: 35000});
+      var response = await runtime.request(path, {binary: true, signal: job.controller.signal, timeout: 35000,
+        cache: retry ? "no-store" : job.forceReload ? "reload" : "default"});
       if (response.status === 202 || response.status === 503) return {pending: true};
       if (response.status === 404) return {dead: true};
       if (!response.ok) throw new Error("Preview request failed (" + response.status + ")");
@@ -77,10 +79,16 @@
       var low = cache.get(job.key);
       if (document.hidden || !document.hasFocus()) return low || {paused: true};
       if (low) publishLow(job, low);
-      // Fast disk hits still get full quality, without triggering a cold render.
-      var hi = await fetchImage(job, true, false, true);
-      if (hi.blob && !job.retry) return hi;
-      if (job.cachedOnly) return low || {pending: true};
+      // Disk hits have their own bounded lane. A slow Unity render must never
+      // hold cached high-res cards behind it, including after a scroll.
+      var hi;
+      if (job.phase === "cache") {
+        if (job.retry) return {render: true};
+        hi = await fetchImage(job, true, false, true);
+        if (hi.blob) return hi;
+        if (job.cachedOnly) return low || {pending: true};
+        return {render: true};
+      }
       if (!low && !job.loDead) {
         var result = await fetchImage(job, false, job.retry);
         job.retry = false;
@@ -103,21 +111,28 @@
     }
     function pump() {
       if (stopped) return;
-      while (active < maxActive && queue.length) {
+      while (queue.length) {
         queue.sort(function (a, b) { return a.priority - b.priority || a.order - b.order; });
-        // Keep one of the three slots available for the modal, even while
-        // grid requests are waiting on Unity. Promotion wakes this lane too.
-        if (active >= maxActive - 1 && queue[0].priority > 0) break;
-        var job = queue.shift(); active++; notify();
-        (function (current) {
+        // Two grid renders at most, plus a reserved selected-image render slot.
+        // Cache probes can continue while all render requests wait on Unity.
+        var index = queue.findIndex(function (job) {
+          return job.phase === "cache" ? activeCached < maxCached :
+            activeRender < maxRender && (job.priority === 0 || activeRender < maxRender - 1);
+        });
+        if (index < 0) break;
+        var job = queue.splice(index, 1)[0], cachedLane = job.phase === "cache";
+        if (cachedLane) activeCached++; else activeRender++;
+        active++; notify();
+        (function (current, wasCached) {
           run(current).then(function (result) {
             if (!result || current.epoch !== epoch || current.controller.signal.aborted) { finish(current, null); return; }
+            if (result.render) { current.phase = "render"; queue.push(current); return; }
             if (result.pending && !current.cachedOnly && current.attempt < 4) {
               var delay = Math.min(2500, 400 * Math.pow(1.7, current.attempt++));
               current.timer = setTimeout(function () {
                 current.timer = null;
                 if (jobs.get(current.key) !== current || current.controller.signal.aborted) return;
-                queue.push(current); pump();
+                current.phase = "cache"; queue.push(current); pump();
               }, delay);
               return;
             }
@@ -128,16 +143,24 @@
             finish(current, error.name === "AbortError" ? null : current.partial || {error: true});
           }).finally(function () {
             active--;
-            if (!current.timer && jobs.get(current.key) === current) jobs.delete(current.key);
+            if (wasCached) activeCached--; else activeRender--;
             notify(); pump();
           });
-        })(job);
+        })(job, cachedLane);
       }
     }
     function get(guid, priority, retry, onProgress, cachedOnly) {
       if (!guid || stopped) return Promise.resolve({dead: true});
       var id = key(guid);
-      if (retry) forget(id);
+      if (retry) {
+        forget(id);
+        var prior = jobs.get(id);
+        if (prior) {
+          clearTimeout(prior.timer); prior.timer = null; prior.controller.abort();
+          queue = queue.filter(function (item) { return item !== prior; });
+          finish(prior, null);
+        }
+      }
       if (!retry && cache.has(id) && (cache.get(id).hi || (priority > 0 && !cachedOnly))) {
         var entry = cache.get(id); cache.delete(id); cache.set(id, entry);
         return Promise.resolve(entry);
@@ -151,8 +174,8 @@
         }
         pump(); return current.promise;
       }
-      var job = {key: id, guid: guid, epoch: epoch, priority: priority || 0, order: serial++, retry: !!retry,
-        cachedOnly: !!cachedOnly, attempt: 0, timer: null, loDead: false, controller: new AbortController(), progress: onProgress ? [onProgress] : []};
+      var job = {key: id, guid: guid, epoch: epoch, priority: priority || 0, order: serial++, retry: !!retry, forceReload: !!retry,
+        cachedOnly: !!cachedOnly, phase: "cache", attempt: 0, timer: null, loDead: false, controller: new AbortController(), progress: onProgress ? [onProgress] : []};
       job.promise = new Promise(function (resolve) { job.resolve = resolve; });
       jobs.set(id, job); queue.push(job); pump(); return job.promise;
     }
@@ -218,12 +241,14 @@
       if (stopped || document.hidden || !document.hasFocus()) return;
       document.querySelectorAll("[data-thumb]").forEach(function (node) {
         var binding = bindings.get(node), data = node._wardrobePreview;
-        if (!data || !binding || binding.loading || binding.hi || !binding.blob || Date.now() - binding.checkedAt < 5000) return;
+        if (!data || !binding || binding.loading || binding.hi || !binding.blob || Date.now() - binding.checkedAt < 1000) return;
         var rect = node.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0 || rect.bottom <= 0 || rect.right <= 0 || rect.top >= global.innerHeight || rect.left >= global.innerWidth) return;
         bind(node, data.guid, Object.assign({}, data.config, {upgrade: true}));
       });
     }
+    // Cheap cache-only upgrades are independent of the heavier state heartbeat.
+    var upgradeTimer = setInterval(refresh, 750);
     function sweep() {
       observed.forEach(function (observer, node) { if (!node.isConnected) { observer.unobserve(node); observed.delete(node); } });
     }
@@ -266,11 +291,11 @@
       });
     }
     global.addEventListener("pagehide", function (event) {
-      stopped = true; cancelJobs();
+      stopped = true; clearInterval(upgradeTimer); cancelJobs();
       if (!event.persisted) { cache.clear(); bytes = 0; observers.forEach(function (observer) { observer.disconnect(); }); }
     });
     global.addEventListener("pageshow", function (event) {
-      if (event.persisted) { stopped = false; bindings = new WeakMap(); resume(); pump(); }
+      if (event.persisted) { stopped = false; upgradeTimer = setInterval(refresh, 750); bindings = new WeakMap(); resume(); pump(); }
     });
     return {get: get, bind: bind, observe: observe, resume: resume, reset: reset, decode: decode, fallback: fallback, sweep: sweep,
       isUnavailable: function (guid) { return unavailable.has(key(guid)); },

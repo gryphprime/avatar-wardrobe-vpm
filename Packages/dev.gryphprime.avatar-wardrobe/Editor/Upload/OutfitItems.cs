@@ -79,25 +79,25 @@ namespace ShiroTools
         //  Per-preset include state (project-local JSON, survives plugin updates;
         //  legacy EditorPrefs values are migrated on first read)
         // ============================================================
-        private string ItemAvatarKey => _avatarRoot != null ? _avatarRoot.name : "";
+        private string ItemAvatarKey => UploadAvatarKey;
 
         private bool ItemDefaultOn(string itemName) =>
             OutfitProjectData.GetItemDefault(ItemAvatarKey, itemName);
 
         /// <summary>Whether the item uploads with this preset (per-preset override, else the every-preset default).</summary>
         private bool ItemIncludedFor(string outfitName, string itemName) =>
-            OutfitProjectData.GetItemIncluded(ItemAvatarKey, outfitName, itemName);
+            OutfitProjectData.GetItemIncluded(ItemAvatarKey, UploadOutfitKey(outfitName), itemName);
 
         private void SetItemIncluded(string outfitName, string itemName, bool include)
         {
-            OutfitProjectData.SetItemIncluded(ItemAvatarKey, outfitName, itemName, include);
+            OutfitProjectData.SetItemIncluded(ItemAvatarKey, UploadOutfitKey(outfitName), itemName, include);
             ClearVramCache();
             MarkBudgetsDirty();
         }
 
         private void SetItemsIncluded(string outfitName, IEnumerable<string> itemNames, bool include)
         {
-            OutfitProjectData.SetItemsIncluded(ItemAvatarKey, outfitName, itemNames, include);
+            OutfitProjectData.SetItemsIncluded(ItemAvatarKey, UploadOutfitKey(outfitName), itemNames, include);
             ClearVramCache();
             MarkBudgetsDirty();
         }

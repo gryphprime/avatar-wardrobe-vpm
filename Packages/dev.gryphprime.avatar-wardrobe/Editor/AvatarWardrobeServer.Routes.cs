@@ -259,10 +259,16 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("on", out on);
                 string grid;
                 query.TryGetValue("grid", out grid);
+                query.TryGetValue("visible", out var visibleGrid);
                 lock (webActiveLock)
                 {
                     webActiveUntil = on == "1" ? DateTime.UtcNow.AddSeconds(15) : DateTime.MinValue;
-                    if (on == "1" && grid != null) previewGridPriority = grid.Length <= 4096 ? grid : grid.Substring(0, 4096);
+                    if (on == "1" && grid != null)
+                    {
+                        previewGridPriority = grid.Length <= 4096 ? grid : grid.Substring(0, 4096);
+                        previewVisiblePriority = new HashSet<string>((visibleGrid ?? "").Split(',').Where(IsAssetGuid)
+                            .Take(120), StringComparer.OrdinalIgnoreCase);
+                    }
                 }
                 WriteJson(context, 200, new ResultDto { ok = 1 });
                 return;
@@ -279,6 +285,16 @@ namespace OutfitToggleGenerator
                 var hi = hiFlag == "1";
                 string retryFlag;
                 query.TryGetValue("retry", out retryFlag);
+                string requestedEpoch;
+                query.TryGetValue("v", out requestedEpoch);
+                // The browser includes the catalog/preview epoch in every
+                // request. Only advertise immutable caching when it matches
+                // the server's current freshness token; a stale tab or a
+                // retry after invalidation must be allowed to revalidate.
+                // This runs on the listener pool thread. Compare only the
+                // immutable session/catalog/revision segments; resolving the
+                // override/base-avatar segments would touch Unity APIs.
+                var currentEpoch = IsCurrentPreviewEpoch(requestedEpoch);
                 if (!IsAssetGuid(guid)) { WriteText(context, 400, "text/plain", "Invalid asset GUID."); return; }
                 if (retryFlag == "1") RunOnMain(() => { ResetThumb(guid); return 0; }, requestCode);
                 var dir = hi ? hiDir : thumbDir;
@@ -293,7 +309,7 @@ namespace OutfitToggleGenerator
                     {
                         try
                         {
-                            WriteBytes(context, 200, "image/png", File.ReadAllBytes(cached));
+                            WriteThumbnailBytes(context, 200, cached, File.ReadAllBytes(cached), currentEpoch && retryFlag != "1");
                             return;
                         }
                         catch (Exception) { }
@@ -319,7 +335,7 @@ namespace OutfitToggleGenerator
                 var outcome = RunOnMain(() => hi ? BakeThumbHi(guid) : BakeThumb(guid), requestCode, true);
                 if (outcome == null) WriteJson(context, 202, new ResultDto { ok = 0, message = "pending" });
                 else if (outcome.Length == 0) WriteJson(context, 404, new ResultDto { ok = 0, message = "unavailable" });
-                else WriteBytes(context, 200, "image/png", outcome);
+                else WriteThumbnailBytes(context, 200, ThumbPath(guid, hi), outcome, currentEpoch && retryFlag != "1");
                 return;
             }
             if (path == "/api/library_import_begin" || path == "/api/library_import_end" || path == "/api/library_import_renew")
@@ -562,14 +578,22 @@ namespace OutfitToggleGenerator
             }
             if (path == "/api/batch_import")
             {
-                var query = Query(request.Url.Query);
-                string op, token, data;
-                query.TryGetValue("op", out op);
-                query.TryGetValue("token", out token);
-                query.TryGetValue("data", out data);
-                if (op == "chunk") WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebImportChunk(token, data), requestCode);
-                else if (op == "commit") WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebImportCommit(token), requestCode);
-                else WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebImportBegin(), requestCode);
+                const int limit = 4 * 1024 * 1024;
+                if (request.ContentLength64 < 1 || request.ContentLength64 > limit)
+                { WriteText(context, 413, "text/plain", "Settings require a JSON body of at most 4 MiB."); return; }
+                string json;
+                using (var body = new System.IO.MemoryStream())
+                {
+                    var buffer = new byte[8192]; int count;
+                    while ((count = request.InputStream.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        if (body.Length + count > limit) { WriteText(context, 413, "text/plain", "Settings exceed 4 MiB."); return; }
+                        body.Write(buffer, 0, count);
+                    }
+                    json = new System.Text.UTF8Encoding(false, true).GetString(body.ToArray());
+                }
+                ShiroTools.OutfitBatchUploader.ValidateSettingsBundle(json);
+                WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebImport(json), requestCode, payloadIdentity: Digest(json));
                 return;
             }
             if (path == "/api/batch_blendshape")

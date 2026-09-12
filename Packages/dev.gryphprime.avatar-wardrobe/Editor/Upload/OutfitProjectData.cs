@@ -28,7 +28,7 @@ namespace ShiroTools
 {
     internal static class OutfitProjectData
     {
-        private const string FILE_NAME = "ShiroOutfit_data.json";
+        internal const string FILE_NAME = "ShiroOutfit_data.json";
         private static string FilePath => Path.Combine("ProjectSettings", FILE_NAME);
 
         private static int readDepth;
@@ -66,6 +66,7 @@ namespace ShiroTools
         [Serializable]
         internal class OutfitData
         {
+            public string sceneIdentity, displayName;
             public string name;
             public string blueprintId    = "";
             public bool   includeInBatch = true;
@@ -84,6 +85,7 @@ namespace ShiroTools
         [Serializable]
         internal class AvatarData
         {
+            public string sceneIdentity, displayName;
             public string name;
             public List<OutfitData> outfits      = new List<OutfitData>();
             // Item names included on EVERY preset by default (per-preset overrides win)
@@ -155,10 +157,25 @@ namespace ShiroTools
 
         private static Root ParseRoot(string json)
         {
-            if (string.IsNullOrWhiteSpace(json) || !json.Contains("\"avatars\""))
+            if (string.IsNullOrWhiteSpace(json) || Newtonsoft.Json.Linq.JObject.Parse(json)["avatars"]?.Type != Newtonsoft.Json.Linq.JTokenType.Array)
                 throw new InvalidDataException("Missing avatars collection.");
             var parsed = JsonUtility.FromJson<Root>(json);
             if (parsed?.avatars == null) throw new InvalidDataException("Invalid avatars collection.");
+            foreach (var avatar in parsed.avatars)
+            {
+                if (avatar == null) throw new InvalidDataException("Invalid avatar settings.");
+                avatar.outfits ??= new List<OutfitData>();
+                avatar.itemDefaults ??= new List<string>();
+                avatar.itemDefaultsDecided ??= new List<string>();
+                foreach (var outfit in avatar.outfits)
+                {
+                    if (outfit == null) throw new InvalidDataException("Invalid preset settings.");
+                    outfit.blendShapes ??= new List<BlendShapeOverride>();
+                    outfit.itemOverrides ??= new List<ItemOverride>();
+                    if (outfit.blendShapes.Any(b => b == null) || outfit.itemOverrides.Any(i => i == null))
+                        throw new InvalidDataException("Invalid preset overrides.");
+                }
+            }
             return parsed;
         }
 
@@ -195,6 +212,71 @@ namespace ShiroTools
         // ============================================================
         //  Accessors
         // ============================================================
+        static OutfitProjectData()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaved += scene =>
+            {
+                if (_root == null || readDepth > 0) return;
+                bool changed = false;
+                var avatars = _root.avatars.Where(a => a.name != null).GroupBy(a => a.name).Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.Single());
+                foreach (var root in scene.GetRootGameObjects())
+                    foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+                    {
+                        var key = SessionState.GetString("Wardrobe.Upload.Identity." + transform.gameObject.GetInstanceID(), "");
+                        if (string.IsNullOrEmpty(key)) continue;
+                        var identity = SceneIdentity(transform.gameObject);
+                        if (string.IsNullOrEmpty(identity)) continue;
+                        if (avatars.TryGetValue(key, out var avatar) && avatar.sceneIdentity != identity)
+                        { avatar.sceneIdentity = identity; changed = true; }
+                        foreach (var record in _root.avatars.SelectMany(a => a.outfits).Where(o => o.name == key && o.sceneIdentity != identity))
+                        { record.sceneIdentity = identity; changed = true; }
+                    }
+                if (changed) Save();
+            };
+        }
+        private static string SceneIdentity(GameObject obj)
+        {
+            var id = GlobalObjectId.GetGlobalObjectIdSlow(obj);
+            return string.IsNullOrEmpty(obj.scene.path) || id.targetObjectId == 0 ? "" : id.ToString();
+        }
+        internal static string SceneKey(GameObject obj)
+        {
+            if (obj == null) throw new InvalidOperationException("The scene target is missing.");
+            var global = GlobalObjectId.GetGlobalObjectIdSlow(obj).ToString();
+            bool saved = !string.IsNullOrEmpty(obj.scene.path) && GlobalObjectId.GetGlobalObjectIdSlow(obj).targetObjectId != 0;
+            var sessionKey = "Wardrobe.Upload.Identity." + obj.GetInstanceID();
+            var key = SessionState.GetString(sessionKey, "");
+            if (string.IsNullOrEmpty(key)) key = saved ? "scene:" + global : "scene-session:" + Guid.NewGuid().ToString("N");
+            SessionState.SetString(sessionKey, key);
+            return key;
+        }
+        internal static string SceneAvatarKey(GameObject root)
+        {
+            var identity = SceneIdentity(root);
+            var key = SceneKey(root);
+            var existing = Data.avatars.FirstOrDefault(a => a.name == key || (!string.IsNullOrEmpty(identity) && a.sceneIdentity == identity));
+            if (existing == null)
+            {
+                // A legacy label does not establish ownership across saved scenes.
+                // Keep that record for explicit recovery instead of copying Blueprint IDs.
+                if (Data.avatars.Any(a => a.name == root.name))
+                    Debug.LogWarning("[Wardrobe] Legacy upload settings for '" + root.name + "' were retained. Assign settings to this exact avatar before uploading.");
+                existing = GetAvatar(key);
+            }
+            if (readDepth == 0) { existing.sceneIdentity = identity; existing.displayName = root.name; }
+            return existing.name;
+        }
+        internal static OutfitData SceneOutfit(string avatarKey, GameObject holder)
+        {
+            var identity = SceneIdentity(holder);
+            var key = SceneKey(holder);
+            var avatar = GetAvatar(avatarKey);
+            var entry = avatar.outfits.FirstOrDefault(o => o.name == key || (!string.IsNullOrEmpty(identity) && o.sceneIdentity == identity));
+            if (entry == null) entry = GetOutfit(avatarKey, key);
+            if (readDepth == 0) { entry.sceneIdentity = identity; entry.displayName = holder.name; }
+            return entry;
+        }
+
         internal static AvatarData GetAvatar(string avatarName)
         {
             var av = Data.avatars.FirstOrDefault(a => a.name == avatarName);
@@ -336,20 +418,15 @@ namespace ShiroTools
             catch { return null; }
         }
 
+        internal static void ValidateImport(string json) => ParseRoot(json);
         internal static bool ImportRaw(string json)
         {
-            try
-            {
-                var parsed = JsonUtility.FromJson<Root>(json);
-                if (parsed == null || parsed.avatars == null || parsed.avatars.Count == 0) return false;
-                var existing = Data; // Refuse import over unrecoverable state.
-                WriteAtomically(FilePath, JsonUtility.ToJson(parsed, true));
-                _root = parsed;
-                _durable = JsonUtility.ToJson(parsed, true);
-                ClearCaches();
-                return true;
-            }
-            catch { return false; }
+            var parsed = ParseRoot(json);
+            var existing = Data; // Refuse import over unrecoverable state.
+            var serialized = JsonUtility.ToJson(parsed, true);
+            WriteAtomically(FilePath, serialized);
+            _root = parsed; _durable = serialized; ClearCaches();
+            return true;
         }
 
         // ---- FaceEmo ----

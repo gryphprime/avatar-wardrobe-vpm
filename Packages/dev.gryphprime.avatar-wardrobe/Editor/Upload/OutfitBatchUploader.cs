@@ -58,6 +58,7 @@ namespace ShiroTools
         private class QueueItem
         {
             public string outfit;
+            public string avatarKey, holderKey;
             public string id;
             public string platform;
         }
@@ -394,6 +395,18 @@ namespace ShiroTools
         /// Rebuilds the preset list from the currently selected avatar root.
         /// Call this whenever the avatar selection or presets-parent-name changes.
         /// </summary>
+        private bool UsesGeneratedPresetKeys => _avatarRoot != null &&
+            _avatarRoot.scene.path.StartsWith("Assets/Generated/WardrobeUploads/", StringComparison.Ordinal);
+        private string UploadAvatarKey => _avatarRoot == null ? "" : UsesGeneratedPresetKeys ? _avatarRoot.name : OutfitProjectData.SceneAvatarKey(_avatarRoot);
+        private string UploadOutfitKey(string name)
+        {
+            var matches = _outfits.Where(o => o.Go != null && o.Name == name).ToArray();
+            if (matches.Length != 1) throw new InvalidOperationException("Choose an unambiguous preset holder before changing its settings.");
+            return matches[0].Data.name;
+        }
+        private bool QueueMatches(QueueItem queued, OutfitEntry entry) => entry.Go != null &&
+            queued.avatarKey == UploadAvatarKey && queued.holderKey == entry.Data.name;
+
         private void RebuildOutfitList()
         {
             _outfitsParent = null;
@@ -407,11 +420,11 @@ namespace ShiroTools
 
             // Data is scoped by avatar name inside the project-local JSON store
             // (ProjectSettings/ShiroOutfit_data.json — survives plugin updates).
-            string avatarKey = _avatarRoot.name;
+            string avatarKey = UploadAvatarKey;
 
             foreach (Transform child in _outfitsParent.transform)
             {
-                var data = OutfitProjectData.GetOutfit(avatarKey, child.gameObject.name);
+                var data = UsesGeneratedPresetKeys ? OutfitProjectData.GetOutfit(avatarKey, child.gameObject.name) : OutfitProjectData.SceneOutfit(avatarKey, child.gameObject);
                 var entry = new OutfitEntry
                 {
                     Go             = child.gameObject,
@@ -1125,7 +1138,7 @@ namespace ShiroTools
         /// <summary>Re-queues the failed items of the last batch (only those whose preset still exists).</summary>
         private async Task RetryFailedAsync(List<QueueItem> failed)
         {
-            var valid = failed.Where(f => _outfits.Any(o => o.Name == f.outfit)).ToList();
+            var valid = failed.Where(f => _outfits.Any(o => QueueMatches(f, o))).ToList();
             if (valid.Count == 0)
             {
                 SetStatus("None of the failed presets exist in the scene anymore.", MessageType.Warning);
@@ -1473,6 +1486,7 @@ namespace ShiroTools
                         queue.Add(new QueueItem
                         {
                             outfit   = outfit.Name,
+                            avatarKey = UploadAvatarKey, holderKey = outfit.Data.name,
                             id       = outfit.BlueprintId,
                             platform = plat.ToString()
                         });
@@ -1581,7 +1595,7 @@ namespace ShiroTools
                     _batchSubProgress = 0.2f;
                     Repaint();
 
-                    var outfit = _outfits.FirstOrDefault(o => o.Name == outfitName);
+                    var outfit = _outfits.FirstOrDefault(o => QueueMatches(queue[0], o));
                     if (outfit == null)
                     {
                         // If an preset vanished mid-batch, report it as failed instead of
@@ -1702,7 +1716,7 @@ namespace ShiroTools
                 Debug.LogError(logMsg);
                 SetStatus($"Error on {outfitName}: {shortMsg}", MessageType.Error);
 
-                bool cont = EditorUtility.DisplayDialog(
+                bool cont = !WardrobeHeadless && EditorUtility.DisplayDialog(
                     "Upload Failed",
                     $"Upload failed for '{outfitName}' on {platform}:\n\n{shortMsg}\nContinue with remaining queue?",
                     "Continue", "Stop");
@@ -2203,20 +2217,7 @@ namespace ShiroTools
 
         private static void SaveVersions()
         {
-            try
-            {
-                var data = new VersionData();
-                foreach (var kvp in _versions)
-                    data.versions.Add(new VersionEntry { blueprintId = kvp.Key, version = kvp.Value });
-                
-                string json = JsonUtility.ToJson(data, true);
-                Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath));
-                OutfitProjectData.WriteAtomically(ConfigPath, json);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[AvatarVersionManager] Failed to save versions: {ex.Message}");
-            }
+            OutfitProjectData.WriteAtomically(ConfigPath, ExportRaw());
         }
 
         public static string GetVersion(string blueprintId)
@@ -2229,8 +2230,9 @@ namespace ShiroTools
         public static void SetVersion(string blueprintId, string version)
         {
             if (string.IsNullOrWhiteSpace(blueprintId)) return;
+            var previous = new Dictionary<string, string>(_versions);
             _versions[blueprintId] = version;
-            SaveVersions();
+            try { SaveVersions(); } catch { _versions = previous; throw; }
         }
 
         internal static string ExportRaw()
@@ -2241,20 +2243,31 @@ namespace ShiroTools
             return JsonUtility.ToJson(data);
         }
 
+        internal static void ValidateImport(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json) || Newtonsoft.Json.Linq.JObject.Parse(json)["versions"]?.Type != Newtonsoft.Json.Linq.JTokenType.Array)
+                throw new InvalidDataException("Missing versions collection.");
+            var data = JsonUtility.FromJson<VersionData>(json);
+            if (data?.versions == null || data.versions.Any(e => e == null || string.IsNullOrWhiteSpace(e.blueprintId)))
+                throw new InvalidDataException("Invalid versions collection.");
+        }
+        internal static string CaptureSettings() => File.Exists(ConfigPath) ? File.ReadAllText(ConfigPath) : null;
+        internal static void RestoreSettings(string disk, string memory)
+        {
+            if (disk == null) { if (File.Exists(ConfigPath)) File.Delete(ConfigPath); }
+            else OutfitProjectData.WriteAtomically(ConfigPath, disk);
+            LoadVersionsFromJson(memory);
+        }
         internal static bool ImportRaw(string json)
         {
-            try
-            {
-                var data = JsonUtility.FromJson<VersionData>(json);
-                if (data?.versions == null) return false;
-                _versions.Clear();
-                foreach (var e in data.versions)
-                    if (!string.IsNullOrWhiteSpace(e.blueprintId))
-                        _versions[e.blueprintId] = e.version;
-                SaveVersions();
-                return true;
-            }
-            catch { return false; }
+            ValidateImport(json);
+            var data = JsonUtility.FromJson<VersionData>(json);
+            var next = new Dictionary<string, string>();
+            foreach (var entry in data.versions) next[entry.blueprintId] = entry.version;
+            OutfitProjectData.WriteAtomically(ConfigPath, JsonUtility.ToJson(data, true));
+            _versions = next;
+            return true;
         }
+
     }
 }

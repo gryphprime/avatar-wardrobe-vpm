@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shutil
 import time
+import threading
 
 from wardrobe_shadow import atomic_json
 
@@ -18,31 +19,35 @@ HEX32 = re.compile(r'^[0-9a-f]{32}$')
 HEX64 = re.compile(r'^[0-9a-f]{64}$')
 
 
+_retention_gate = threading.Lock()
+
 @contextmanager
 def retention_lock(root):
+    # Same byte-range protocol as FileStream.Lock(0, 1) in Unity: POSIX fcntl
+    # record locks / Windows LockFile. Never unlink the inode while contenders wait.
     root.mkdir(parents=True, exist_ok=True)
-    path = root / 'snapshot-retention.lock'
-    deadline = time.monotonic() + 2
-    while True:
-        try:
-            stream = path.open('x', encoding='utf-8')
-            json.dump({'pid': os.getpid(), 'created': int(time.time())}, stream)
-            stream.flush()
-            break
-        except FileExistsError:
+    with _retention_gate, (root / 'snapshot-retention-v2.lock').open('a+b') as stream:
+        deadline = time.monotonic() + 2
+        if os.name == 'nt':
+            import msvcrt
+            stream.seek(0)
+            if not stream.read(1): stream.write(b'0'); stream.flush()
+        else:
+            import fcntl
+        while True:
             try:
-                value = json.loads(path.read_text())
-                if time.time() - path.stat().st_mtime > 300:
-                    try: os.kill(int(value['pid']), 0)
-                    except ProcessLookupError: path.unlink(); continue
-            except (OSError, ValueError, KeyError, TypeError): pass
-            if time.monotonic() >= deadline:
-                raise RuntimeError('Snapshot retention is busy. Try again shortly.')
-            time.sleep(0.01)
-    try: yield
-    finally:
-        stream.close()
-        path.unlink(missing_ok=True)
+                stream.seek(0)
+                if os.name == 'nt': msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                else: fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB, 1, 0)
+                break
+            except OSError:
+                if time.monotonic() >= deadline: raise RuntimeError('Snapshot retention is busy. Try again shortly.')
+                time.sleep(0.01)
+        try: yield
+        finally:
+            stream.seek(0)
+            if os.name == 'nt': msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else: fcntl.lockf(stream, fcntl.LOCK_UN, 1, 0)
 
 
 class CaptureRetention:

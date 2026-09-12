@@ -100,6 +100,8 @@ class Host(ThreadingHTTPServer):
         self.plan_lock = threading.Lock()
         self.import_lock = threading.Lock()
         self.cache_lock = threading.Lock()
+        self.cache_pruned_at = 0
+        self.cache_warning_at = 0
         self.session = uuid.uuid4().hex
         self.bridge_project = None
         self.unity = str(unity)
@@ -109,19 +111,29 @@ class Host(ThreadingHTTPServer):
         self._operation_queue = self.operations
         self.operation_bridge = UnityOperationBridge(self.bridge, self.project)
         self.operation_driver = OperationDriver(self.operations, self.operation_bridge)
+        self.operation_health = None
         self._operation_stop = threading.Event()
         self._operation_thread = threading.Thread(target=self._drive_operations, name='wardrobe-operations', daemon=True)
         self._operation_thread.start()
 
     def _drive_operations(self):
+        warning_at = 0
         try:
             while not self._operation_stop.is_set():
+                self.operations.wake.clear()
+                pending = True
                 try:
                     self.operation_driver.step()
-                except (OSError, ValueError, RuntimeError, sqlite3.Error):
-                    # Persisted intents survive a transient local/bridge failure.
-                    pass
-                self._operation_stop.wait(0.25)
+                    pending = self.operations.has_work()
+                    self.operation_health = None
+                except (OSError, ValueError, RuntimeError, sqlite3.Error) as error:
+                    self.operation_health = str(error)
+                    if time.monotonic() - warning_at >= 60:
+                        warning_at = time.monotonic()
+                        print('Wardrobe operation driver: ' + str(error), flush=True)
+                # Committed local submissions wake immediately; bounded timeout also
+                # discovers work submitted by another host to the shared database.
+                self.operations.wake.wait(0.25 if pending else 2)
         finally:
             self._operation_queue.close()
 
@@ -213,7 +225,7 @@ class Handler(BaseHTTPRequestHandler):
             if route in ('/api/operations', '/api/operations/cancel'):
                 return self.operation_route(route, query)
             if route == '/api/library' and self.command == 'GET':
-                return self.send(200, {'ok': 1, 'project': self.server.project, 'items': self.server.library.list()})
+                return self.send(200, {'ok': 1, 'project': self.server.project, 'items': self.server.library.list(offset=int(query.get('offset', '0'))), 'offset': int(query.get('offset', '0'))})
             if route == '/api/library/add' and self.command == 'POST':
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= MAX_BYTES:
@@ -278,23 +290,28 @@ class Handler(BaseHTTPRequestHandler):
             if length != 0:
                 raise ValueError('Cancel requires only an operation id.')
             return self.send(200, self.server.operations.cancel(query.get('id', '')))
-        if not 0 < length <= MAX_COMMAND_BYTES:
-            raise ValueError('Operation controls require a JSON body no larger than 64 KiB.')
-        raw = self.rfile.read(length)
-        if len(raw) != length:
-            raise ValueError('The operation request ended early.')
-        def unique_object(pairs):
-            value = {}
-            for key, item in pairs:
-                if key in value:
-                    raise ValueError('Duplicate command fields are not allowed.')
-                value[key] = item
-            return value
-        command = json.loads(raw, object_pairs_hook=unique_object)
+        try:
+            if not 0 < length <= MAX_COMMAND_BYTES:
+                raise ValueError('Operation controls require a JSON body no larger than 64 KiB.')
+            raw = self.rfile.read(length)
+            if len(raw) != length:
+                raise ValueError('The operation request ended early.')
+            def unique_object(pairs):
+                value = {}
+                for key, item in pairs:
+                    if key in value:
+                        raise ValueError('Duplicate command fields are not allowed.')
+                    value[key] = item
+                return value
+            command = json.loads(raw, object_pairs_hook=unique_object)
+        except (ValueError, TypeError) as error:
+            return self.send(400, {'ok': 0, 'accepted': False, 'message': str(error)})
         try:
             receipt = self.server.operations.submit(command)
         except OverflowError as error:
-            return self.send(429, {'ok': 0, 'message': str(error)})
+            return self.send(429, {'ok': 0, 'accepted': False, 'message': str(error)})
+        except ValueError as error:
+            return self.send(400, {'ok': 0, 'accepted': False, 'message': str(error)})
         # SQLite commit has completed. Unity work happens only on the driver thread.
         return self.send(202, receipt)
 
@@ -351,9 +368,12 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError: raise ValueError('The capture receipt has an invalid snapshot identity.')
             before = payload.get('before', False)
             if not isinstance(before, bool): raise ValueError('The comparison side must be a boolean.')
-            receipt = service.submit(path, payload.get('view', 'front'), before=before, zoom=payload.get('zoom', 1.0),
-                                     confirmed_revision=result.get('confirmedRevision', ''), target=target, operation_id=operation_id,
-                                     source_input=dict(operation.get('command', {}).get('payload', {}), scopeId=target.get('scopeId', 'common')))
+            try:
+                receipt = service.submit(path, payload.get('view', 'front'), before=before, zoom=payload.get('zoom', 1.0),
+                                         confirmed_revision=result.get('confirmedRevision', ''), target=target, operation_id=operation_id,
+                                         source_input=dict(operation.get('command', {}).get('payload', {}), scopeId=target.get('scopeId', 'common')))
+            except OverflowError as error:
+                return self.send(429, {'ok': 0, 'accepted': False, 'message': str(error)})
             return self.send(202, dict(self.snapshot_public(receipt), ok=1, operationId=operation_id))
         if route == '/api/shadow/result':
             result = service.get(query.get('id', ''))
@@ -500,14 +520,19 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(409, {'ok': 0, 'message': 'Start the desktop host with --project before connecting to Unity. Your library remains available.'})
         # The fixed bridge host prevents arbitrary URL forwarding. Mutations retain
         # the browser's reviewed Unity session and avatar identity, never a new one.
-        if self.headers.get('Content-Length', '0') != '0':
-            raise ValueError('This Unity bridge endpoint does not accept file bodies.')
+        body = None
+        length = int(self.headers.get('Content-Length', '0'))
+        if length:
+            if route != '/api/batch_import' or self.command != 'POST' or not 0 < length <= 4 * 1024 * 1024:
+                raise ValueError('This endpoint requires a settings body of at most 4 MiB.')
+            body = self.rfile.read(length)
+            if len(body) != length: raise ValueError('Incomplete settings body.')
         headers = {'X-Wardrobe-Project': urllib.parse.quote(self.server.project, safe='')}
         if self.command == 'POST':
-            for name in ('X-Wardrobe-Request', 'X-Wardrobe-Session', 'X-Wardrobe-Avatar', 'X-Wardrobe-Queue'):
+            for name in ('X-Wardrobe-Request', 'X-Wardrobe-Session', 'X-Wardrobe-Avatar', 'X-Wardrobe-Queue', 'X-Wardrobe-Write-Id', 'Content-Type'):
                 if self.headers.get(name):
                     headers[name] = self.headers[name]
-        request = urllib.request.Request(self.server.bridge + self.path, method=self.command, headers=headers)
+        request = urllib.request.Request(self.server.bridge + self.path, data=body, method=self.command, headers=headers)
         key = hashlib.sha256((self.server.project + '|' + self.path).encode()).hexdigest()
         cached = self.server.cache / (key + '.json')
         try:
@@ -541,18 +566,28 @@ class Handler(BaseHTTPRequestHandler):
                 record = {'project': self.server.project, 'route': route, 'path': self.path,
                           'mime': mime, 'body': base64.b64encode(data).decode(), 'saved': time.time()}
                 temp = cached.with_name(cached.name + '.' + uuid.uuid4().hex + '.tmp')
-                with self.server.cache_lock:
-                    temp.write_text(json.dumps(record))
-                    temp.replace(cached)
-                    entries = sorted(self.server.cache.glob('*.json'), key=lambda file: file.stat().st_mtime, reverse=True)
-                    total = 0
-                    for index, file in enumerate(entries):
-                        total += file.stat().st_size
-                        if index >= 4096 or total > 512 * 1024 * 1024:
-                            file.unlink(missing_ok=True)
+                try:
+                    with self.server.cache_lock:
+                        temp.write_text(json.dumps(record))
+                        temp.replace(cached)
+                        if time.monotonic() - self.server.cache_pruned_at >= 60:
+                            self.server.cache_pruned_at = time.monotonic()
+                            entries = sorted(self.server.cache.glob('*.json'), key=lambda file: file.stat().st_mtime, reverse=True)
+                            total = 0
+                            for index, file in enumerate(entries):
+                                total += file.stat().st_size
+                                if index >= 4096 or total > 512 * 1024 * 1024:
+                                    file.unlink(missing_ok=True)
+                except OSError as error:
+                    if time.monotonic() - self.server.cache_warning_at >= 60:
+                        self.server.cache_warning_at = time.monotonic()
+                        self.log_error('Optional preview cache unavailable: %s', error)
+                finally:
+                    try: temp.unlink(missing_ok=True)
+                    except OSError: pass
             if route == '/api/state':
                 value = json.loads(data)
-                value.update(desktop=True, bridgeOnline=True, libraryProject=self.server.project)
+                value.update(desktop=True, bridgeOnline=True, libraryProject=self.server.project, operationDriverError=self.server.operation_health)
                 return self.send(status, value)
             return self.send(status, json.loads(data) if mime == 'application/json' else data, mime)
         except urllib.error.HTTPError as error:

@@ -62,7 +62,6 @@ namespace OutfitToggleGenerator
             if (sceneAvatar != null && EditorUtility.IsPersistent(sceneAvatar.gameObject))
                 EditorGUILayout.HelpBox(WardrobeStrings.T("msg.openavatar"), MessageType.Info);
             GUILayout.Space(10);
-            if (GUILayout.Button("Open Library and Dressing Room")) WardrobeDesktopLauncher.Open();
             GUILayout.Label(WardrobeStrings.T("win.browser"), EditorStyles.boldLabel);
             using (new EditorGUILayout.HorizontalScope())
             {
