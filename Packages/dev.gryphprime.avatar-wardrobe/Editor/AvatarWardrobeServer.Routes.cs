@@ -129,7 +129,7 @@ namespace OutfitToggleGenerator
                     WriteMainJson(context, () => WardrobePresetAppearance.Apply(SceneAvatar, presetId, token), requestCode);
                 }
                 else if (path == "/api/preset_appearance_export") WriteMainJson(context, () => WardrobePresetAppearance.Export(SceneAvatar, presetId), requestCode);
-                else WriteJson(context, 404, new ResultDto { message = "Unknown saved appearance action." });
+                else WriteJson(context, 404, new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.unknown.saved.appearance.action") });
                 return;
             }
             if (path == "/api/appearance_snapshot")
@@ -188,7 +188,7 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("command", out var command);
                 WriteMainJson(context, () => {
                     try { return WardrobeSceneEditor.Execute(JsonUtility.FromJson<WardrobeSceneEditor.CommandDto>(command ?? "")); }
-                    catch (Exception) { return new ResultDto { message = "The scene command is invalid. Refresh and review the object." }; }
+                    catch (Exception) { return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.scene.command.is.invalid.refresh.and.review.the.object") }; }
                 }, requestCode);
                 return;
             }
@@ -282,7 +282,7 @@ namespace OutfitToggleGenerator
             if (path == "/api/thumb")
             {
                 if (previewCacheInitialization != null && !previewCacheInitialization.IsCompleted)
-                { WriteJson(context, 202, new ResultDto { message = "pending" }); return; }
+                { WriteJson(context, 202, new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.pending") }); return; }
                 var query = Query(request.Url.Query);
                 string guid;
                 query.TryGetValue("guid", out guid);
@@ -310,7 +310,7 @@ namespace OutfitToggleGenerator
                 {
                     var cached = ThumbPath(guid, hi);
                     if (previewEncoding.TryGetValue(cached, out var encoding) && !encoding.IsCompleted)
-                    { WriteJson(context, 202, new ResultDto { message = "pending" }); return; }
+                    { WriteJson(context, 202, new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.pending") }); return; }
                     if (File.Exists(cached))
                     {
                         try
@@ -332,15 +332,15 @@ namespace OutfitToggleGenerator
                 // page lease. The dispatcher still yields to foreground work.
                 if (!WebActive)
                 {
-                    WriteJson(context, 202, new ResultDto { ok = 0, message = "pending" });
+                    WriteJson(context, 202, new ResultDto { ok = 0, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.pending") });
                     return;
                 }
                 // Bakes are background: instant metadata first, pixels when idle.
                 // Starved past 30s the wait times out and the client falls
                 // back to low-res, which already heals on the next render.
                 var outcome = RunOnMain(() => hi ? BakeThumbHi(guid) : BakeThumb(guid), requestCode, true);
-                if (outcome == null) WriteJson(context, 202, new ResultDto { ok = 0, message = "pending" });
-                else if (outcome.Length == 0) WriteJson(context, 404, new ResultDto { ok = 0, message = "unavailable" });
+                if (outcome == null) WriteJson(context, 202, new ResultDto { ok = 0, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.pending") });
+                else if (outcome.Length == 0) WriteJson(context, 404, new ResultDto { ok = 0, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.unavailable") });
                 else WriteThumbnailBytes(context, 200, ThumbPath(guid, hi), outcome, currentEpoch && retryFlag != "1");
                 return;
             }
@@ -399,7 +399,7 @@ namespace OutfitToggleGenerator
                     var file = AvatarWardrobeUpload.ResolveSceneUploadThumbnail(avatar.gameObject, key, false);
                     return file;
                 }, requestCode, true);
-                if (thumbnailPath == null) WriteJson(context, 404, new ResultDto { message = "Preview unavailable." });
+                if (thumbnailPath == null) WriteJson(context, 404, new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preview.unavailable") });
                 else WriteBytes(context, 200, "image/png", File.ReadAllBytes(thumbnailPath));
                 return;
             }
@@ -674,7 +674,7 @@ namespace OutfitToggleGenerator
                 string token;
                 query.TryGetValue("token", out token);
                 var bytes = ShiroTools.OutfitBatchUploader.WebThumbBytes(token);
-                if (bytes == null) WriteJson(context, 404, new ResultDto { message = "Thumbnail expired." });
+                if (bytes == null) WriteJson(context, 404, new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.thumbnail.expired") });
                 else WriteBytes(context, 200, "image/png", bytes);
                 return;
             }
@@ -718,11 +718,11 @@ namespace OutfitToggleGenerator
             {
                 WriteMainJson(context, () =>
                 {
-                    if (SceneAvatar == null) return new ResultDto { message = "Select an avatar in the Unity launcher first." };
+                    if (SceneAvatar == null) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.an.avatar.in.the.unity.launcher.first") };
                     return EditAvatar("Regenerate wardrobe toggles", () =>
                     {
                         OutfitToggleGenerator.RegeneratePresetToggles(SceneAvatar);
-                        return new ResultDto { ok = 1, message = "Preset and Menu Group toggles regenerated." };
+                        return new ResultDto { ok = 1, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.and.menu.group.toggles.regenerated") };
                     });
                 }, requestCode);
                 return;
@@ -893,7 +893,7 @@ namespace OutfitToggleGenerator
                 var hasGroup = query.ContainsKey("group"); query.TryGetValue("group", out var group);
                 var hasToggles = query.ContainsKey("toggles"); query.TryGetValue("toggles", out var toggleValue);
                 if (hasToggles && toggleValue != "0" && toggleValue != "1")
-                { WriteMainJson(context, () => new ResultDto { message = "toggles must be 0 or 1." }, requestCode); return; }
+                { WriteMainJson(context, () => new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.toggles.must.be.0.or.1") }, requestCode); return; }
                 WriteMainJson(context, () => SetItemSettings(guid, target, hasGroup, group, hasToggles, toggleValue == "1"), requestCode);
                 return;
             }
@@ -939,7 +939,7 @@ namespace OutfitToggleGenerator
                 WriteMainJsonAsync(context, async () =>
                 {
                     if (UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow)
-                        return new ResultDto { message = "Wait for the upload to finish before clearing the cache." };
+                        return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.wait.for.the.upload.to.finish.before.clearing.the.cache") };
                     // Finish pending cache commits before deletion so old workers cannot recreate files.
                     await Task.WhenAll(previewEncoding.Values.Select(task => task.ContinueWith(_ => { }, TaskScheduler.Default)));
                     previewEncoding.Clear();

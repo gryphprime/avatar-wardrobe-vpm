@@ -135,7 +135,7 @@
       var writing=uploadConfigWrite(path);
       if(writing)pendingConfigWrites++;
       return request(path,opts).then(function(result){
-        if(revision!==contextRevision)throw new Error("Avatar changed; previous response discarded.");
+        if(revision!==contextRevision)throw new Error(T("ui.avatar.changed.previous.response.discarded"));
         return result;
       }).finally(function(){if(writing)pendingConfigWrites--;});
     }
@@ -226,7 +226,7 @@
     upEl("upJobMsg").textContent=msg||"";
     upEl("upJobCancel").style.display="none";
     upEl("upJobClose").style.display="";
-    toast(msg||(ok?"OK":"Failed"),ok?"ok":"err");
+    toast(msg||(ok?"OK":T("ui.failed")),ok?"ok":"err");
     upRefreshState();
   }
   function upStartJob(url,label,canCancel,onDone){
@@ -308,7 +308,7 @@
     upEl("upUnassigned").hidden=true;
     upEl("upNew").hidden=!separateUploads;
     upEl("upPresetHint").hidden=!separateUploads;
-    var heading=document.querySelector('#upPresets h2');heading.removeAttribute('data-i18n');R.text(heading,separateUploads?T('upload.presetsTitle'):'Installed items');
+    var heading=document.querySelector('#upPresets h2');heading.removeAttribute('data-i18n');R.text(heading,separateUploads?T('upload.presetsTitle'):T("ui.installed.items"));
     document.querySelector('#upload .up-tabs').hidden=!separateUploads;
     R.text(upEl("upPresetHint"),T("upload.presetsHint"));
     if(!BS){ st.textContent=T("upload.loading"); list.innerHTML=""; paintSdkReadiness();return; }
@@ -327,7 +327,7 @@
         if(open)wirePresetPanels(p.id,node);return;
       }
       if(!separateUploads){
-        node.innerHTML='<div class="up-row"><span class="up-name">'+esc(p.name)+'</span><button data-pact="rename">Rename</button><button class="danger" data-pact="removepreset">Remove</button><button data-pact="showunity">Show in Unity</button></div><section class="up-panel up-items-section" data-panel="items"><div data-itembody></div></section>';
+        node.innerHTML='<div class="up-row"><span class="up-name">'+esc(p.name)+("</span><button data-pact=\"rename\">"+esc(T("scene.rename"))+"</button><button class=\"danger\" data-pact=\"removepreset\">"+esc(T("detail.remove"))+"</button><button data-pact=\"showunity\">"+esc(T("ui.show.in.unity"))+"</button></div><section class=\"up-panel up-items-section\" data-panel=\"items\"><div data-itembody></div></section>");
         wirePresetPanels(p.id,node);
         return;
       }
@@ -351,14 +351,14 @@
   function upFillPreset(id,box){
     var p=upFindPreset(id);
     if(!p){ box.innerHTML=""; return; }
-    var h=("<div class=\"up-formrow\"><button data-pact=\"rename\">Rename</button><button data-pact=\"showunity\">Show in Unity</button><button class=\"danger\" data-pact=\"removepreset\">"+esc(U("preset.remove"))+"</button></div>");
+    var h=(("<div class=\"up-formrow\"><button data-pact=\"rename\">"+esc(T("scene.rename"))+"</button><button data-pact=\"showunity\">"+esc(T("ui.show.in.unity"))+"</button><button class=\"danger\" data-pact=\"removepreset\">")+esc(U("preset.remove"))+"</button></div>");
     h+='<div class="up-formrow"><label><input type="checkbox" data-pcfg="win"'+(p.win?' checked':'')+'> Windows</label>';
     h+='<label><input type="checkbox" data-pcfg="and"'+(p.and?' checked':'')+'> Android</label>';
     h+='<label><input type="checkbox" data-pcfg="ios"'+(p.ios?' checked':'')+'> iOS</label></div>';
     var blueprint=Object.prototype.hasOwnProperty.call(upBlueprintDrafts,id)?upBlueprintDrafts[id]:(p.blueprintId||'');
-    h+='<div class="up-formrow up-blueprint"><label>Avatar ID <input data-blueprint aria-label="Avatar ID" placeholder="Created automatically on first upload" value="'+esc(blueprint)+'"></label><button data-pact="saveid">'+esc(T("upload.save"))+'</button></div>';
+    h+=("<div class=\"up-formrow up-blueprint\"><label>"+esc(T("ui.avatar.id"))+" <input data-blueprint aria-label=\""+esc(T("ui.avatar.id"))+"\" placeholder=\""+esc(T("ui.created.automatically.on.first.upload"))+"\" value=\"")+esc(blueprint)+'"></label><button data-pact="saveid">'+esc(T("upload.save"))+'</button></div>';
     if(p.lastUpload) h+='<div class="up-last">'+esc(p.lastUpload)+'</div>';
-    h+='<details class="up-panel" data-panel="blends"><summary>Blendshapes (<span data-bscount>'+p.blendCount+'</span>)</summary><div data-bsbody></div></details>';
+    h+=("<details class=\"up-panel\" data-panel=\"blends\"><summary>"+esc(T("ui.blendshapes"))+"<span data-bscount>")+p.blendCount+'</span>)</summary><div data-bsbody></div></details>';
     h+='<section class="up-panel up-items-section" data-panel="items"><div data-itembody></div></section>';
     
     box.innerHTML=h;
@@ -396,8 +396,8 @@
   function upBsRender(id,body){
     var items=upBlendCache[id]||[];
     var flt=(upBsSearch[id]||"").toLowerCase();
-    var h="<div class="+qq("up-formrow")+"><input data-bssearch placeholder="+qq("Search")+" value="+qq(esc(upBsSearch[id]||""))+">";
-    h+="<button data-pact="+qq("bscap")+">Capture</button><button data-pact="+qq("bsclear")+">Clear</button></div><div class="+qq("up-bslist")+">";
+    var h="<div class="+qq("up-formrow")+"><input data-bssearch placeholder="+qq(T("ui.search"))+" value="+qq(esc(upBsSearch[id]||""))+">";
+    h+="<button data-pact="+qq("bscap")+(">"+esc(T("ui.capture"))+"</button><button data-pact=")+qq("bsclear")+(">"+esc(T("ui.clear"))+"</button></div><div class=")+qq("up-bslist")+">";
     items.forEach(function(b){
       if(flt&&b.name.toLowerCase().indexOf(flt)<0) return;
       var dis=b.pinned?"":" disabled";
@@ -419,20 +419,20 @@
     upItemCache[id]=(upFindPreset(id)||{}).members||[];
     body.dataset.loading='1';
     api('/api/menu_groups?id='+encodeURIComponent(id)).then(function(result){
-      if(!result||!result.ok) throw new Error(result&&result.message||'Could not load menu groups.');
+      if(!result||!result.ok) throw new Error(result&&result.message||T("ui.could.not.load.menu.groups"));
       upGroups[id]=result.groups||[];upItemsRender(id,body);body.dataset.loaded='1';
     }).catch(function(error){body.textContent=error.message;}).finally(function(){delete body.dataset.loading;});
   }
   function upItemsRender(id,body){
     var shown=upItemCache[id]||[];
-    var h='<section class="up-menu-groups"><div class="up-section-heading"><h3>Menu Groups</h3><button data-pact="newgroup">New menu group</button></div><div class="up-group-list">'+(upGroups[id]||[]).map(function(g){return '<div class="up-group-row"><strong>'+esc(g.name)+'</strong><button data-pact="renamegroup" data-group="'+esc(g.id)+'">Rename</button><button data-pact="deletegroup" data-group="'+esc(g.id)+'">Delete group</button></div>';}).join('')+'</div></section><section class="up-items-list"><h3>Items</h3><div class="up-preset-items">';
+    var h=("<section class=\"up-menu-groups\"><div class=\"up-section-heading\"><h3>"+esc(T("ui.menu.groups"))+"</h3><button data-pact=\"newgroup\">"+esc(T("ui.new.menu.group"))+"</button></div><div class=\"up-group-list\">")+(upGroups[id]||[]).map(function(g){return '<div class="up-group-row"><strong>'+esc(g.name)+'</strong><button data-pact="renamegroup" data-group="'+esc(g.id)+("\">"+esc(T("scene.rename"))+"</button><button data-pact=\"deletegroup\" data-group=\"")+esc(g.id)+("\">"+esc(T("ui.delete.group"))+"</button></div>");}).join('')+("</div></section><section class=\"up-items-list\"><h3>"+esc(T("ui.items"))+"</h3><div class=\"up-preset-items\">");
     shown.forEach(function(it){
       h+='<div class="up-bsrow"><span class="up-bsname">'+esc(it.name)+'</span>';
-      h+='<select aria-label="Menu group" data-pact="itemgroup" data-path="'+esc(it.path||'')+'" data-guid="'+esc(it.guid||'')+'"><option value="">No menu group</option>';
+      h+=("<select aria-label=\""+esc(T("detail.menuGroup"))+"\" data-pact=\"itemgroup\" data-path=\"")+esc(it.path||'')+'" data-guid="'+esc(it.guid||'')+("\"><option value=\"\">"+esc(T("detail.noMenuGroup"))+"</option>");
       (upGroups[id]||[]).forEach(function(g){h+='<option value="'+esc(g.id)+'"'+((g.paths||[]).indexOf(it.path)>=0?' selected':'')+'>'+esc(g.name)+'</option>';});
-      h+='<option value="__new">+ New menu group</option></select>';
+      h+=("<option value=\"__new\">"+esc(T("ui.new.menu.group.2"))+"</option></select>");
       if(it.guid) h+='<button data-pact="locate" data-guid="'+esc(it.guid)+'">'+esc(T("upload.locate"))+'</button>';
-      h+='<button class="danger" data-pact="removeitem" data-instance="'+esc(it.instanceId||'')+'" data-path="'+esc(it.path||'')+'" data-guid="'+esc(it.guid||'')+'">Remove</button></div>';
+      h+='<button class="danger" data-pact="removeitem" data-instance="'+esc(it.instanceId||'')+'" data-path="'+esc(it.path||'')+'" data-guid="'+esc(it.guid||'')+("\">"+esc(T("detail.remove"))+"</button></div>");
     });
     body.innerHTML=h+'</div>'+(shown.length?'':'<p class="subtle">'+esc(T("upload.noMembers"))+'</p>')+'</section>';
   }
@@ -440,7 +440,7 @@
     api("/api/batch_preset_faceemo?id="+encodeURIComponent(id)).then(function(d){
       if(!d||!d.ok){ body.textContent=(d&&d.message)||T("upload.failed"); return; }
       var h="<div class="+qq("up-formrow")+"><span>"+(d.assigned?esc(d.assigned):esc(T("upload.none")))+"</span>";
-      h+="<button data-pact="+qq("fecap")+">Capture</button><button data-pact="+qq("feclear")+">Clear</button><button data-pact="+qq("feopen")+">Open FaceEmo</button></div>";
+      h+="<button data-pact="+qq("fecap")+(">"+esc(T("ui.capture"))+"</button><button data-pact=")+qq("feclear")+(">"+esc(T("ui.clear"))+"</button><button data-pact=")+qq("feopen")+(">"+esc(T("ui.open.faceemo"))+"</button></div>");
       if(d.assigned&&!d.assignedExists) h+="<div>"+esc(T("upload.feMissing"))+"</div>";
       if(d.strayExists) h+="<div>"+esc(T("upload.feStray"))+"</div>";
       body.innerHTML=h;
@@ -452,38 +452,38 @@
     var id=card?card.getAttribute("data-preset"):null;
     if(!id) return;
     if(act==='removeitem'||act==='removepreset'){
-      var presetName=separateUploads?(id==='common'?T('preset.common'):(upFindPreset(id)||{}).name):'the avatar';
+      var presetName=separateUploads?(id==='common'?T('preset.common'):(upFindPreset(id)||{}).name):T('ui.avatar');
       if(act==='removepreset'&&id==='common')return;
-      if(!confirm(act==='removepreset'?'Remove '+presetName+' and its scene items? Source assets and uploaded avatars will remain.':'Remove this item from '+presetName+'?'))return;
+      if(!confirm(act==='removepreset'?T("upload.confirmRemovePreset",presetName):T('upload.confirmRemoveItem',presetName)))return;
       el.disabled=true;
       var url=act==='removepreset'?'/api/preset_delete?id='+encodeURIComponent(id):'/api/preset_remove_item?target='+encodeURIComponent(id)+'&guid='+encodeURIComponent(el.dataset.guid||'')+'&item='+encodeURIComponent(el.dataset.path||'')+'&instanceId='+encodeURIComponent(el.dataset.instance||'');
-      api(url).then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||'Remove failed.');upRefreshState();if(options.onChange)options.onChange();})
+      api(url).then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||T("detail.remove.fail"));upRefreshState();if(options.onChange)options.onChange();})
         .catch(function(e){toast(e.message,'err');}).finally(function(){el.disabled=false;});
     }
     else if(act==="rename"){
-      var preset=upFindPreset(id),name=prompt('Preset name',preset.name);
+      var preset=upFindPreset(id),name=prompt(T("ui.preset.name"),preset.name);
       if(name===null||!name.trim())return;
-      api('/api/preset_save?id='+encodeURIComponent(id)+'&name='+encodeURIComponent(name.trim())).then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||'Rename failed.');upRefreshState();if(options.onChange)options.onChange();}).catch(function(e){toast(e.message,'err');});
+      api('/api/preset_save?id='+encodeURIComponent(id)+'&name='+encodeURIComponent(name.trim())).then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||T("ui.rename.failed"));upRefreshState();if(options.onChange)options.onChange();}).catch(function(e){toast(e.message,'err');});
     }
     else if(act==="newgroup"||act==="renamegroup"||act==="deletegroup"||act==="itemgroup"){
       var groupId=act==='itemgroup'?el.value:(el.dataset.group||''),groups=upGroups[id]||[],group=groups.find(function(g){return g.id===groupId;});
       var name=null,op=act==='deletegroup'?'delete':act==='itemgroup'?'assign':'save';
-      if(op==='delete'&&!confirm('Delete this menu group? Its items will remain installed.'))return;
-      if(op==='save'||groupId==='__new'){name=prompt('Menu group name',group?group.name:'');if(name===null||!name.trim()){upItemsRender(id,card.querySelector('[data-itembody]'));return;}}
+      if(op==='delete'&&!confirm(T("ui.delete.this.menu.group.its.items.will.remain.installed")))return;
+      if(op==='save'||groupId==='__new'){name=prompt(T("ui.menu.group.name"),group?group.name:'');if(name===null||!name.trim()){upItemsRender(id,card.querySelector('[data-itembody]'));return;}}
       var query='/api/menu_groups?id='+encodeURIComponent(id);
       var create=groupId==='__new';
       el.disabled=true;
       var request=api(query+'&op='+(create?'save':op)+'&group='+encodeURIComponent(create?'':groupId)+'&name='+encodeURIComponent(name||'')+'&item='+encodeURIComponent(el.dataset.path||'')+'&guid='+encodeURIComponent(el.dataset.guid||''));
-      request.then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||'Menu group update failed.');if(create)return api(query+'&op=assign&group='+encodeURIComponent(r.id)+'&item='+encodeURIComponent(el.dataset.path||'')+'&guid='+encodeURIComponent(el.dataset.guid||''));return r;})
-        .then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||'Assignment failed.');upGroups[id]=r.groups||[];upItemsRender(id,card.querySelector('[data-itembody]'));toast('Menu group saved in Unity and toggles regenerated.','ok');upRefreshState();if(options.onChange)options.onChange();})
+      request.then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||T("ui.menu.group.update.failed"));if(create)return api(query+'&op=assign&group='+encodeURIComponent(r.id)+'&item='+encodeURIComponent(el.dataset.path||'')+'&guid='+encodeURIComponent(el.dataset.guid||''));return r;})
+        .then(function(r){if(!r||!r.ok)throw new Error(r&&r.message||T("ui.assignment.failed"));upGroups[id]=r.groups||[];upItemsRender(id,card.querySelector('[data-itembody]'));toast(T("ui.menu.group.saved.in.unity.and.toggles.regenerated"),'ok');upRefreshState();if(options.onChange)options.onChange();})
         .catch(function(e){toast(e.message,'err');upItemsRender(id,card.querySelector('[data-itembody]'));}).finally(function(){if(el.isConnected)el.disabled=false;});
     }
     else if(act==="exp"){var open=!upExpanded[id];upExpanded={};if(open)upExpanded[id]=true;renderPresets();var summary=Array.from(upEl('upList').children).find(function(node){return node.dataset.preset===id;});if(summary)summary.querySelector('[data-pact="exp"]').focus();}
     else if(act==="showunity"){
       el.disabled=true;
       api("/api/preset_show?id="+encodeURIComponent(id)).then(function(result){
-        if(!result||!result.ok) throw new Error(result&&result.message||"Could not show preset.");
-        toast("Preset shown in Unity","ok");
+        if(!result||!result.ok) throw new Error(result&&result.message||T("ui.could.not.show.preset"));
+        toast(T("ui.preset.shown.in.unity"),"ok");
       }).catch(function(error){toast(error.message,"err");}).finally(function(){el.disabled=false;});
     }
     else if(act==="saveid"){
@@ -538,7 +538,7 @@
       var h="";
       d.items.forEach(function(it){
         h+="<div class="+qq("up-row")+"><span class="+qq("up-name")+">"+esc(it.name)+"</span>";
-        if(it.hasBlueprint) h+="<span class="+qq("up-id")+">id</span>";
+        if(it.hasBlueprint) h+="<span class="+qq("up-id")+(">"+esc(T("ui.id"))+"</span>");
         h+="<button data-un="+qq(esc(it.name))+">"+esc(T("upload.fromScene"))+"</button></div>";
       });
       if(box._signature===h) return;
@@ -556,11 +556,11 @@
     if(!name) return;
     var button=upEl("upNew");button.disabled=true;
     api("/api/preset_save?name="+encodeURIComponent(name)).then(async function(result){
-      if(!result||!result.ok)throw new Error(result&&result.message||'Could not create preset.');
+      if(!result||!result.ok)throw new Error(result&&result.message||T("ui.could.not.create.preset"));
       if(result.id){upExpanded={};upExpanded[result.id]=true;}
       if(options.onPresetCreated)await options.onPresetCreated(result);
       await upRefreshState();
-      toast(result.message||'Preset created.','ok');
+      toast(result.message||T("ui.preset.created"),'ok');
     }).catch(function(error){toast(error.message,'err');}).finally(function(){button.disabled=false;});
   };
   upEl("upAll").onclick=function(){
@@ -627,7 +627,7 @@
     };
   }
   var upContentTags = ["content_sex", "content_adult", "content_violence", "content_gore", "content_horror"];
-  var upTagLabels = {"content_sex": "Sexually Suggestive", "content_adult": "Adult Language and Themes", "content_violence": "Graphic Violence", "content_gore": "Excessive Gore", "content_horror": "Extreme Horror"};
+  function upTagLabels(){return {"content_sex": T("ui.sexually.suggestive"), "content_adult": T("ui.adult.language.and.themes"), "content_violence": T("ui.graphic.violence"), "content_gore": T("ui.excessive.gore"), "content_horror": T("ui.extreme.horror")};}
   function renderDefs(){
     var el = upEl("upDefsForm");
     if(!BS){ el.innerHTML = ""; return; }
@@ -638,13 +638,13 @@
     defaultsSignature=signature;
     var h = ("<fieldset class=\"up-default-group\"><legend>"+esc(U("defaults.identity"))+"</legend><p class=\"up-field-help\">"+esc(U("defaults.hint"))+"</p>");
     h += ("<label>"+esc(U("defaults.name"))+" <input id=") + qq("upDname") + " value=" + qq(esc(d.nameTemplate)) + "></label>";
-    h += "<div class=" + qq("up-sub") + ">Tokens: {preset}, {avatar}</div>";
+    h += "<div class=" + qq("up-sub") + (">"+esc(T("ui.tokens.preset.avatar"))+"</div>");
     h += ("<label>"+esc(U("defaults.description"))+" <input id=") + qq("upDdesc") + " value=" + qq(esc(d.descTemplate)) + "></label>";
     h += ("<label>"+esc(U("defaults.release"))+" <select id=") + qq("upDrel") + "><option value=" + qq("private") + (d.release === "public" ? "" : " selected") + (">"+esc(U("defaults.private"))+"</option><option value=") + qq("public") + (d.release === "public" ? " selected" : "") + (">"+esc(U("defaults.public"))+"</option></select></label>");
     h += ("<div>"+esc(U("defaults.tags"))+" ");
     var tagmap = {};
     (d.tags || []).forEach(function(t){ tagmap[t.key] = t.on; });
-    upContentTags.forEach(function(t){ h += "<label><input type=" + qq("checkbox") + " data-dtag=" + qq(t) + (tagmap[t] ? " checked" : "") + "> " + esc(upTagLabels[t] || t) + "</label> "; });
+    upContentTags.forEach(function(t){ h += "<label><input type=" + qq("checkbox") + " data-dtag=" + qq(t) + (tagmap[t] ? " checked" : "") + "> " + esc(upTagLabels()[t] || t) + "</label> "; });
     h += ("</div><label>"+esc(U("defaults.version"))+" <select id=\"upDvmode\"><option value=\"0\"")+(d.versionMode?'':' selected')+(">"+esc(U("defaults.versionReplace"))+"</option><option value=\"1\"")+(d.versionMode?' selected':'')+(">"+esc(U("defaults.versionAppend"))+"</option></select></label></fieldset>");
     h += ("<fieldset class=\"up-default-group\"><legend>"+esc(U("defaults.thumbnail"))+"</legend>");
     h += ("<label>"+esc(U("defaults.capture"))+" <select id=") + qq("upDthumb") + "><option value=" + qq("scene") + (d.thumbMode === "scene" ? " selected" : "") + (">"+esc(U("defaults.captureAuto"))+"</option><option value=") + qq("sceneview") + (d.thumbMode === "sceneview" ? " selected" : "") + (">"+esc(U("defaults.captureScene"))+"</option><option value=") + qq("image") + (d.thumbMode === "image" ? " selected" : "") + (">"+esc(U("defaults.captureImage"))+"</option></select></label>");
@@ -660,7 +660,7 @@
     h += ("<label>"+esc(U("defaults.maxResolution"))+" <select id=") + qq("upDoptmax") + ">";
     [256, 512, 1024, 2048, 4096].forEach(function(n){ h += "<option" + (d.optMaxRes === n ? " selected" : "") + ">" + n + "</option>"; });
     h += ("</select></label><label>"+esc(U("defaults.minResolution"))+" <select id=") + qq("upDoptmin") + ">";
-    [0, 256, 512, 1024, 2048].forEach(function(n){ h += "<option value=" + qq(String(n)) + (d.optMinRes === n ? " selected" : "") + ">" + (n === 0 ? "none" : n) + "</option>"; });
+    [0, 256, 512, 1024, 2048].forEach(function(n){ h += "<option value=" + qq(String(n)) + (d.optMinRes === n ? " selected" : "") + ">" + (n === 0 ? T("upload.none") : n) + "</option>"; });
     h += "</select></label>";
     h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDoptitems") + (d.optItems ? " checked" : "") + ("> "+esc(U("defaults.includeShared"))+"</label></div></fieldset>");
     el.innerHTML = h;
@@ -736,7 +736,7 @@
     if(button.disabled)return;
     button.disabled=true;
     try {
-      if(file.size>4*1024*1024)throw new Error("Settings file exceeds 4 MB.");
+      if(file.size>4*1024*1024)throw new Error(T("ui.settings.file.exceeds.4.mb"));
       var text=await file.text();
       JSON.parse(text);
       var result=await api("/api/batch_import", {method:"POST", headers:{"Content-Type":"application/json"}, body:text});
@@ -772,6 +772,6 @@
       separateUploads=enabled;
       if(!enabled&&upTab==="defs") upSetTab("presets");
       renderPresets();
-    },localize:function(){paintDraftStatus();if(!upEl("upload").hidden) upRefreshState();}};
+    },localize:function(){if(defaultsDirty)defaultsPendingDraft=formValues();defaultsSignature="";paintDraftStatus();if(upTab==="presets")renderPresets();else renderDefs();if(!upEl("upload").hidden)upRefreshState();}};
   };
 })(window);

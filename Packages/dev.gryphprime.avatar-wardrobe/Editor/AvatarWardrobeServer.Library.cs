@@ -13,7 +13,7 @@ namespace OutfitToggleGenerator
         {
             if (importLease != null || UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow ||
                 EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating)
-                return new ResultDto { message = "Finish the active Unity operation before importing." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.finish.the.active.unity.operation.before.importing") };
             EditorApplication.LockReloadAssemblies();
             try { AssetDatabase.DisallowAutoRefresh(); }
             catch { EditorApplication.UnlockReloadAssemblies(); throw; }
@@ -26,14 +26,14 @@ namespace OutfitToggleGenerator
         internal static ResultDto RenewLibraryImport(string token)
         {
             if (string.IsNullOrEmpty(importLease) || importLease != token)
-                return new ResultDto { message = "The import lease expired. Stop copying and review the project." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.import.lease.expired.stop.copying.and.review.the.project") };
             importLeaseUntil = EditorApplication.timeSinceStartup + 300;
             return new ResultDto { ok = 1, id = importLease };
         }
         internal static ResultDto EndLibraryImport(string token)
         {
             if (string.IsNullOrEmpty(importLease) || importLease != token)
-                return new ResultDto { message = "The import lease expired. Review the imported files before retrying." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.import.lease.expired.review.the.imported.files.before.retrying") };
             importLease = null;
             EditorApplication.update -= CheckImportLease;
             try { AssetDatabase.AllowAutoRefresh(); }
@@ -43,7 +43,7 @@ namespace OutfitToggleGenerator
                 importTargetLock?.Dispose(); importTargetLock = null;
             }
             EditorApplication.delayCall += AssetDatabase.Refresh;
-            return new ResultDto { ok = 1, message = "Unity import queued." };
+            return new ResultDto { ok = 1, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.unity.import.queued") };
         }
         private static void CheckImportLease()
         {

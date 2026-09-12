@@ -1,9 +1,11 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const english=Object.fromEntries(JSON.parse(fs.readFileSync(require('node:path').resolve(__dirname,'../Packages/dev.gryphprime.avatar-wardrobe/Web/lang.json'),'utf8')).langs.find(l=>l.code==='en').strings.map(e=>[e.k,e.v]));
+const translate=(key,...args)=>{let value=english[key]||key;args.forEach((arg,i)=>{value=value.split('{'+i+'}').join(arg)});return value;};
 const source=fs.readFileSync(require('node:path').resolve(__dirname,'../Packages/dev.gryphprime.avatar-wardrobe/Web/wardrobe.js'),'utf8');
 const snippet=source.slice(source.indexOf('  // Direct scene-avatar upload'),source.lastIndexOf('})();'));
 function setup(review){const elements={},requests=[],timers=[];let result={pending:1,message:'Building'};
  const $=id=>elements[id]||(elements[id]={dataset:{},removeAttribute(name){delete this[name]},value:'',hidden:false,disabled:false,textContent:'',showModal(){this.open=true},close(){this.open=false},addEventListener(){}});
- const ctx={$,api:async path=>{requests.push(path);return path.includes('review')?review:path.includes('upload_result')?result:{ok:1,job:'test-job'}},setTimeout:f=>{timers.push(f)},refreshState(){},encodeURIComponent};
+ const ctx={T:translate,$,api:async path=>{requests.push(path);return path.includes('review')?review:path.includes('upload_result')?result:{ok:1,job:'test-job'}},setTimeout:f=>{timers.push(f)},refreshState(){},encodeURIComponent};
  vm.runInNewContext(snippet,ctx);return {$,requests,timers,setResult:r=>result=r};}
 (async()=>{
  let t=setup({ok:1,avatarId:12,name:'Common only',blueprintId:'',isNew:true});

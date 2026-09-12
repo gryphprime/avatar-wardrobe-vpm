@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const english=Object.fromEntries(JSON.parse(fs.readFileSync(require('node:path').resolve(__dirname,'../Packages/dev.gryphprime.avatar-wardrobe/Web/lang.json'),'utf8')).langs.find(l=>l.code==='en').strings.map(e=>[e.k,e.v]));
+const translate=(key,...args)=>{let value=english[key]||key;args.forEach((arg,i)=>{value=value.split('{'+i+'}').join(arg)});return value;};
 const source = fs.readFileSync('Packages/dev.gryphprime.avatar-wardrobe/Web/upload.js', 'utf8');
 const scope = { window: {} };
 vm.runInNewContext(source.slice(0, source.indexOf('  global.WardrobeUpload=function')) + '\n})(window);', scope);
@@ -59,7 +61,7 @@ function reviewHarness(){
 }
 (async()=>{
   let resolveWrite;
-  const apiContext={request:()=>new Promise(resolve=>{resolveWrite=resolve}),contextRevision:1,pendingConfigWrites:0,uploadConfigWrite:models.uploadConfigWrite};
+  const apiContext={T:translate,request:()=>new Promise(resolve=>{resolveWrite=resolve}),contextRevision:1,pendingConfigWrites:0,uploadConfigWrite:models.uploadConfigWrite};
   vm.runInNewContext(source.slice(source.indexOf('    function api('),source.indexOf('    var T=')),apiContext);
   const saving=apiContext.api('/api/batch_preset_items?id=p&item=Glasses&include=1');
   assert.equal(apiContext.pendingConfigWrites,1,'A fire-and-forget caller still blocks upload while its request is pending.');

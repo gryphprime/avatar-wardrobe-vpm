@@ -146,16 +146,16 @@ namespace OutfitToggleGenerator
             AssertOperationsSettled();
             var avatar = SceneAvatar;
             var result = new SceneUploadReview();
-            if (AvatarWardrobePresets.SeparateAvatarUploads) { result.message = "Use single-avatar mode for Upload Avatar."; return result; }
-            if (avatar == null || EditorUtility.IsPersistent(avatar)) { result.message = "Select a scene avatar first."; return result; }
-            if (EditorApplication.isPlayingOrWillChangePlaymode) { result.message = "Leave Play Mode first."; return result; }
-            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows64) { result.message = "This first version supports PC. Switch the build target to Windows in Unity."; return result; }
+            if (AvatarWardrobePresets.SeparateAvatarUploads) { result.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.use.single.avatar.mode.for.upload.avatar"); return result; }
+            if (avatar == null || EditorUtility.IsPersistent(avatar)) { result.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.a.scene.avatar.first"); return result; }
+            if (EditorApplication.isPlayingOrWillChangePlaymode) { result.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.leave.play.mode.first"); return result; }
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows64) { result.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.this.first.version.supports.pc.switch.the.build.target.to"); return result; }
             if (ShiroTools.OutfitBatchUploader.TryGetWardrobeBuilder(out var sdk) &&
                 (sdk.BuildState == VRC.SDKBase.Editor.SdkBuildState.Building || sdk.UploadState == VRC.SDKBase.Editor.SdkUploadState.Uploading))
-            { result.message = "The VRChat SDK is already building or uploading."; return result; }
+            { result.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.vrchat.sdk.is.already.building.or.uploading"); return result; }
             for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
                 if (string.IsNullOrEmpty(UnityEngine.SceneManagement.SceneManager.GetSceneAt(i).path))
-                { result.message = "Save untitled scenes before building. AW does not save your scenes automatically."; return result; }
+                { result.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.save.untitled.scenes.before.building.aw.does.not.save.your"); return result; }
             result.avatarId = avatar.GetInstanceID();
             result.name = avatar.name;
             result.blueprintId = avatar.GetComponent<VRC.Core.PipelineManager>()?.blueprintId ?? "";
@@ -172,24 +172,24 @@ namespace OutfitToggleGenerator
             query.TryGetValue("avatarId", out var id);
             query.TryGetValue("blueprintId", out var expectedBlueprint);
             if (id != review.avatarId.ToString() || expectedBlueprint != review.blueprintId)
-                return new UploadJobDto { message = "The avatar or Blueprint ID changed. Close this panel and review it again." };
+                return new UploadJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.avatar.or.blueprint.id.changed.close.this.panel.and") };
             query.TryGetValue("check", out var check);
             query.TryGetValue("name", out var name);
             bool buildOnly = check == "1";
             query.TryGetValue("consent", out var consent);
             if (!buildOnly && consent != "1")
-                return new UploadJobDto { message = "Confirm the copyright ownership checkbox before uploading." };
+                return new UploadJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.confirm.the.copyright.ownership.checkbox.before.uploading") };
             if (!buildOnly && review.isNew && string.IsNullOrWhiteSpace(name))
-                return new UploadJobDto { message = "Enter a name for the new avatar." };
+                return new UploadJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.enter.a.name.for.the.new.avatar") };
             if (uploadRunning || UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow)
-                return new UploadJobDto { message = "An upload or batch is already running." };
+                return new UploadJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.an.upload.or.batch.is.already.running") };
             string thumbnail = null;
             var avatar = SceneAvatar;
             var job = Guid.NewGuid().ToString("N");
             lock (uploadJobsLock)
             {
                 uploadRunning = true;
-                uploadJobs[job] = new UploadJobState { message = "Preparing avatar copy…" };
+                uploadJobs[job] = new UploadJobState { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preparing.avatar.copy") };
                 sceneUploadJob = job;
                 sceneUploadCancellation = new CancellationTokenSource();
             }
@@ -202,9 +202,9 @@ namespace OutfitToggleGenerator
             lock (uploadJobsLock)
             {
                 if (job != sceneUploadJob || sceneUploadCancellation == null)
-                    return new ResultDto { message = "No matching active avatar upload." };
+                    return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.matching.active.avatar.upload") };
                 sceneUploadCancellation.Cancel();
-                return new ResultDto { ok = 1, message = "Cancellation requested. A build already in progress may need to finish." };
+                return new ResultDto { ok = 1, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.cancellation.requested.a.build.already.in.progress.may.need.to") };
             }
         }
 
@@ -239,7 +239,7 @@ namespace OutfitToggleGenerator
             lock (uploadJobsLock)
             {
                 if (uploadRunning)
-                    return new UploadJobDto { message = "An upload is already running — wait for it to finish." };
+                    return new UploadJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.an.upload.is.already.running.wait.for.it.to.finish") };
             }
             var cleanPreset = (preset ?? string.Empty).Trim();
             if (!string.IsNullOrEmpty(cleanPreset))
@@ -253,7 +253,7 @@ namespace OutfitToggleGenerator
                 RunPresetUploadJob(presetJobId, cleanPreset);
                 return new UploadJobDto { ok = 1, job = presetJobId };
             }
-            return new UploadJobDto { message = "Variant uploads were retired. Create a preset and upload that preset." };
+            return new UploadJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.variant.uploads.were.retired.create.a.preset.and.upload.that") };
         }
 
         private static async void RunPresetUploadJob(string jobId, string presetId)
@@ -381,7 +381,7 @@ namespace OutfitToggleGenerator
         {
             var value = ReadWorkflow();
             if (mode != null && mode != "one-avatar" && mode != "multi-avatar")
-                return new ResultDto { message = "Unknown avatar workflow." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.unknown.avatar.workflow") };
             if (mode != null) value.wardrobeMode = mode;
             if (!string.IsNullOrEmpty(selected)) value.selectedPreset = selected;
             WardrobeAtomicFile.WriteText(WorkflowPath, JsonUtility.ToJson(value, true));
@@ -404,10 +404,10 @@ namespace OutfitToggleGenerator
         private static ResultDto DeletePreset(string id)
         {
             if (SceneAvatar == null || string.IsNullOrEmpty(id) || id == AvatarWardrobePresets.CommonTarget)
-                return new ResultDto { message = "Select a named preset to remove." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.a.named.preset.to.remove") };
             AvatarWardrobePresets.CurrentBase(out var key, out var unused);
             var preset = AvatarWardrobePresets.GetPreset(id);
-            if (preset == null || preset.baseKey != key) return new ResultDto { message = "Preset not found." };
+            if (preset == null || preset.baseKey != key) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("preset.notfound") };
             return EditAvatar("Remove wardrobe preset", () =>
             {
                 foreach (var root in AvatarWardrobePresets.SceneMembers(preset, SceneAvatar))
@@ -464,7 +464,7 @@ namespace OutfitToggleGenerator
             }
             if (!string.IsNullOrEmpty(menuGroup) &&
                 !AvatarWardrobePresets.MenuGroups(cleanTarget).Any(group => group.id == menuGroup))
-                return new ResultDto { message = "The selected Menu Group no longer exists. Select a group and try again." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.selected.menu.group.no.longer.exists.select.a.group") };
             GameObject replaced = null;
             if (switchVariant)
             {
@@ -472,7 +472,7 @@ namespace OutfitToggleGenerator
                 if (family != null)
                     replaced = family.variants.SelectMany(v => AvatarWardrobePresets.PrefabInstances(SceneAvatar, v.guid))
                         .FirstOrDefault(item => item.GetInstanceID().ToString() == replaceId && AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == cleanTarget);
-                if (replaced == null) return new ResultDto { message = "Choose the exact worn variant to replace. Refresh if it moved." };
+                if (replaced == null) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.choose.the.exact.worn.variant.to.replace.refresh.if.it") };
             }
             return EditAvatar("Wear wardrobe outfit", () =>
             {
@@ -532,10 +532,10 @@ namespace OutfitToggleGenerator
 
         private static ResultDto SetPartToggles(string guid, string target, bool enabled)
         {
-            if (SceneAvatar == null) return new ResultDto { message = "Select an avatar first." };
+            if (SceneAvatar == null) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.an.avatar.first") };
             var instances = AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
                 .Where(item => AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == target).ToList();
-            if (instances.Count == 0) return new ResultDto { message = "The prefab is not installed in this preset." };
+            if (instances.Count == 0) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.prefab.is.not.installed.in.this.preset") };
             return EditAvatar(enabled ? "Generate prefab part toggles" : "Remove prefab part toggles", () =>
             {
                 foreach (var instance in instances)
@@ -547,21 +547,21 @@ namespace OutfitToggleGenerator
 
         internal static ResultDto SetItemSettings(string guid, string target, bool hasGroup, string groupId, bool hasToggles, bool toggles)
         {
-            if (SceneAvatar == null) return new ResultDto { message = "Select an avatar first." };
-            if (string.IsNullOrEmpty(guid) || string.IsNullOrEmpty(target)) return new ResultDto { message = "Item and preset are required." };
-            if (!hasGroup && !hasToggles) return new ResultDto { message = "Specify a menu group or part-toggle setting." };
+            if (SceneAvatar == null) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.an.avatar.first") };
+            if (string.IsNullOrEmpty(guid) || string.IsNullOrEmpty(target)) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.item.and.preset.are.required") };
+            if (!hasGroup && !hasToggles) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.specify.a.menu.group.or.part.toggle.setting") };
             var instances = AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
                 .Where(item => AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == target).ToList();
-            if (instances.Count == 0) return new ResultDto { message = "The prefab is not installed in this preset." };
+            if (instances.Count == 0) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.prefab.is.not.installed.in.this.preset") };
             if (hasGroup)
             {
                 var duplicatePath = instances.GroupBy(item => AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform))
                     .FirstOrDefault(group => group.Count() > 1);
                 if (duplicatePath != null || instances.Any(item => SceneAvatar.transform.Find(AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform)) != item.transform))
-                    return new ResultDto { message = "Item copies have the same transform path. Rename the copies before assigning a menu group." };
+                    return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.item.copies.have.the.same.transform.path.rename.the.copies") };
             }
             if (hasGroup && !string.IsNullOrEmpty(groupId) && !AvatarWardrobePresets.MenuGroups(target).Any(group => group.id == groupId))
-                return new ResultDto { message = "Menu group not found." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.menu.group.not.found") };
             return EditAvatar("Apply wardrobe item settings", () =>
             {
                 foreach (var instance in instances)
@@ -574,33 +574,33 @@ namespace OutfitToggleGenerator
                         else OutfitToggleGenerator.RemovePartToggles(instance);
                     }
                 }
-                return new ResultDto { ok = 1, message = "Item settings applied." };
+                return new ResultDto { ok = 1, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.item.settings.applied") };
             });
         }
 
         private static ResultDto RemovePresetItem(string guid, string target, string itemPath, string instanceId)
         {
             if (SceneAvatar == null) return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
-            if (string.IsNullOrEmpty(target)) return new ResultDto { message = "Select a preset to remove the item from." };
+            if (string.IsNullOrEmpty(target)) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.a.preset.to.remove.the.item.from") };
             var instances = AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
                 .Where(item => AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == target).ToList();
             if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(itemPath))
-                return new ResultDto { message = "Choose the exact worn copy before removing it." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.choose.the.exact.worn.copy.before.removing.it") };
             {
                 var item = WardrobeEditPolicy.ExactInstance(instances, instanceId, candidate => candidate.GetInstanceID())?.transform;
                 if (item != null && AnimationUtility.CalculateTransformPath(item, SceneAvatar.transform) != itemPath)
-                    return new ResultDto { message = "The item moved. Refresh before removing it." };
+                    return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.item.moved.refresh.before.removing.it") };
                 if (item == null || item == SceneAvatar.transform || AvatarWardrobePresets.ItemPreset(item.gameObject, SceneAvatar) != target)
-                    return new ResultDto { message = "The item is no longer in this preset." };
+                    return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.item.is.no.longer.in.this.preset") };
                 if (!string.IsNullOrEmpty(guid) && AssetDatabase.AssetPathToGUID(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(item.gameObject)) != guid)
-                    return new ResultDto { message = "The item changed. Refresh the preset before removing it." };
+                    return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.the.item.changed.refresh.the.preset.before.removing.it") };
                 instances = new List<GameObject> { item.gameObject };
             }
-            if (instances.Count == 0) return new ResultDto { message = "This prefab is not installed in the selected preset." };
+            if (instances.Count == 0) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.this.prefab.is.not.installed.in.the.selected.preset") };
             // Never let an item action delete the preset container itself.
             var preset = AvatarWardrobePresets.GetPreset(target);
             if (preset != null && instances.Any(item => AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform) == preset.legacyPath))
-                return new ResultDto { message = "Remove items inside the preset, not the preset folder." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.remove.items.inside.the.preset.not.the.preset.folder") };
             return EditAvatar("Remove item from preset", () =>
             {
                 var paths = instances.Select(item => AnimationUtility.CalculateTransformPath(item.transform, SceneAvatar.transform)).ToList();
@@ -610,13 +610,13 @@ namespace OutfitToggleGenerator
                 AvatarWardrobePresets.ForgetRemovedItems(target, paths);
                 OutfitToggleGenerator.SyncPresetSelection(SceneAvatar);
                 OutfitToggleGenerator.SyncMenuGroups(SceneAvatar);
-                return new ResultDto { ok = 1, message = "Removed from " + (target == "common" ? "Common Preset" : preset?.name ?? target) + "." };
+                return new ResultDto { ok = 1, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.removed.from") + (target == "common" ? "Common Preset" : preset?.name ?? target) + "." };
             });
         }
 
         private static ResultDto Remove(string guid)
         {
-            return new ResultDto { message = "Choose a worn copy and use its Remove action. GUID-only removal is no longer supported." };
+            return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.choose.a.worn.copy.and.use.its.remove.action.guid") };
         }
 
         private static ShiroTools.OutfitBatchUploader.WebJobDto StartBatchRequest(string query, Func<ShiroTools.OutfitBatchUploader.WebJobDto> start)
@@ -624,7 +624,7 @@ namespace OutfitToggleGenerator
             AssertOperationsSettled();
             Query(query).TryGetValue("requestId", out var id);
             if (!string.IsNullOrEmpty(id) && !Guid.TryParseExact(id, "N", out _))
-                return new ShiroTools.OutfitBatchUploader.WebJobDto { message = "Invalid request identity." };
+                return new ShiroTools.OutfitBatchUploader.WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.invalid.request.identity") };
             if (!string.IsNullOrEmpty(id) && ShiroTools.OutfitBatchUploader.HasWebJob(id))
                 return new ShiroTools.OutfitBatchUploader.WebJobDto { ok = 1, job = id };
             ShiroTools.OutfitBatchUploader.WebRequestId = id;
@@ -635,9 +635,9 @@ namespace OutfitToggleGenerator
         internal static ResultDto EditAvatar(string label, Func<ResultDto> edit, bool migratePresets = true)
         {
             if (UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow)
-                return new ResultDto { message = "Finish the upload or batch before editing the avatar." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.finish.the.upload.or.batch.before.editing.the.avatar") };
             if (EditorApplication.isPlayingOrWillChangePlaymode)
-                return new ResultDto { message = "Leave Play Mode before editing the avatar." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.leave.play.mode.before.editing.the.avatar") };
             var settings = AvatarWardrobePresets.CaptureSettings();
             var overrides = AvatarWardrobeCatalog.CaptureOverrides();
             var uploadSettings = ShiroTools.OutfitProjectData.CaptureSettings();
@@ -679,7 +679,7 @@ namespace OutfitToggleGenerator
                 catch (Exception rollback) { Debug.LogError("Wardrobe compatibility rollback failed: " + rollback); }
                 WardrobeEditHistory.Capture();
                 Debug.LogException(error);
-                return new ResultDto { message = "Avatar edit failed and rollback was attempted: " + error.Message };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.avatar.edit.failed.and.rollback.was.attempted") + error.Message };
             }
             finally { InvalidateInstalled(); }
         }

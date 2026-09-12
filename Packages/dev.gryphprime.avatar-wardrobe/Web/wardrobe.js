@@ -74,7 +74,7 @@
     document.body.classList.toggle("one-avatar",!avatarMode);
     $("workflowPresetWrap").hidden=!avatarMode;
     $("sceneUpload").hidden=!!avatarMode;
-    var label=$("navUpload").querySelector("span");label.removeAttribute("data-i18n");R.text(label,avatarMode?T("nav.presets"):"Organization");
+    var label=$("navUpload").querySelector("span");label.removeAttribute("data-i18n");R.text(label,avatarMode?T("nav.presets"):T("ui.organization"));
   }
   function applyAvatarMode(value){
     var changed=avatarMode!==(value?1:0);avatarMode=value?1:0;paintAvatarMode();
@@ -118,7 +118,7 @@
     var state=lastState||{},filtered=!!(search||shop||category||hideEmpty||filter!=="all");
     var mode=!connected&&state.desktop?"offline":(initialGridPending||indexing||listInflight||indexAction)?"loading":connected&&lastState&&!state.avatarInstanceId?"target":gridNotice==="error"?"error":state.desktop&&state.outfits===0?"files":filtered?"filters":"empty";
     var message=mode==="loading"?T(indexing?(indexPhase==="discovery"?"index.discovery":indexPhase==="dependencies"?"index.dependencies":"banner.indexing"):"grid.loading",indexDone,indexTotal):T({target:"grid.chooseAvatarHint",error:"grid.error",offline:viewFeatures.library?"grid.offlineHint":"grid.connectUnityHint",files:viewFeatures.library?"grid.addFilesHint":"grid.importInUnityHint",filters:"grid.empty",empty:"grid.empty"}[mode]);
-    if(message==="grid.loading")message="Loading wardrobe…";
+    if(message==="grid.loading")message=T("grid.loading");
     var actions=mode==="target"?[["gridChooseAvatar","grid.chooseAvatar"]]:mode==="files"?(viewFeatures.library?[["gridAddFiles","library.add"]]:[]):mode==="filters"?[["gridClearFilters","grid.clearFilters"]]:mode==="error"||mode==="offline"?[["gridRetry","grid.retry"]]:[];
     if(viewFeatures.library&&state.desktop&&(mode==="offline"||mode==="error"))actions.push(["gridAddFiles","grid.openLibrary"]);
     var signature=JSON.stringify([mode,langCode,actions]);
@@ -174,6 +174,7 @@
         if(l.code==="en") (l.strings||[]).forEach(function(en){ if(table[en.k]==null) table[en.k]=en.v; });
       });
       langTable=table;
+      if(R.setLanguage)R.setLanguage(langCode,T);
       document.documentElement.lang=langCode;
       if(T("app.title")!=="app.title") document.title=T("app.title");
     }).catch(function(){ /* Keep the last loaded language during temporary connection failures. */ });
@@ -184,6 +185,7 @@
     document.querySelectorAll("[data-i18n-title]").forEach(function(el){ el.setAttribute("title",T(el.getAttribute("data-i18n-title"))); });
     document.querySelectorAll("[data-i18n-aria]").forEach(function(el){ el.setAttribute("aria-label",T(el.getAttribute("data-i18n-aria"))); });
     if(T("app.title")!=="app.title") document.title=T("app.title");
+    document.querySelectorAll("[data-i18n-alt]").forEach(function(el){el.setAttribute("alt",T(el.getAttribute("data-i18n-alt")));});
     buildLangSelect();
     if(window.WardrobeLibrary)window.WardrobeLibrary.localize(T);
     if(window.WardrobeSceneEditor)window.WardrobeSceneEditor.configure({api:api,T:T,root:$("advancedScene")});
@@ -347,7 +349,7 @@
   }
   function groupInstalledItems(items,presets,separate){
     var groups=new Map();
-    groups.set("common",{id:"common",name:separate?T("preset.common"):"Wearing",items:[]});
+    groups.set("common",{id:"common",name:separate?T("preset.common"):T("side.installed"),items:[]});
     if(separate)presets.forEach(function(p){groups.set(p.id,{id:p.id,name:p.name,items:[]});});
     items.forEach(function(it){
       var key=separate?(it.target||"common"):"common";
@@ -375,7 +377,7 @@
           var el=document.createElement("button");el.type="button";el.className="inst";
           el.innerHTML='<span class="inst-thumb"></span><span class="inst-copy"><span class="t"></span><span class="s"></span></span><span class="inst-arrow" aria-hidden="true">›</span>';
           el.onclick=function(){openDetail(el._item.familyId,el._item.guid,el._item);};
-          window.WardrobeDragDrop.target(el,{outfit:function(payload){dropOutfit(payload,'replace-outfit',el._item);},error:function(message){toast(message,'err');}});el.title='Drop a variant here to replace this exact worn copy';return el;
+          window.WardrobeDragDrop.target(el,{outfit:function(payload){dropOutfit(payload,'replace-outfit',el._item);},error:function(message){toast(message,'err');}});el.title=T("ui.drop.a.variant.here.to.replace.this.exact.worn");return el;
         },function(el,it){
           el._item=it;var variant=it.variant&&it.variant.toLowerCase()!=="default"?it.variant:T("variant.default");
           R.text(el.querySelector(".t"),it.family);R.text(el.querySelector(".s"),it.setupWarning?T("setup.attention")+" — "+it.setupWarning:variant);el.title=it.family+" · "+variant;
@@ -461,7 +463,7 @@
       R.text(avatar,s.avatarLabel||s.avatarName||T("avatar.none"));
       var targetSelect=$('wardrobeTarget'),targetChoices=s.sceneTargets||[];
       if(targetSelect){
-        var signature=JSON.stringify(targetChoices);
+        var signature=langCode+"|"+JSON.stringify(targetChoices);
         if(targetSelect.dataset.choices!==signature){
           targetSelect.innerHTML='<option value="">'+esc(T('target.choose'))+'</option>'+targetChoices.map(function(a){return '<option value="'+a.id+'">'+esc(a.name+' · '+(a.scene.split('/').pop()||T('target.unsaved')))+'</option>';}).join('');
           targetSelect.dataset.choices=signature;
@@ -641,7 +643,7 @@
         });
       };
       document.getElementById("dPresetWrap").innerHTML='<label for="dPreset">'+esc(T("detail.preset.tag"))+'</label><div class="preset-row"><select id="dPreset" disabled></select><button id="dNewPreset" title="'+esc(T("detail.newPreset"))+'">+</button></div><div id="dPresetFeedback" class="detail-load-error" hidden><p id="dPresetStatus" class="subtle" role="status"></p><button id="dPresetRetry" type="button" hidden>'+esc(T('grid.retry'))+'</button></div>';
-      document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend','<div id="dGroupWrap" hidden><label for="dGroup">'+esc(T('detail.menuGroup'))+'</label><div class="preset-row"><select id="dGroup"><option value="">No menu group</option></select><button id="dNewGroup" title="New menu group">+</button></div><div id="dGroupStatus" class="subtle" role="status" aria-live="polite"></div></div>');
+      document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend','<div id="dGroupWrap" hidden><label for="dGroup">'+esc(T('detail.menuGroup'))+("</label><div class=\"preset-row\"><select id=\"dGroup\"><option value=\"\">"+esc(T("detail.noMenuGroup"))+"</option></select><button id=\"dNewGroup\" title=\""+esc(T("ui.new.menu.group"))+"\">+</button></div><div id=\"dGroupStatus\" class=\"subtle\" role=\"status\" aria-live=\"polite\"></div></div>"));
       var wornFamily=installedItems.filter(function(item){return item.familyId===d.id && item.target===effectivePreset();});
       document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend',
         '<label for="dWearMode">'+esc(T('wear.action'))+'</label><select id="dWearMode"><option value="wear">'+esc(T('wear.apply'))+'</option>'+
@@ -652,7 +654,7 @@
       var replaceSelect=document.getElementById('dReplaceCopy');
       function paintWearMode(){replaceSelect.hidden=document.getElementById('dWearMode').value!=='replace';replaceSelect.previousElementSibling.hidden=replaceSelect.hidden;}
       document.getElementById('dWearMode').onchange=paintWearMode;paintWearMode();
-      var action='<button id="dTryOn" hidden>Try on</button><button id="dRemove" class="danger" hidden>Remove</button>'+
+      var action=("<button id=\"dTryOn\" hidden>"+esc(T("ui.try.on"))+"</button><button id=\"dRemove\" class=\"danger\" hidden>"+esc(T("detail.remove"))+"</button>")+
         '<button id="dAddPreset" class="primary">'+esc(T("wear.apply"))+'</button><button id="dCancelSettings" type="button" hidden>'+esc(T('detail.cancelSettings'))+'</button><button id="dApplySettings" type="button" class="primary" hidden>'+esc(T('detail.applySettings'))+'</button>';
       document.getElementById("dActs").innerHTML=action+
         (aiAvailable?'<button id="dAi">'+esc(T("detail.ai"))+"</button>":"");
@@ -757,7 +759,7 @@
       if(!common&&(!target||target==="__new")){ createPresetFlow(sel); return; }
             installInFlight=true;
       var btn=document.getElementById("dAddPreset");
-      var st=btn?beginButtonBusy(btn,avatarMode?(common?T("detail.addCommon"):T("detail.addPreset")):"Adding outfit…"):null;
+      var st=btn?beginButtonBusy(btn,avatarMode?(common?T("detail.addCommon"):T("detail.addPreset")):T("ui.adding.outfit")):null;
       var allow="0";
       var togglesBox=document.getElementById("dCreateToggles");
       var toggles=!togglesBox||togglesBox.checked?"1":"0";
@@ -794,7 +796,7 @@
       if(wrap.hidden){select.value='';return;}
       var id=instance&&instance.guid===v.guid?instance.target||'common':effectivePreset(preset.value);
       var remove=document.getElementById('dRemove'),present=installedPresets.some(function(p){return p.id===id;});
-      if(remove){remove.hidden=!present;remove.textContent=avatarMode?'Remove from '+(id==='common'?T('preset.common'):presetNameOf(id)):'Remove Outfit';}
+      if(remove){remove.hidden=!present;remove.textContent=avatarMode?T("detail.removeFrom",id==='common'?T('preset.common'):presetNameOf(id)):T("detail.removeOutfit");}
       var copy=document.getElementById('dInstance');
       if(!copy){
         var copyWrap=document.createElement('div');copyWrap.innerHTML='<label for="dInstance">'+esc(T('detail.wornCopy'))+'</label><select id="dInstance"></select><p id="dSetupWarning" role="status"></p>';
@@ -819,7 +821,7 @@
       var installedList=document.getElementById('dInstalledPresets');
       if(!installedList){installedList=document.createElement('div');installedList.id='dInstalledPresets';installedList.className='subtle';document.getElementById('dPresetWrap').appendChild(installedList);}
       installedList.hidden=!avatarMode;
-      installedList.textContent=installedPresets.length?'Installed in: '+installedPresets.map(function(p){return p.name;}).join(', '):'Not installed in any preset.';
+      installedList.textContent=installedPresets.length?T("detail.installedIn",installedPresets.map(function(p){return p.name;}).join(', ')):T("ui.not.installed.in.any.preset");
       var scope=id+'|'+v.guid,token=++groupLoadToken,guid=v.guid;
       var partBox=$('dCreateToggles'),membership=installedPresets.find(function(p){return p.id===id;});
       var draftKey=JSON.stringify([installedIdentity||contextKey,id,guid]),partKey='wardrobePartToggles|'+[(lastState||{}).avatarGuid||'',(lastState||{}).avatarName||'',scope].join('|');
@@ -963,18 +965,18 @@
       if(rem) rem.onclick=function(){
         if(!presetsReady||!settingsReady||rem.disabled)return;
         var target=instance&&instance.guid===v.guid?instance.target||'common':effectivePreset(document.getElementById('dPreset').value);
-        var name=avatarMode?(target==='common'?T('preset.common'):presetNameOf(target)):'avatar';
+        var name=avatarMode?(target==='common'?T('preset.common'):presetNameOf(target)):T('ui.avatar');
         var membership=installedPresets.find(function(p){return p.id===target;}),copy=document.getElementById('dInstance');
         var copyId=copy?Number(copy.value):0,index=membership?membership.instanceIds.indexOf(copyId):-1;
         if(index<0){toast(T('detail.chooseCopy'),'err');return;}
         var itemPath=membership.paths[index];
-        if(!confirm('Remove this prefab from '+name+'?')) return;
+        if(!confirm(T('detail.confirmRemoveFrom',name))) return;
         if(operations.enabled()){queueOutfit('remove-outfit',{variantId:v.guid,assetVersion:v.assetVersion,scopeId:target,instanceId:String(copyId),itemPath:itemPath},d.name+' · '+v.variant);return;}
         if(removeInFlight) return;
         removeInFlight=true;
         var removeState=beginButtonBusy(rem,T("detail.remove.busy"));
         api("/api/preset_remove_item?guid="+encodeURIComponent(v.guid)+"&target="+encodeURIComponent(target)+"&item="+encodeURIComponent(itemPath)+"&instanceId="+encodeURIComponent(copyId)).then(function(r){
-          if(r&&r.ok){ removeInFlight=false; toast(avatarMode?r.message:"Outfit removed.","ok"); dropCaches();closeDetail();load();refreshState(); }
+          if(r&&r.ok){ removeInFlight=false; toast(avatarMode?r.message:T("ui.outfit.removed"),"ok"); dropCaches();closeDetail();load();refreshState(); }
           else finishRemove((r&&r.message)||T("detail.remove.fail"));
         }).catch(function(){ finishRemove(T("detail.remove.fail")); });
         function finishRemove(message){
@@ -998,20 +1000,22 @@
   }});
   var snapshots=viewFeatures.dressingRoom?window.WardrobeSnapshots.create({operations:operations,api:api,root:$('dressing'),scope:function(){return effectivePreset();}}):null;
   function queueOutfit(type,input,label){try{var command=operations.build(type,input);operations.submit(command,label).catch(function(error){toast(error.message,'err');});}catch(error){toast(error.message,'err');}}
-  function dragContextKey(){var context=operations.context();if(!context)throw new Error('Wait for the pinned avatar to connect.');return window.WardrobeOperations.targetKey(Object.assign({},context,{scopeId:effectivePreset()}));}
+  function dragContextKey(){var context=operations.context();if(!context)throw new Error(T("ui.wait.for.the.pinned.avatar.to.connect"));return window.WardrobeOperations.targetKey(Object.assign({},context,{scopeId:effectivePreset()}));}
   async function dropOutfit(payload,intent,instance){
     try{
-      if(payload.targetKey!==dragContextKey())throw new Error('The avatar or preset changed during the drag. Start again from the current target.');
+      if(payload.targetKey!==dragContextKey())throw new Error(T("ui.the.avatar.or.preset.changed.during.the.drag.start"));
       if(!payload.variantId){openDetail(payload.familyId);toast(T('wear.chooseVariant'));return;}
-      if(instance&&instance.familyId!==payload.familyId)throw new Error('Replace accepts a variant of this same outfit family. Use Wear to add another outfit.');
+      if(instance&&instance.familyId!==payload.familyId)throw new Error(T("ui.replace.accepts.a.variant.of.this.same.outfit.family"));
       var expected=dragContextKey(),detail=await api('/api/family?id='+encodeURIComponent(payload.familyId)+'&target='+encodeURIComponent(effectivePreset()));
-      if(expected!==dragContextKey())throw new Error('The target changed while resolving the outfit. Drag again.');
-      var variant=detail.variants.find(function(v){return v.guid===payload.variantId;});if(!variant)throw new Error('The variant is no longer available.');
+      if(expected!==dragContextKey())throw new Error(T("ui.the.target.changed.while.resolving.the.outfit.drag.again"));
+      var variant=detail.variants.find(function(v){return v.guid===payload.variantId;});if(!variant)throw new Error(T("ui.the.variant.is.no.longer.available"));
       var input={variantId:variant.guid,assetVersion:variant.assetVersion,scopeId:instance?instance.target||'common':effectivePreset(),addCopy:!instance,label:detail.name+' · '+variant.variant};
       if(instance)input.instanceId=String(instance.instanceId);
       if(intent==='try-on'){if(snapshots)snapshots.begin(input);}else queueOutfit(intent,input,input.label);
     }catch(error){toast(error.message,'err');}
   }
+  function operationState(value){return lookup('operation.state.'+value)||value;}
+  function operationType(value){return lookup('operation.type.'+value)||value;}
   function paintOperations(records,context){
     function reviewChange(){refreshState();operations.refresh();setBatchView('wardrobe');}
     function retryChange(row){operations.retry(row._record.id,effectivePreset()).then(function(){$('operationSummary').focus();}).catch(function(error){toast(error.message,'err');});}
@@ -1020,12 +1024,12 @@
     $('sceneUnsaved').hidden=!(context&&context.unsaved&&lastState&&lastState.session===context.session&&lastState.avatarInstanceId===context.avatarInstanceId);
     var pending=records.filter(function(record){return window.WardrobeOperations.isMutation(record.type)&&!window.WardrobeOperations.isTerminal(record.state);});
     var lastApplied=records.filter(function(record){return window.WardrobeOperations.isMutation(record.type)&&record.state==='succeeded';}).slice(-1)[0];
-    var summary=$('operationSummary');summary.hidden=!operations.enabled();R.text(summary,pending.length?pending.length+(pending.length===1?' change pending':' changes pending'):'Changes');
+    var summary=$('operationSummary');summary.hidden=!operations.enabled();R.text(summary,pending.length?T(pending.length===1?'operation.pending':'operation.pending.other',pending.length):T("ui.changes"));
     var recent=records.slice(-30).reverse();
-    if(!recent.length)recent=[{id:'empty',label:'No outfit changes queued.',state:''}];
+    if(!recent.length)recent=[{id:'empty',label:T("ui.no.outfit.changes.queued"),state:''}];
     R.reconcile($('operationsList'),recent,function(record){return record.id;},function(){
-      var row=document.createElement('li');row.innerHTML='<strong></strong><p></p><button data-op-undo>Undo this change</button><button data-op-cancel>Cancel</button><button data-op-retry>Check same request</button><button data-op-retry-failed>Retry change</button><button data-op-review>Review current avatar</button><button data-op-dismiss>Dismiss notice</button><button data-op-restore>Show notice in Wearing</button>';
-      row.querySelector('[data-op-undo]').onclick=function(){var record=row._record;try{var command=window.WardrobeOperations.normalize('undo-operation',{undoToken:record.result.undoToken,scopeId:record.command.target.scopeId},Object.assign({},record.command.target,{revision:record.result.confirmedRevision}));operations.submit(command,'Undo '+(record.label||record.type)).catch(function(error){toast(error.message,'err');});}catch(error){toast(error.message,'err');}};
+      var row=document.createElement('li');row.innerHTML=("<strong></strong><p></p><button data-op-undo>"+esc(T("ui.undo.this.change"))+"</button><button data-op-cancel>"+esc(T("scene.cancel"))+"</button><button data-op-retry>"+esc(T("ui.check.same.request"))+"</button><button data-op-retry-failed>"+esc(T("ui.retry.change"))+"</button><button data-op-review>"+esc(T("ui.review.current.avatar"))+"</button><button data-op-dismiss>"+esc(T("ui.dismiss.notice"))+"</button><button data-op-restore>"+esc(T("ui.show.notice.in.wearing"))+"</button>");
+      row.querySelector('[data-op-undo]').onclick=function(){var record=row._record;try{var command=window.WardrobeOperations.normalize('undo-operation',{undoToken:record.result.undoToken,scopeId:record.command.target.scopeId},Object.assign({},record.command.target,{revision:record.result.confirmedRevision}));operations.submit(command,T('operation.undo',record.label||operationType(record.type))).catch(function(error){toast(error.message,'err');});}catch(error){toast(error.message,'err');}};
       row.querySelector('[data-op-cancel]').onclick=function(){operations.cancel(row._record.id).catch(function(error){toast(error.message,'err');});};
       row.querySelector('[data-op-retry]').onclick=function(){operations.submit(row._record.command,row._record.label).catch(function(error){toast(error.message,'err');});};
       row.querySelector('[data-op-retry-failed]').onclick=function(){retryChange(row);};
@@ -1033,8 +1037,8 @@
       row.querySelector('[data-op-dismiss]').onclick=function(){dismissChange(row);};
       row.querySelector('[data-op-restore]').onclick=function(){operations.restore(row._record.id);row.querySelector('[data-op-dismiss]').focus();};return row;
     },function(row,record){
-      row._record=record;R.text(row.querySelector('strong'),record.label||record.type);
-      R.text(row.querySelector('p'),record.state+(record.dismissed?' · notice dismissed; outcome retained':'')+(record.retryOperationId?' · a separate retry was requested':'')+(record.cancelRequested?' · cancellation requested':'')+(record.waitingReason?' · '+record.waitingReason:'')+(record.error?' · '+record.error:''));
+      row._record=record;R.text(row.querySelector('strong'),record.label||operationType(record.type));
+      R.text(row.querySelector('p'),operationState(record.state)+(record.dismissed?' · '+T('operation.noticeDismissed'):'')+(record.retryOperationId?' · '+T('operation.retryRequested'):'')+(record.cancelRequested?' · '+T('operation.cancelRequested'):'')+(record.waitingReason?' · '+record.waitingReason:'')+(record.error?' · '+record.error:''));
       row.querySelector('[data-op-undo]').hidden=record!==lastApplied||!record.result||!record.result.undoToken;
       row.querySelector('[data-op-undo]').disabled=!context||!record.command||context.session!==record.command.target.session||context.avatarInstanceId!==record.command.target.avatarInstanceId||context.revision!==record.result?.confirmedRevision||pending.length>0;
       row.querySelector('[data-op-cancel]').hidden=!['queued','running','submitting','acceptance-unknown'].includes(record.state);
@@ -1048,12 +1052,12 @@
     });
     var visible=operations.notices(effectivePreset());
     R.reconcile($('pendingWearing'),visible,function(record){return record.id;},function(){
-      var row=document.createElement('div');row.className='pending-wearing';row.style.overflowWrap='anywhere';row.innerHTML='<strong></strong><small></small><div class="snapshot-controls"><button data-op-retry-failed>Retry change</button><button data-op-review>Review current avatar</button><button data-op-dismiss>Dismiss notice</button><button data-op-cancel>Cancel change</button></div>';
+      var row=document.createElement('div');row.className='pending-wearing';row.style.overflowWrap='anywhere';row.innerHTML=("<strong></strong><small></small><div class=\"snapshot-controls\"><button data-op-retry-failed>"+esc(T("ui.retry.change"))+"</button><button data-op-review>"+esc(T("ui.review.current.avatar"))+"</button><button data-op-dismiss>"+esc(T("ui.dismiss.notice"))+"</button><button data-op-cancel>"+esc(T("ui.cancel.change"))+"</button></div>");
       row.querySelector('[data-op-retry-failed]').onclick=function(){retryChange(row);};row.querySelector('[data-op-review]').onclick=reviewChange;row.querySelector('[data-op-dismiss]').onclick=function(){dismissChange(row);};row.querySelector('[data-op-cancel]').onclick=function(){operations.cancel(row._record.id).catch(function(error){toast(error.message,'err');});};return row;
     },function(row,record){
       row._record=record;var attention=['failed','needs-review'].includes(record.state);
-      R.text(row.querySelector('strong'),record.label||record.type);
-      R.text(row.querySelector('small'),(record.state==='needs-review'?'Needs review — inspect the current avatar before another change':record.state==='failed'?'Change failed':(record.type==='remove-outfit'?'Removing':record.type==='undo-operation'?'Undoing':'Adding')+' · '+record.state)+(record.error?' · '+record.error:'')+(record.waitingReason?' · '+record.waitingReason:'')+(record.cancelRequested?' · cancellation requested':''));
+      R.text(row.querySelector('strong'),record.label||operationType(record.type));
+      R.text(row.querySelector('small'),(record.state==='needs-review'?T("ui.needs.review.inspect.the.current.avatar.before.another.change"):record.state==='failed'?T("ui.change.failed"):(record.type==='remove-outfit'?T("ui.removing"):record.type==='undo-operation'?T("ui.undoing"):T("ui.adding"))+' · '+record.state)+(record.error?' · '+record.error:'')+(record.waitingReason?' · '+record.waitingReason:'')+(record.cancelRequested?' · cancellation requested':''));
       row.querySelector('[data-op-retry-failed]').hidden=record.state!=='failed'||!!record.retryOperationId||record.type==='undo-operation';row.querySelector('[data-op-retry-failed]').disabled=!operations.canRetry(record)||!retryTargetMatches(record)||pending.length>0;
       row.querySelector('[data-op-review]').hidden=!attention;row.querySelector('[data-op-dismiss]').hidden=!attention;
       row.querySelector('[data-op-cancel]').hidden=attention;row.querySelector('[data-op-cancel]').disabled=!!record.cancelRequested;
@@ -1181,17 +1185,17 @@
   $("indexFull").onclick=function(){fullIndex(this);};$("settingsReindex").onclick=function(){fullIndex(this);};
   $('migrateAvatar').onclick=function(){
     api('/api/migrate_avatar').then(function(r){
-      if(!r||!r.ok)throw new Error(r&&r.message||'Migration failed.');
-      toast('Legacy presets migrated.','ok');dropCaches();refreshState();
+      if(!r||!r.ok)throw new Error(r&&r.message||T("ui.migration.failed"));
+      toast(T("ui.legacy.presets.migrated"),'ok');dropCaches();refreshState();
     }).catch(function(e){toast(e.message,'err');});
   };
   $('regenerateToggles').onclick=function(){
     var button=this;
     if(button.dataset.busy==='1')return;
-    var state=beginButtonBusy(button,'Regenerating…');
+    var state=beginButtonBusy(button,T("ui.regenerating"));
     api('/api/regenerate_toggles').then(function(result){
-      if(!result||!result.ok)throw new Error(result&&result.message||'Could not regenerate toggles.');
-      feedback('toggles',enabled?'✓ Toggles generated in Unity.':'✓ Toggles removed in Unity.','saved');
+      if(!result||!result.ok)throw new Error(result&&result.message||T("ui.could.not.regenerate.toggles"));
+      feedback('toggles',enabled?T("ui.toggles.generated.in.unity"):T("ui.toggles.removed.in.unity"),'saved');
             toast(result.message,'ok');refreshState();
     }).catch(function(error){toast(error.message,'err');}).finally(function(){endButtonBusy(button,state);});
   };
@@ -1214,7 +1218,7 @@
   }
   $("lang").onchange=function(){
     R.store("wardrobeLang",this.value);var selected=selectedFamilyId;
-    loadLangs().then(function(){applyStrings();paintHide();paintAvatarMode();dropCaches();sideContent.dataset.signature="";loadShops();load(false,true);refreshState();uploadUI.localize();if(selected) openDetail(selected);});
+    loadLangs().then(function(){applyStrings();paintHide();paintAvatarMode();dropCaches();sideContent.dataset.signature="";loadShops();load(false,true);refreshState();uploadUI.localize();paintActivity();operations.refresh();if(currentView==='advancedScene')window.WardrobeSceneEditor.show();if(currentView==='appearanceEditor')window.WardrobeAppearanceEditor.show();if(currentView==='menuOrganizer')window.WardrobeMenuOrganizer.show();if(selected) openDetail(selected);});
   };
   function pingActive(on){
     if(on&&previewPageClosed) return Promise.resolve();
@@ -1252,7 +1256,7 @@
   function sceneMessage(text,tone){
     $("sceneUploadMessage").textContent=text||"";
     tone=tone||(sceneJob?"working":"ready");sceneDialog.dataset.tone=tone;
-    var title={ready:"Ready to review",working:"Working on your avatar",waiting:"Action needed",error:"Could not complete",success:"Complete"}[tone];
+    var title={ready:T("ui.ready.to.review"),working:T("ui.working.on.your.avatar"),waiting:T("ui.action.needed"),error:T("ui.could.not.complete"),success:T("ui.complete")}[tone];
     $("sceneUploadStatusTitle").textContent=title;
     $("sceneUploadStatusIcon").textContent=tone==="success"?"✓":tone==="error"?"!":"●";
     var progress=$("sceneUploadProgress");progress.hidden=tone!=="working";
@@ -1273,16 +1277,16 @@
   sceneUploadButton.onclick=async function(){
     sceneReview=null;$("sceneUploadPreview").hidden=true;$("sceneUploadPreviewFallback").hidden=false;
     $("sceneUploadConsent").checked=false;
-    sceneDialog.showModal();sceneMessage("Checking selected avatar…");sceneBusy(true);
+    sceneDialog.showModal();sceneMessage(T("ui.checking.selected.avatar"));sceneBusy(true);
     try {
       sceneReview=await api("/api/scene_upload_review");
-      $("sceneUploadTarget").textContent=sceneReview.name||"No avatar selected";
-      $("sceneUploadBadge").textContent=sceneReview.isNew?"New private avatar":"Update existing";
+      $("sceneUploadTarget").textContent=sceneReview.name||T("ui.no.avatar.selected");
+      $("sceneUploadBadge").textContent=sceneReview.isNew?T("ui.new.private.avatar"):T("ui.update.existing");
       if(sceneReview.avatarId)$("sceneUploadPreview").src="/api/scene_upload_thumbnail?avatarId="+sceneReview.avatarId;
-      $("sceneUploadIdentity").textContent=sceneReview.isNew?"Create a new private avatar":"Update avatar: "+(sceneReview.blueprintId||"");
+      $("sceneUploadIdentity").textContent=sceneReview.isNew?T("ui.create.a.new.private.avatar"):T("ui.update.avatar")+(sceneReview.blueprintId||"");
       $("sceneUploadName").value=sceneReview.name||"";
       $("sceneUploadNameWrap").hidden=!sceneReview.isNew;
-      sceneMessage(sceneReview.message||"Includes the entire selected avatar, preserving enabled states and existing controls. PC only. Your existing thumbnail is kept. If none exists, AW generates one automatically.");
+      sceneMessage(sceneReview.message||T("ui.includes.the.entire.selected.avatar.preserving.enabled.states.and"));
       sceneBusy(false);
       $("sceneBuildCheck").disabled=!sceneReview.ok;sceneConsentState();
       if(!sceneReview.ok)sceneMessage(sceneReview.message,"waiting");
@@ -1291,23 +1295,23 @@
   async function pollSceneUpload(){
     try {
       var result=await api("/api/upload_result?job="+encodeURIComponent(sceneJob));
-      sceneMessage(result.message||(result.pending?"Working…":"The job is no longer available. Check Unity/VRChat before retrying."),result.pending?"working":result.ok?"success":"error");
+      sceneMessage(result.message||(result.pending?T("ui.working"):T("ui.the.job.is.no.longer.available.check.unity.vrchat")),result.pending?"working":result.ok?"success":"error");
       if(result.pending){scenePoll=setTimeout(pollSceneUpload,1000);return;}
       sceneJob=null;sceneBusy(false);sceneReview=null;
       $("sceneBuildCheck").disabled=$("sceneUploadConfirm").disabled=true;
       refreshState();
     } catch(error){
-      sceneMessage("Connection lost. The job may still be running in Unity. Do not start another upload. "+error.message);
+      sceneMessage(T("ui.connection.lost.the.job.may.still.be.running.in")+error.message);
       scenePoll=setTimeout(pollSceneUpload,3000);
     }
   }
   async function startSceneUpload(check){
     if(!sceneReview||!sceneReview.ok||sceneJob)return;
-    if(!check&&!$("sceneUploadConsent").checked){sceneMessage("Confirm copyright ownership before uploading.");return;}
-    sceneBusy(true);sceneMessage(check?"Starting local build check…":"Starting upload; check Unity for SDK prompts…","working");
+    if(!check&&!$("sceneUploadConsent").checked){sceneMessage(T("ui.confirm.copyright.ownership.before.uploading"));return;}
+    sceneBusy(true);sceneMessage(check?T("ui.starting.local.build.check"):T("ui.starting.upload.check.unity.for.sdk.prompts"),"working");
     try {
       var result=await api("/api/scene_upload?avatarId="+sceneReview.avatarId+"&blueprintId="+encodeURIComponent(sceneReview.blueprintId||"")+"&name="+encodeURIComponent($("sceneUploadName").value)+"&consent="+($("sceneUploadConsent").checked?1:0)+"&check="+(check?1:0));
-      if(!result.ok)throw new Error(result.message||"Could not start.");
+      if(!result.ok)throw new Error(result.message||T("ui.could.not.start"));
       sceneJob=result.job;pollSceneUpload();
     }catch(error){sceneMessage(error.message,"error");sceneBusy(false);}
   }

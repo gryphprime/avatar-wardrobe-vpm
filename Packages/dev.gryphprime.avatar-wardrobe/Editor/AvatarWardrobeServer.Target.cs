@@ -19,9 +19,9 @@ namespace OutfitToggleGenerator
         private static ResultDto SelectTarget(string id)
         {
             if (UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow || EditorApplication.isPlayingOrWillChangePlaymode)
-                return new ResultDto { message = "Finish the active test or upload before choosing an avatar." };
+                return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.finish.the.active.test.or.upload.before.choosing.an.avatar") };
             var chosen = SceneTargets().FirstOrDefault(a => a.GetInstanceID().ToString() == id);
-            if (chosen == null) return new ResultDto { message = "This avatar is no longer available. Refresh and choose a scene avatar." };
+            if (chosen == null) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.this.avatar.is.no.longer.available.refresh.and.choose.a") };
             SceneAvatar = chosen;
             AvatarWardrobeWindow.Instance?.SetTarget(chosen);
             return new ResultDto { ok = 1 };

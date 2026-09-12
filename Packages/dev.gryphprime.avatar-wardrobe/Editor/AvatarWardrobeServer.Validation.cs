@@ -72,7 +72,7 @@ namespace OutfitToggleGenerator
                 var failed = EditAvatar("Validate failed edit", () => {
                     Undo.RecordObject(root, "Test failure"); root.name = "Must roll back";
                     AvatarWardrobePresets.UpdateMenuGroup("common", "", Guid.NewGuid().ToString("N"), null, null, "save");
-                    return new ResultDto { ok = 0, message = "Expected validation failure" };
+                    return new ResultDto { ok = 0, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.expected.validation.failure") };
                 });
                 Check(failed.ok == 0 && root.name == "Edited validation avatar" && AvatarWardrobePresets.CaptureSettings() == after,
                     "A failed result must restore both scene and settings.");

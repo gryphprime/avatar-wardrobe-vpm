@@ -1,6 +1,9 @@
 /* A photograph belongs to a captured target and recipe, never to whichever avatar is selected later. */
 (function(global){
   'use strict';
+  function L(key,fallback){return window.WardrobeRuntime&&window.WardrobeRuntime.localize?window.WardrobeRuntime.localize(key,fallback):fallback;}
+  function esc(value){return window.WardrobeRuntime.escape(value);}
+
   function create(options){
     var ops=options.operations,api=options.api,root=options.root,serial=0,draft=null,current=null,view='front',before=false,zoom=1,mode='shadow',cache=new Map();
     var manualEpoch=0,refreshRequest=null,restoreKey='',restoreSerial=0,history=null;
@@ -27,11 +30,11 @@
       root.querySelector('[data-snapshot-pin]').disabled=!current||current.draft.mode!=='shadow'||!displayMatches(current);
       root.querySelector('[data-snapshot-discard]').disabled=!draft;
       var metrics=root.querySelector('[data-snapshot-metrics]');if(metrics)metrics.hidden=!current||!displayMatches(current)||!current.preview||!current.preview.beforeMetrics||!current.preview.afterMetrics;
-      if(!current){caption.textContent='No avatar photograph yet';return;}
-      if(!displayMatches(current)){image.hidden=true;caption.textContent='Photograph belongs to another avatar or preset';return;}
+      if(!current){caption.textContent=L("ui.no.avatar.photograph.yet","No avatar photograph yet");return;}
+      if(!displayMatches(current)){image.hidden=true;caption.textContent=L("ui.photograph.belongs.to.another.avatar.or.preset","Photograph belongs to another avatar or preset");return;}
       image.hidden=false;
       var same=draft&&current.draft===draft&&current.view===view&&current.before===before&&current.zoom===zoom;
-      caption.textContent=(current.draft.restored?'Restored photo · ':'')+(same&&photoFresh()?(draft.input.variantId?'Try-on':'Current avatar'):'Previous photo · out of date')+' · '+current.view+(current.before?' · Before':' · After')+' · '+Math.round(current.zoom*100)+'% · static editor pose'+(current.draft.restored&&current.completed?' · captured '+new Date(current.completed*1000).toLocaleString():'');
+      caption.textContent=(current.draft.restored?L("ui.restored.photo","Restored photo · "):'')+(same&&photoFresh()?(draft.input.variantId?'Try-on':L("side.context","Current avatar")):L("ui.previous.photo.out.of.date","Previous photo · out of date"))+' · '+current.view+(current.before?' · Before':' · After')+' · '+Math.round(current.zoom*100)+'% · static editor pose'+(current.draft.restored&&current.completed?' · captured '+new Date(current.completed*1000).toLocaleString():'');
     }
     function contextChanged(){
       paint();if(history)history.contextChanged();
@@ -45,7 +48,7 @@
         var latest=ops.context();
         if(refreshRequest!==request||request.epoch!==manualEpoch||!targetMatches(request.target)||!latest||latest.revision!==request.revision||latest.waitingReason||pendingFor(request.target))return;
         refreshRequest=null;
-        begin({scopeId:request.target.scopeId,label:'Current avatar after confirmed change'},'shadow',request);
+        begin({scopeId:request.target.scopeId,label:L("ui.current.avatar.after.confirmed.change","Current avatar after confirmed change")},'shadow',request);
       });
     }
     function mutationSettled(record){
@@ -70,10 +73,10 @@
         var restored={restored:true,mode:'shadow',input:{scopeId:record.target.scopeId},command:{id:record.operationId||'',target:record.target},receipt:{result:record},hasAfter:true};
         draft=restored;view=record.view;before=false;zoom=record.zoom;
         current={draft:restored,view:view,before:false,zoom:zoom,key:record.snapshotKey,preview:record.preview,completed:record.completed||record.created};
-        image.src=url;image.alt='Restored current-avatar photograph';image.hidden=false;
+        image.src=url;image.alt=L("ui.restored.current.avatar.photograph","Restored current-avatar photograph");image.hidden=false;
         root.querySelectorAll('[data-snapshot-view]').forEach(function(button){button.setAttribute('aria-pressed',String(button.dataset.snapshotView===view));});
         root.querySelector('[data-snapshot-before]').checked=false;var control=root.querySelector('[data-snapshot-zoom]');if(control)control.value=String(zoom);
-        showMetrics(record.preview);message('Restored the last completed current-avatar photograph. It does not authorize Wear; capture again after scene changes.');paint();
+        showMetrics(record.preview);message(L("ui.restored.the.last.completed.current.avatar.photograph.it.does","Restored the last completed current-avatar photograph. It does not authorize Wear; capture again after scene changes."));paint();
       }catch(error){/* History is optional; retain any current photograph when it is unavailable. */}
     }
     function cancelShadow(id){return api('/api/shadow/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id}),timeout:5000}).catch(function(){});}
@@ -88,18 +91,18 @@
       var host=root.querySelector('[data-snapshot-metrics]');if(!host)return;
       host.replaceChildren();host.hidden=!preview||!preview.beforeMetrics||!preview.afterMetrics;if(host.hidden)return;
       var a=preview.beforeMetrics,b=preview.afterMetrics;
-      var summary=document.createElement('summary');summary.textContent='What this appearance changes';host.appendChild(summary);
+      var summary=document.createElement('summary');summary.textContent=L("ui.what.this.appearance.changes","What this appearance changes");host.appendChild(summary);
       var table=document.createElement('table'),head=document.createElement('thead'),body=document.createElement('tbody');
-      var header=document.createElement('tr');['Measured on built copies','Before','After'].forEach(function(label){var cell=document.createElement('th');cell.scope='col';cell.textContent=label;header.appendChild(cell);});head.appendChild(header);table.appendChild(head);
-      [['Visible renderers','visibleRenderers'],['Material slots','materials'],['Triangles','triangles'],['PhysBone components','physBones'],['Contact components','contacts'],['Texture allocation estimate','estimatedTextureBytes']].forEach(function(metric){
+      var header=document.createElement('tr');[L("ui.measured.on.built.copies","Measured on built copies"),L("appearance.before","Before"),L("appearance.after","After")].forEach(function(label){var cell=document.createElement('th');cell.scope='col';cell.textContent=label;header.appendChild(cell);});head.appendChild(header);table.appendChild(head);
+      [[L("ui.visible.renderers","Visible renderers"),'visibleRenderers'],[L("ui.material.slots","Material slots"),'materials'],[L("appearance.triangles","Triangles"),'triangles'],['PhysBone components','physBones'],[L("ui.contact.components","Contact components"),'contacts'],[L("appearance.textureEstimate","Texture allocation estimate"),'estimatedTextureBytes']].forEach(function(metric){
         var row=document.createElement('tr'),label=document.createElement('th');label.scope='row';label.textContent=metric[0];row.appendChild(label);
         [a,b].forEach(function(value){var cell=document.createElement('td');cell.textContent=metric[1]==='estimatedTextureBytes'?bytes(value[metric[1]]):Number(value[metric[1]]||0).toLocaleString();row.appendChild(cell);});body.appendChild(row);
       });table.appendChild(body);host.appendChild(table);
-      var note=document.createElement('p');note.className='subtle';note.textContent=b.textureEstimateScope||'Distinct referenced textures, including editor allocations. This is not exact platform VRAM or an FPS prediction.';host.appendChild(note);
-      if(b.largestTextures&&b.largestTextures.length){var heading=document.createElement('p');heading.textContent='Largest textures after try-on';host.appendChild(heading);var list=document.createElement('ul');b.largestTextures.forEach(function(texture){var item=document.createElement('li');item.textContent=texture.name+' · '+texture.width+' × '+texture.height+' · '+bytes(texture.estimatedBytes);list.appendChild(item);});host.appendChild(list);}
-      var menu=document.createElement('details'),title=document.createElement('summary');title.textContent='Built menu and parameters';menu.appendChild(title);
-      var menuNote=document.createElement('p');menuNote.className='subtle';menuNote.textContent='Controls from this processed copy. Use Test in Appearance for interactive checks in Unity.';menu.appendChild(menuNote);
-      [['Menu',preview.menuControls],['Parameters',preview.parameters],['Parameter checks',preview.parameterProblems]].forEach(function(group){var label=document.createElement('p');label.textContent=group[0];menu.appendChild(label);var list=document.createElement('ul');(group[1]&&group[1].length?group[1]:['None reported']).forEach(function(text){var item=document.createElement('li');item.textContent=text;list.appendChild(item);});menu.appendChild(list);});host.appendChild(menu);
+      var note=document.createElement('p');note.className='subtle';note.textContent=b.textureEstimateScope||L("ui.distinct.referenced.textures.including.editor.allocations.this.is.not","Distinct referenced textures, including editor allocations. This is not exact platform VRAM or an FPS prediction.");host.appendChild(note);
+      if(b.largestTextures&&b.largestTextures.length){var heading=document.createElement('p');heading.textContent=L("ui.largest.textures.after.try.on","Largest textures after try-on");host.appendChild(heading);var list=document.createElement('ul');b.largestTextures.forEach(function(texture){var item=document.createElement('li');item.textContent=texture.name+' · '+texture.width+' × '+texture.height+' · '+bytes(texture.estimatedBytes);list.appendChild(item);});host.appendChild(list);}
+      var menu=document.createElement('details'),title=document.createElement('summary');title.textContent=L("ui.built.menu.and.parameters","Built menu and parameters");menu.appendChild(title);
+      var menuNote=document.createElement('p');menuNote.className='subtle';menuNote.textContent=L("ui.controls.from.this.processed.copy.use.test.in.appearance","Controls from this processed copy. Use Test in Appearance for interactive checks in Unity.");menu.appendChild(menuNote);
+      [[L("menuOrganizer.title","Menu"),preview.menuControls],[L("ui.parameters","Parameters"),preview.parameters],[L("ui.parameter.checks","Parameter checks"),preview.parameterProblems]].forEach(function(group){var label=document.createElement('p');label.textContent=group[0];menu.appendChild(label);var list=document.createElement('ul');(group[1]&&group[1].length?group[1]:[L("ui.none.reported","None reported")]).forEach(function(text){var item=document.createElement('li');item.textContent=text;list.appendChild(item);});menu.appendChild(list);});host.appendChild(menu);
     }
     async function terminal(record){if(global.WardrobeOperations.isTerminal(record.state))return record;return ops.wait(record.id);}
     async function begin(input,chosenMode,automatic){
@@ -108,12 +111,12 @@
       cancelWork(draft);var token=++serial;mode=chosenMode||'shadow';fallback.hidden=true;
       try{
         var command=ops.build(mode==='shadow'?'capture-source':'prepare-preview',input);
-        draft={input:Object.assign({},input),command:command,receipt:null,mode:mode,pendingOperationId:command.id,automatic:automatic};paint();message(mode==='shadow'?'Capturing the complete avatar for Try on…':'Preparing a complete-avatar preview in Unity…');
-        var accepted=await ops.submit(command,input.label||'Try on');if(token!==serial){ops.cancel(command.id).catch(function(){});return;}
+        draft={input:Object.assign({},input),command:command,receipt:null,mode:mode,pendingOperationId:command.id,automatic:automatic};paint();message(mode==='shadow'?L("ui.capturing.the.complete.avatar.for.try.on","Capturing the complete avatar for Try on…"):L("ui.preparing.a.complete.avatar.preview.in.unity","Preparing a complete-avatar preview in Unity…"));
+        var accepted=await ops.submit(command,input.label||L("operation.type.try-on","Try on"));if(token!==serial){ops.cancel(command.id).catch(function(){});return;}
         var result=await terminal(accepted);if(token!==serial)return;
-        if(result.state!=='succeeded')throw new Error(result.error||'Preview preparation did not complete.');
+        if(result.state!=='succeeded')throw new Error(result.error||L("ui.preview.preparation.did.not.complete","Preview preparation did not complete."));
         draft.pendingOperationId=null;draft.receipt=result;
-        if(automatic&&(!targetMatches(automatic.target)||ops.context().revision!==automatic.revision||result.result.confirmedRevision!==automatic.revision||pendingFor(automatic.target)))throw new Error('The avatar changed while refreshing. The previous photograph is preserved.');
+        if(automatic&&(!targetMatches(automatic.target)||ops.context().revision!==automatic.revision||result.result.confirmedRevision!==automatic.revision||pendingFor(automatic.target)))throw new Error(L("ui.the.avatar.changed.while.refreshing.the.previous.photograph.is","The avatar changed while refreshing. The previous photograph is preserved."));
         await render(token);
       }catch(error){if(token!==serial)return;message(error.message);fallback.hidden=mode!=='shadow';paint();}
     }
@@ -122,7 +125,7 @@
       if(draft.restored){return begin({scopeId:options.scope()},'shadow');}
       cancelWork(draft,true);token=token||++serial;var expected=draft,selectedView=view,selectedBefore=before,selectedZoom=zoom;
       var cacheKey=expected.command.id+'|'+selectedView+'|'+selectedBefore+'|'+selectedZoom;
-      paint();message('Preparing '+selectedView+' photograph…');
+      paint();message(L("ui.preparing.2","Preparing ")+selectedView+' photograph…');
       try{
         var record=cache.get(cacheKey),url;
         if(!record){
@@ -134,24 +137,24 @@
               record=await api('/api/shadow/result?id='+encodeURIComponent(record.id),{method:'GET',timeout:5000});
             }
             if(expected.shadowJobId===record.id)expected.shadowJobId=null;
-            if(record.state!=='succeeded')throw new Error(record.message||record.error||'Snapshot did not complete.');
+            if(record.state!=='succeeded')throw new Error(record.message||record.error||L("ui.snapshot.did.not.complete","Snapshot did not complete."));
           }else{
             var command=global.WardrobeOperations.normalize('render-snapshot',{previewToken:expected.receipt.result.preview.token,view:selectedView,before:selectedBefore,zoom:selectedZoom,scopeId:expected.command.target.scopeId},Object.assign({},expected.command.target,{revision:expected.receipt.result.confirmedRevision}));
-            expected.pendingOperationId=command.id;var accepted=await ops.submit(command,'Photograph '+selectedView);if(token!==serial){ops.cancel(command.id).catch(function(){});return;}record=await terminal(accepted);if(expected.pendingOperationId===command.id)expected.pendingOperationId=null;
-            if(record.state!=='succeeded')throw new Error(record.error||'Snapshot did not complete.');
+            expected.pendingOperationId=command.id;var accepted=await ops.submit(command,L("ui.photograph","Photograph ")+selectedView);if(token!==serial){ops.cancel(command.id).catch(function(){});return;}record=await terminal(accepted);if(expected.pendingOperationId===command.id)expected.pendingOperationId=null;
+            if(record.state!=='succeeded')throw new Error(record.error||L("ui.snapshot.did.not.complete","Snapshot did not complete."));
           }
           cache.set(cacheKey,record);while(cache.size>24)cache.delete(cache.keys().next().value);
         }
         if(token!==serial||draft!==expected||!targetMatches(expected.command.target)||!automaticCurrent(expected))return;
         var key=expected.mode==='shadow'?record.snapshotKey:record.result.snapshotKey;
         url=(expected.mode==='shadow'?'/api/shadow/image?key=':'/api/snapshot?key=')+encodeURIComponent(key);
-        var next=new Image();next.alt='Complete avatar '+selectedView+(selectedBefore?' before try-on':' after try-on');
-        await new Promise(function(resolve,reject){next.onload=resolve;next.onerror=function(){reject(new Error('The photograph could not be loaded. The previous image is preserved.'));};next.src=url;});
+        var next=new Image();next.alt=L("ui.complete.avatar","Complete avatar ")+selectedView+(selectedBefore?' before try-on':' after try-on');
+        await new Promise(function(resolve,reject){next.onload=resolve;next.onerror=function(){reject(new Error(L("ui.the.photograph.could.not.be.loaded.the.previous.image","The photograph could not be loaded. The previous image is preserved.")));};next.src=url;});
         if(token!==serial||draft!==expected||!targetMatches(expected.command.target)||!automaticCurrent(expected))return;
         image.src=url;image.alt=next.alt;image.hidden=false;
         current={draft:expected,view:selectedView,before:selectedBefore,zoom:selectedZoom,key:key};
         var preview=expected.mode==='shadow'?record.preview:expected.receipt.result.preview;
-        if(!selectedBefore)expected.hasAfter=true;current.preview=preview;showMetrics(preview);message(preview&&preview.limitations?preview.limitations.join(' '):'Captured source with supported build processing. Inspect the fit before wearing.');paint();
+        if(!selectedBefore)expected.hasAfter=true;current.preview=preview;showMetrics(preview);message(preview&&preview.limitations?preview.limitations.join(' '):L("ui.captured.source.with.supported.build.processing.inspect.the.fit","Captured source with supported build processing. Inspect the fit before wearing."));paint();
       }catch(error){if(token===serial){message(error.message);paint();fallback.hidden=expected.mode!=='shadow';}}
     }
     function automaticCurrent(value){return !value.automatic||(ops.context().revision===value.automatic.revision&&!pendingFor(value.command.target));}
@@ -162,13 +165,13 @@
     var zoomControl=root.querySelector('[data-snapshot-zoom]');if(zoomControl)zoomControl.onchange=function(){zoom=Number(this.value);render();};
     fallback.onclick=function(){if(draft)begin(draft.input,'active');};
     wear.onclick=async function(){
-      if(!fresh()){message('The avatar changed. Prepare a fresh try-on before wearing.');return;}
+      if(!fresh()){message(L("ui.the.avatar.changed.prepare.a.fresh.try.on.before","The avatar changed. Prepare a fresh try-on before wearing."));return;}
       try{var input=Object.assign({},draft.input),type=input.instanceId?'replace-outfit':'wear-outfit';input.addCopy=!input.instanceId;
         var command=global.WardrobeOperations.normalize(type,input,Object.assign({},draft.command.target,{revision:draft.receipt.result.confirmedRevision}));
-        await ops.submit(command,input.label||'Wear outfit');message('Wear queued. The photograph becomes current only after a new confirmed capture.');}
+        await ops.submit(command,input.label||L("operation.type.wear-outfit","Wear outfit"));message(L("ui.wear.queued.the.photograph.becomes.current.only.after.a","Wear queued. The photograph becomes current only after a new confirmed capture."));}
       catch(error){message(error.message);}
     };
-    root.querySelector('[data-snapshot-pin]').onclick=async function(){if(!current||current.draft.mode!=='shadow'||!displayMatches(current))return;try{await api('/api/shadow/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:current.key,pinned:true})});if(history)history.refresh();message('Photograph pinned in local history.');}catch(error){message(error.message);}};
+    root.querySelector('[data-snapshot-pin]').onclick=async function(){if(!current||current.draft.mode!=='shadow'||!displayMatches(current))return;try{await api('/api/shadow/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:current.key,pinned:true})});if(history)history.refresh();message(L("ui.photograph.pinned.in.local.history","Photograph pinned in local history."));}catch(error){message(error.message);}};
     var historyRoot=root.querySelector('#photoHistory');if(historyRoot&&global.WardrobePhotoHistoryUI)history=global.WardrobePhotoHistoryUI.create({root:historyRoot,api:api,context:function(){return ops.context();},scope:options.scope});
     return {begin:begin,contextChanged:contextChanged,mutationSettled:mutationSettled,discard:discard,current:function(){return current;}};
   }

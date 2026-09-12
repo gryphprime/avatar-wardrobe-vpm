@@ -314,12 +314,12 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebResultDto { message = "Preset not found in the scene: " + name };
+                if (o == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found.in.the.scene") + name };
                 if (blueprint != null)
                 {
                     string clean = (blueprint ?? "").Trim();
                     if (!string.IsNullOrEmpty(clean) && !IsValidBlueprintId(clean))
-                        return new WebResultDto { message = "Not a valid Blueprint ID (expected avtr_<GUID>)." };
+                        return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.not.a.valid.blueprint.id.expected.avtr.guid") };
                     o.BlueprintId = clean;
                     if (o.Data != null) { o.Data.blueprintId = clean; OutfitProjectData.Save(); }
                 }
@@ -347,9 +347,9 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebResultDto { message = "Preset not found in the scene: " + name };
+                if (o == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found.in.the.scene") + name };
                 eng.ActivateOutfit(o);
-                r.ok = 1; r.message = "Activated " + name + ".";
+                r.ok = 1; r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.activated") + name + ".";
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
@@ -361,7 +361,7 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null || o.Go == null) return new WebResultDto { message = "Preset not found in the scene: " + name };
+                if (o == null || o.Go == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found.in.the.scene") + name };
                 EditorGUIUtility.PingObject(o.Go);
                 Selection.activeGameObject = o.Go;
                 r.ok = 1;
@@ -378,7 +378,7 @@ namespace ShiroTools
                 if (avatar != null)
                 {
                     var pick = eng._avatarsInScene.FirstOrDefault(a => a != null && a.name == avatar);
-                    if (pick == null) return new WebResultDto { message = "Avatar not found in the scene: " + avatar };
+                    if (pick == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.avatar.not.found.in.the.scene") + avatar };
                     eng._avatarRoot = pick;
                     eng.AutoDetectSkin();
                     eng.RebuildOutfitList();
@@ -398,7 +398,7 @@ namespace ShiroTools
                 }
                 if (skinPath != null)
                 {
-                    if (eng._avatarRoot == null) return new WebResultDto { message = "Select an avatar first." };
+                    if (eng._avatarRoot == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.an.avatar.first") };
                     Transform found = null;
                     if (!string.IsNullOrEmpty(skinPath))
                     {
@@ -409,7 +409,7 @@ namespace ShiroTools
                     }
                     var smrPick = found != null ? found.GetComponent<SkinnedMeshRenderer>() : null;
                     if (!string.IsNullOrEmpty(skinPath) && smrPick == null)
-                        return new WebResultDto { message = "Skin mesh not found: " + skinPath };
+                        return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.skin.mesh.not.found") + skinPath };
                     eng._skinRenderer = smrPick;
                 }
                 if (version != null)
@@ -481,9 +481,9 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebBlendListDto { message = "Preset not found: " + name };
+                if (o == null) return new WebBlendListDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found") + name };
                 if (eng._skinRenderer == null || eng._skinRenderer.sharedMesh == null)
-                    return new WebBlendListDto { message = "No skin mesh selected." };
+                    return new WebBlendListDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.skin.mesh.selected") };
                 var mesh = eng._skinRenderer.sharedMesh;
                 r.skin = eng._skinRenderer.name;
                 for (int i = 0; i < mesh.blendShapeCount; i++)
@@ -507,7 +507,7 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null || string.IsNullOrEmpty(bs)) return new WebResultDto { message = "Preset or blendshape missing." };
+                if (o == null || string.IsNullOrEmpty(bs)) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.or.blendshape.missing") };
                 if (pinned == "1")
                 {
                     float w;
@@ -528,9 +528,9 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebResultDto { message = "Preset not found: " + name };
+                if (o == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found") + name };
                 if (eng._skinRenderer == null || eng._skinRenderer.sharedMesh == null)
-                    return new WebResultDto { message = "No skin mesh selected." };
+                    return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.skin.mesh.selected") };
                 var mesh = eng._skinRenderer.sharedMesh;
                 int n = 0;
                 for (int i = 0; i < mesh.blendShapeCount; i++)
@@ -539,7 +539,7 @@ namespace ShiroTools
                     if (w > 0f) { o.BlendShapes[mesh.GetBlendShapeName(i)] = w; n++; }
                 }
                 SaveBlendShapes(o);
-                r.ok = 1; r.message = "Captured " + n + " blendshape(s).";
+                r.ok = 1; r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.captured") + n + " blendshape(s).";
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
@@ -551,7 +551,7 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebResultDto { message = "Preset not found: " + name };
+                if (o == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found") + name };
                 o.BlendShapes.Clear();
                 SaveBlendShapes(o);
                 r.ok = 1;
@@ -570,7 +570,7 @@ namespace ShiroTools
                 var eng = WebEngine();
                 eng.EnsureItemsBuilt();
                 r.parent = eng._itemsParentName ?? "";
-                if (eng._items == null) return new WebItemListDto { message = "No avatar selected." };
+                if (eng._items == null) return new WebItemListDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.avatar.selected") };
                 foreach (var it in eng._items)
                 {
                     if (it == null || it.Go == null) continue;
@@ -589,7 +589,7 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 eng.EnsureItemsBuilt();
-                if (string.IsNullOrEmpty(outfit) || string.IsNullOrEmpty(item)) return new WebResultDto { message = "Preset or item missing." };
+                if (string.IsNullOrEmpty(outfit) || string.IsNullOrEmpty(item)) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.or.item.missing") };
                 eng.SetItemIncluded(outfit, item, include == "1");
                 r.ok = 1;
             }
@@ -603,7 +603,7 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 eng.EnsureItemsBuilt();
-                if (string.IsNullOrEmpty(outfit) || eng._items == null) return new WebResultDto { message = "Preset or items missing." };
+                if (string.IsNullOrEmpty(outfit) || eng._items == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.or.items.missing") };
                 string f = (filter ?? "").ToLowerInvariant();
                 var names = new List<string>();
                 foreach (var it in eng._items)
@@ -621,7 +621,7 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 eng.EnsureItemsBuilt();
-                if (string.IsNullOrEmpty(item)) return new WebResultDto { message = "Item missing." };
+                if (string.IsNullOrEmpty(item)) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.item.missing") };
                 OutfitProjectData.SetItemDefault(eng.ItemAvatarKey, item, include == "1");
                 eng.ClearVramCache();
                 eng.MarkBudgetsDirty();
@@ -653,7 +653,7 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebResultDto { message = "Preset not found: " + name };
+                if (o == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found") + name };
                 eng.CaptureFaceEmoFor(o);
                 r.ok = 1; r.message = eng._statusMessage ?? "";
             }
@@ -667,7 +667,7 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebResultDto { message = "Preset not found: " + name };
+                if (o == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found") + name };
                 eng.ClearFaceEmoFor(o);
                 r.ok = 1; r.message = eng._statusMessage ?? "";
             }
@@ -690,7 +690,7 @@ namespace ShiroTools
                 var eng = WebEngine();
                 eng.EnsureOptDefaults();
                 var o = eng.WebFindOutfit(name);
-                if (o == null || o.Go == null) return new WebVramDto { message = "Preset not found: " + name };
+                if (o == null || o.Go == null) return new WebVramDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found") + name };
                 int itemsInc;
                 var plan = eng.BuildOptimizationPlan(o, out itemsInc);
                 r.itemsInc = itemsInc;
@@ -706,7 +706,7 @@ namespace ShiroTools
                 r.count = plan.Count;
                 r.savedMB = saved / 1048576.0;
                 r.ok = 1;
-                if (plan.Count == 0) r.message = "Textures already optimal — nothing to do.";
+                if (plan.Count == 0) r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.textures.already.optimal.nothing.to.do");
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
@@ -720,16 +720,16 @@ namespace ShiroTools
                 var eng = WebEngine();
                 eng.EnsureOptDefaults();
                 var o = eng.WebFindOutfit(name);
-                if (o == null || o.Go == null) return new WebResultDto { message = "Preset not found: " + name };
+                if (o == null || o.Go == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found") + name };
                 int itemsInc;
                 var plan = eng.BuildOptimizationPlan(o, out itemsInc);
-                if (plan.Count == 0) return new WebResultDto { ok = 1, message = "Textures already optimal — nothing to do." };
+                if (plan.Count == 0) return new WebResultDto { ok = 1, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.textures.already.optimal.nothing.to.do") };
                 long saved = 0;
                 foreach (var p in plan) saved += p != null ? p.SavedBytes : 0;
                 ApplyPlan(plan);
                 eng.ClearVramCache();
                 LogUpload("OK    " + o.Name + " (web VRAM optimize): " + plan.Count + " texture(s)");
-                r.ok = 1; r.message = "Optimized " + plan.Count + " texture(s).";
+                r.ok = 1; r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.optimized") + plan.Count + " texture(s).";
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
@@ -793,7 +793,7 @@ namespace ShiroTools
                 if (!_webJobs.TryGetValue(job ?? "", out var st))
                 {
                     r.done = 1;
-                    r.message = "Unknown or expired job. If Unity reloaded mid-upload, check the window and log.";
+                    r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.unknown.or.expired.job.if.unity.reloaded.mid.upload.check");
                     return r;
                 }
                 r.done = st.done ? 1 : 0; r.ok = st.ok ? 1 : 0; r.message = st.message ?? "";
@@ -813,8 +813,8 @@ namespace ShiroTools
         internal static WebJobDto WebUploadScene(string names, bool expressNew)
         {
             var list = SplitNames(names);
-            if (list.Count == 0) return new WebJobDto { message = "No presets selected." };
-            if (BatchActiveNow) return new WebJobDto { message = "A batch is already running." };
+            if (list.Count == 0) return new WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.presets.selected") };
+            if (BatchActiveNow) return new WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.a.batch.is.already.running") };
             string job = NewWebJob();
             RunWebSceneJob(job, list, expressNew);
             return new WebJobDto { ok = 1, job = job };
@@ -869,7 +869,7 @@ namespace ShiroTools
         internal static WebJobDto WebUploadPresets(string ids)
         {
             var list = SplitNames(ids);
-            if (list.Count == 0) return new WebJobDto { message = "No upload sets selected." };
+            if (list.Count == 0) return new WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.upload.sets.selected") };
             var readinessError = WardrobeUploadReadinessError();
             if (readinessError != null) return new WebJobDto { message = readinessError };
             string job;
@@ -913,8 +913,8 @@ namespace ShiroTools
         }
         internal static WebJobDto WebExpress(string name, Dictionary<string, string> q)
         {
-            if (string.IsNullOrEmpty(name)) return new WebJobDto { message = "Preset missing." };
-            if (BatchActiveNow) return new WebJobDto { message = "A batch is already running." };
+            if (string.IsNullOrEmpty(name)) return new WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.missing") };
+            if (BatchActiveNow) return new WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.a.batch.is.already.running") };
             AdvancedDraft draft = null;
             string adv;
             if (q != null && q.TryGetValue("advanced", out adv) && adv == "1")
@@ -1015,8 +1015,8 @@ namespace ShiroTools
             try
             {
                 var eng = WebEngine();
-                if (eng._isBatchUploading) { try { if (eng._cts != null) eng._cts.Cancel(); } catch { } eng.CancelBatch(); r.ok = 1; r.message = "Batch cancel requested."; }
-                else r.message = "No scene batch is running. (Upload-set jobs finish on their own.)";
+                if (eng._isBatchUploading) { try { if (eng._cts != null) eng._cts.Cancel(); } catch { } eng.CancelBatch(); r.ok = 1; r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.batch.cancel.requested"); }
+                else r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.scene.batch.is.running.upload.set.jobs.finish.on");
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
@@ -1026,8 +1026,8 @@ namespace ShiroTools
             var eng = WebEngine();
             var failed = LoadQueue(SESSION_FAILED);
             var valid = failed.Where(f => f != null && eng._outfits.Any(o => o != null && o.Name == f.outfit)).ToList();
-            if (valid.Count == 0) return new WebJobDto { message = "No failed uploads to retry." };
-            if (BatchActiveNow) return new WebJobDto { message = "A batch is already running." };
+            if (valid.Count == 0) return new WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.failed.uploads.to.retry") };
+            if (BatchActiveNow) return new WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.a.batch.is.already.running") };
             string job = NewWebJob();
             RunWebRetryJob(job, valid);
             return new WebJobDto { ok = 1, job = job };
@@ -1061,7 +1061,7 @@ namespace ShiroTools
                 var eng = WebEngine();
                 eng.LoadNewSetupDefaults();
                 if (eng._fetchedAvatars == null || eng._fetchedAvatars.Count == 0)
-                    return new WebMatchDto { message = "Fetch your avatars first." };
+                    return new WebMatchDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.fetch.your.avatars.first") };
                 foreach (var o in eng._outfits.Where(o => o != null && o.Go != null && string.IsNullOrWhiteSpace(o.BlueprintId)).ToList())
                 {
                     string templated = eng.ApplyTokens(eng._nsNameTemplate, o);
@@ -1079,9 +1079,9 @@ namespace ShiroTools
                         if (o.Data != null) o.Data.blueprintId = m.id;
                     }
                     OutfitProjectData.Save();
-                    r.message = "Assigned " + r.matches.Count + " Blueprint ID(s).";
+                    r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.assigned") + r.matches.Count + " Blueprint ID(s).";
                 }
-                else if (r.matches.Count == 0) r.message = "No name matches found — pick manually per preset.";
+                else if (r.matches.Count == 0) r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.name.matches.found.pick.manually.per.preset");
                 r.ok = 1;
             }
             catch (Exception ex) { r.message = ex.Message; }
@@ -1112,7 +1112,7 @@ namespace ShiroTools
             {
                 ImportSettingsBundle(json);
                 WebEngine().ScanScene();
-                return new WebResultDto { ok = 1, message = "Settings imported." };
+                return new WebResultDto { ok = 1, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.settings.imported") };
             }
             catch (Exception ex) { return new WebResultDto { message = ex.Message }; }
         }
@@ -1126,8 +1126,8 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebThumbDto { message = "Preset not found: " + name };
-                if (!APIUser.IsLoggedIn) return new WebThumbDto { message = "Log in to the VRChat SDK first." };
+                if (o == null) return new WebThumbDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found") + name };
+                if (!APIUser.IsLoggedIn) return new WebThumbDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.log.in.to.the.vrchat.sdk.first") };
                 eng.LoadNewSetupDefaults();
                 eng.ActivateOutfit(o);
                 AdvancedDraft draft = null;
@@ -1135,7 +1135,7 @@ namespace ShiroTools
                     draft = new AdvancedDraft { ThumbMode = (mode == "image" || mode == "sceneview") ? mode : "scene", ImagePath = eng._nsThumbImagePath };
                 string path = eng.ResolveThumbnailPath(o, draft);
                 if (string.IsNullOrEmpty(path) || !File.Exists(path))
-                    return new WebThumbDto { message = "Could not capture a thumbnail — see Console." };
+                    return new WebThumbDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.could.not.capture.a.thumbnail.see.console") };
                 string token = Guid.NewGuid().ToString("N");
                 lock (_webThumbsLock) _webThumbs[token] = new WebThumbEntry { outfit = name, path = path };
                 r.ok = 1; r.token = token;
@@ -1168,7 +1168,7 @@ namespace ShiroTools
                 WebThumbEntry e;
                 if (!string.IsNullOrEmpty(token) && _webThumbs.TryGetValue(token, out e)) { path = e.path; outfit = e.outfit; }
             }
-            if (string.IsNullOrEmpty(path)) return new WebJobDto { message = "Unknown or expired thumbnail." };
+            if (string.IsNullOrEmpty(path)) return new WebJobDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.unknown.or.expired.thumbnail") };
             string job = NewWebJob();
             RunWebThumbJob(job, outfit, path, token);
             return new WebJobDto { ok = 1, job = job };
@@ -1216,9 +1216,9 @@ namespace ShiroTools
         {
             avatarKey = null; outfitName = null;
             var preset = OutfitToggleGenerator.AvatarWardrobePresets.GetPreset(id);
-            if (preset == null) { message = "Upload set not found."; return false; }
+            if (preset == null) { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.upload.set.not.found"); return false; }
             avatarKey = preset.avatarRootName ?? ""; outfitName = preset.outfitName ?? "";
-            if (string.IsNullOrEmpty(avatarKey) || string.IsNullOrEmpty(outfitName)) { message = "Upload set is incomplete."; return false; }
+            if (string.IsNullOrEmpty(avatarKey) || string.IsNullOrEmpty(outfitName)) { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.upload.set.is.incomplete"); return false; }
             message = null; return true;
         }
         private static GameObject WebParentAvatar()
@@ -1309,7 +1309,7 @@ namespace ShiroTools
                 if (!PresetKeys(id, out avatarKey, out outfitName, out msg)) return new WebResultDto { message = msg };
                 string cleanBlueprint = blueprint == null ? null : blueprint.Trim();
                 if (cleanBlueprint != null && cleanBlueprint.Length > 0 && !IsValidBlueprintId(cleanBlueprint))
-                    return new WebResultDto { message = "Invalid avatar ID. Use avtr_ followed by a UUID, or leave it empty for a new avatar." };
+                    return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.invalid.avatar.id.use.avtr.followed.by.a.uuid.or") };
                 var data = OutfitProjectData.GetOutfit(avatarKey, outfitName);
                 if (include != null) data.includeInBatch = include == "1";
                 if (win != null) data.buildWindows = win == "1";
@@ -1364,7 +1364,7 @@ namespace ShiroTools
             {
                 string avatarKey, outfitName, msg;
                 if (!PresetKeys(id, out avatarKey, out outfitName, out msg)) return new WebResultDto { message = msg };
-                if (string.IsNullOrEmpty(bs)) return new WebResultDto { message = "Blendshape missing." };
+                if (string.IsNullOrEmpty(bs)) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.blendshape.missing") };
                 var entry = new OutfitEntry { Name = outfitName, Data = OutfitProjectData.GetOutfit(avatarKey, outfitName) };
                 LoadBlendShapes(entry);
                 if (pinned == "1")
@@ -1388,7 +1388,7 @@ namespace ShiroTools
                 string avatarKey, outfitName, msg;
                 if (!PresetKeys(id, out avatarKey, out outfitName, out msg)) return new WebResultDto { message = msg };
                 var smr = WebParentSkin();
-                if (smr == null || smr.sharedMesh == null) return new WebResultDto { message = "No skinned mesh in the parent scene." };
+                if (smr == null || smr.sharedMesh == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.skinned.mesh.in.the.parent.scene") };
                 var entry = new OutfitEntry { Name = outfitName, Data = OutfitProjectData.GetOutfit(avatarKey, outfitName) };
                 LoadBlendShapes(entry);
                 var mesh = smr.sharedMesh;
@@ -1399,7 +1399,7 @@ namespace ShiroTools
                     if (w > 0f) { entry.BlendShapes[mesh.GetBlendShapeName(i)] = w; n++; }
                 }
                 SaveBlendShapes(entry);
-                r.ok = 1; r.message = "Captured " + n + " blendshape(s).";
+                r.ok = 1; r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.captured") + n + " blendshape(s).";
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
@@ -1431,7 +1431,7 @@ namespace ShiroTools
                 string avatarKey, outfitName, msg;
                 if (!PresetKeys(id, out avatarKey, out outfitName, out msg)) return new WebPresetItemListDto { message = msg };
                 var parent = WebParentAvatar();
-                if (parent == null) return new WebPresetItemListDto { message = "Select a scene avatar first." };
+                if (parent == null) return new WebPresetItemListDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.a.scene.avatar.first") };
                 string itemsParent = EditorPrefs.GetString(ITEMS_PARENT_NAME, DEFAULT_ITEMS_PARENT);
                 var t = FindDeepChild(parent.transform, itemsParent);
                 r.parent = itemsParent;
@@ -1454,7 +1454,7 @@ namespace ShiroTools
             {
                 string avatarKey, outfitName, msg;
                 if (!PresetKeys(id, out avatarKey, out outfitName, out msg)) return new WebResultDto { message = msg };
-                if (string.IsNullOrEmpty(item)) return new WebResultDto { message = "Item missing." };
+                if (string.IsNullOrEmpty(item)) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.item.missing") };
                 OutfitProjectData.SetItemIncluded(avatarKey, outfitName, item, include == "1");
                 WebEngine().ClearVramCache();
                 WebEngine().MarkBudgetsDirty();
@@ -1523,9 +1523,9 @@ namespace ShiroTools
                 string avatarKey, outfitName, msg;
                 if (!PresetKeys(id, out avatarKey, out outfitName, out msg)) return new WebResultDto { message = msg };
                 var parent = WebParentAvatar();
-                if (parent == null) return new WebResultDto { message = "Select a scene avatar first." };
+                if (parent == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.a.scene.avatar.first") };
                 var src = WebFindInParent(FACEEMO_PREFAB_NAME);
-                if (src == null) return new WebResultDto { message = "No freshly generated FaceEmoPrefab found in the parent scene." };
+                if (src == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.freshly.generated.faceemoprefab.found.in.the.parent.scene") };
                 string newName = "FaceEmo__" + outfitName;
                 var existing = WebFindInParent(newName);
                 if (existing != null && existing != src) Undo.DestroyObjectImmediate(existing);
@@ -1534,7 +1534,7 @@ namespace ShiroTools
                 EditorUtility.SetDirty(src);
                 EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
                 OutfitProjectData.SetFaceEmoName(avatarKey, outfitName, newName);
-                r.ok = 1; r.message = "Captured FaceEmo for " + outfitName + ".";
+                r.ok = 1; r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.captured.faceemo.for") + outfitName + ".";
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
@@ -1545,8 +1545,8 @@ namespace ShiroTools
             try
             {
                 var parent = WebParentAvatar();
-                if (parent == null) return new WebResultDto { message = "Select a scene avatar first." };
-                if (string.IsNullOrEmpty(guid)) return new WebResultDto { message = "No prefab link." };
+                if (parent == null) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.a.scene.avatar.first") };
+                if (string.IsNullOrEmpty(guid)) return new WebResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.prefab.link") };
                 var seen = new HashSet<GameObject>();
                 foreach (var t in parent.GetComponentsInChildren<Transform>(true))
                 {
@@ -1563,7 +1563,7 @@ namespace ShiroTools
                         return r;
                     }
                 }
-                r.message = "Not installed in the parent scene.";
+                r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.not.installed.in.the.parent.scene");
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;
@@ -1610,11 +1610,11 @@ namespace ShiroTools
             {
                 var eng = WebEngine();
                 var o = eng.WebFindOutfit(name);
-                if (o == null) return new WebPresetCreateDto { message = "Preset not found in the scene: " + name };
+                if (o == null) return new WebPresetCreateDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.preset.not.found.in.the.scene") + name };
                 var preset = OutfitToggleGenerator.AvatarWardrobePresets.RegisterLegacy(o.Go,
                     ScenePathOf(o.Go.transform, eng._avatarRoot.transform), o.Data);
-                if (preset == null) return new WebPresetCreateDto { message = "Select a scene avatar first." };
-                r.ok = 1; r.id = preset.id; r.message = "Detected preset " + preset.name + ".";
+                if (preset == null) return new WebPresetCreateDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.a.scene.avatar.first") };
+                r.ok = 1; r.id = preset.id; r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.detected.preset") + preset.name + ".";
             }
             catch (Exception ex) { r.message = ex.Message; }
             return r;

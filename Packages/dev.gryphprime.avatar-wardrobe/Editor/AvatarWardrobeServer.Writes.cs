@@ -27,7 +27,7 @@ namespace OutfitToggleGenerator
             if (receipt.state == "queued" || receipt.state == "running")
             {
                 receipt.state = "needs-review";
-                receipt.error = "Unity restarted before confirming this write. Inspect the scene; this request will not be replayed.";
+                receipt.error = global::OutfitToggleGenerator.WardrobeStrings.T("server.unity.restarted.before.confirming.this.write.inspect.the.scene.this");
                 SaveWrite(id, receipt);
             }
             return receipt;
@@ -113,7 +113,7 @@ namespace OutfitToggleGenerator
                     }
                 }, TaskScheduler.Default);
             }
-            catch { lock (writeGate) { receipt.state = "failed"; receipt.error = "Write could not be scheduled."; SaveWrite(id, receipt); } throw; }
+            catch { lock (writeGate) { receipt.state = "failed"; receipt.error = global::OutfitToggleGenerator.WardrobeStrings.T("server.write.could.not.be.scheduled"); SaveWrite(id, receipt); } throw; }
             WriteText(context, 202, "application/json", "{\"writeJob\":" + JsonString(id) + ",\"state\":\"queued\"}");
         }
         private static string JsonString(string value)

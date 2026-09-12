@@ -31,12 +31,24 @@ namespace OutfitToggleGenerator
         public string v;
     }
 
+    internal sealed class WardrobeLanguageAssetPostprocessor : UnityEditor.AssetPostprocessor
+    {
+        private static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom)
+        {
+            foreach (var path in imported)
+                if (path.EndsWith("/Web/lang.json", StringComparison.OrdinalIgnoreCase)) WardrobeStrings.Invalidate();
+        }
+    }
+
     internal static class WardrobeStrings
     {
         private static readonly object initLock = new object();
         private static Dictionary<string, Dictionary<string, string>> table;
         private static string code;
-        [ThreadStatic] internal static string RequestCode;
+        private static volatile bool reloadRequired;
+        internal static void Invalidate() { reloadRequired = true; }
+        private static readonly System.Threading.AsyncLocal<string> requestCode = new System.Threading.AsyncLocal<string>();
+        internal static string RequestCode { get => requestCode.Value; set => requestCode.Value = value; }
 
         internal static string Code
         {
@@ -49,10 +61,10 @@ namespace OutfitToggleGenerator
 
         internal static void EnsureInitialized()
         {
-            if (table != null) return;
+            if (table != null && !reloadRequired) return;
             lock (initLock)
             {
-                if (table != null) return;
+                if (table != null && !reloadRequired) return;
                 var built = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
                 try
                 {
@@ -79,11 +91,16 @@ namespace OutfitToggleGenerator
                     Debug.LogWarning("Avatar Wardrobe could not read its language file: " + exception.Message);
                 }
                 table = built;
+                reloadRequired = false;
                 code = "en";
                 try
                 {
                     if (Application.systemLanguage == SystemLanguage.Japanese && built.ContainsKey("ja"))
                         code = "ja";
+                    else if (Application.systemLanguage == SystemLanguage.Korean && built.ContainsKey("ko"))
+                        code = "ko";
+                    else if ((Application.systemLanguage == SystemLanguage.Chinese || Application.systemLanguage == SystemLanguage.ChineseSimplified || Application.systemLanguage == SystemLanguage.ChineseTraditional) && built.ContainsKey("zh"))
+                        code = "zh";
                 }
                 catch (Exception) { }
                 if (!built.ContainsKey(code)) code = "en";

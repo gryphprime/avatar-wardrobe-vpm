@@ -38,6 +38,7 @@
     Array.from(parent.children).forEach(function (node) { if (!retained.has(node)) node.remove(); });
   }
   var queuedWrites = new Set(["cache_clear", "install", "remove", "preset_remove_item", "part_toggles", "item_settings", "menu_groups", "menu_execute", "scene_execute", "appearance_apply", "appearance_tool", "appearance_optimizer_apply", "regenerate_toggles", "migrate_avatar", "preset_save", "preset_delete", "preset_assign", "preset_show", "preset_include", "avatar_base", "workflow", "preset_appearance_save", "preset_appearance_apply", "batch_preset_config", "batch_preset_blends", "batch_preset_items", "batch_preset_faceemo", "batch_preset_from_scene", "batch_outfit_set", "batch_import", "batch_config_set", "batch_defaults_set", "batch_blendshape", "batch_item", "batch_faceemo"]);
+  var language="en", translate=function(key){return key;};
   async function request(path, options) {
     options = options || {};
     var controller = new AbortController(), upstream = options.signal;
@@ -56,6 +57,7 @@
     var read = reads.has(endpoint) || (["batch_blendshape", "batch_item", "batch_faceemo"].includes(endpoint) && (!op || op === "get"));
     if (endpoint === "thumb" && url.searchParams.get("retry") === "1") read = false;
     if (url.origin === location.origin && url.pathname.startsWith("/api/")) {
+      if(!url.searchParams.has("lang"))url.searchParams.set("lang",language);
       // State changes are POST-only and reject cross-origin requests in the Unity host.
       init.method = options.method || (read ? "GET" : "POST");
       read = init.method === "GET";
@@ -70,7 +72,7 @@
     if (writeId) { rememberWrite(writeId, true); pendingWriteRequests++; }
     try {
       var response, body;
-      try { response = await fetch(path, init); if (!options.binary) body = await response.text(); }
+      try { response = await fetch(url.href, init); if (!options.binary) body = await response.text(); }
       catch (error) {
         if (!read && queuedWrites.has(endpoint) && init.headers && init.headers['X-Wardrobe-Write-Id']) {
           clearTimeout(timer);
@@ -205,7 +207,7 @@
     if (event.shiftKey && index <= 0) { event.preventDefault(); targets[targets.length-1].focus(); }
     else if (!event.shiftKey && (index < 0 || index === targets.length-1)) { event.preventDefault(); targets[0].focus(); }
   });
-  global.WardrobeRuntime = {text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,pendingWrites:function(){return pendingWriteRequests+pendingWrites;},setContext:function(value,id){var previous=session;session=value||"";avatarId=id||0;if(session&&previous!==session)recoverWrites();},openDialog:openDialog,closeDialog:closeDialog};
+  global.WardrobeRuntime = {localize:function(key,fallback){var value=translate(key);return value===key?fallback:value;},setLanguage:function(code,t){language=code||"en";translate=t||translate;},text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,pendingWrites:function(){return pendingWriteRequests+pendingWrites;},setContext:function(value,id){var previous=session;session=value||"";avatarId=id||0;if(session&&previous!==session)recoverWrites();},openDialog:openDialog,closeDialog:closeDialog};
 })(window);
 
 /* Update checks run in the browser, never on Unity's editor thread. */

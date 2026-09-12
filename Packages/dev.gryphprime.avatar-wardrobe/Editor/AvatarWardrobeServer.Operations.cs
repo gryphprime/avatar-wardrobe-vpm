@@ -335,12 +335,12 @@ namespace OutfitToggleGenerator
                     outcome.sourceRevision = captured.sourceRevision;
                     outcome.recipeRevision = captured.recipeRevision;
                     outcome.environmentRevision = captured.environmentRevision;
-                    outcome.message = "Source captured for the isolated snapshot worker.";
+                    outcome.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.source.captured.for.the.isolated.snapshot.worker");
                 }
                 else if (c.type == "prepare-preview")
                 {
                     outcome.preview = WardrobeTryOnWorker.Prepare(avatar, c.payload.variantId, exact, recipe: WardrobeAppearanceRecipe.Resolve(avatar, c.target.scopeId, c.payload.createToggles, c.payload.menuGroup));
-                    outcome.message = "Try-on prepared from the complete avatar. The working scene was not changed.";
+                    outcome.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.try.on.prepared.from.the.complete.avatar.the.working.scene");
                 }
                 else if (c.type == "render-snapshot")
                 {
@@ -445,7 +445,7 @@ namespace OutfitToggleGenerator
             outcome.removedInstanceId = checkpoint.outcome.addedInstanceId;
             outcome.removedGlobalObjectId = checkpoint.outcome.addedGlobalObjectId;
             outcome.affectedInstanceIds = checkpoint.outcome.affectedInstanceIds;
-            outcome.message = "Undid this operation and restored its wardrobe settings. Undo is available only during the same Unity session.";
+            outcome.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.undid.this.operation.and.restored.its.wardrobe.settings.undo.is");
             InvalidateInstalled();
         }
     }
