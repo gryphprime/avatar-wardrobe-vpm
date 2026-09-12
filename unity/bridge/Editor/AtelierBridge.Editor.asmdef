@@ -1,0 +1,1 @@
+{"name":"AtelierBridge.Editor","rootNamespace":"GryphPrime.AtelierBridge","references":["AtelierBridge.Runtime"],"includePlatforms":["Editor"],"excludePlatforms":[],"allowUnsafeCode":false}

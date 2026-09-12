@@ -1,0 +1,8 @@
+{
+  "name": "dev.gryphprime.atelier-bridge",
+  "displayName": "Atelier Unity Bridge",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Standalone local protocol bridge for Atelier.",
+  "author": {"name": "GryphPrime"}
+}

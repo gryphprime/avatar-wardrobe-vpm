@@ -1,0 +1,19 @@
+{
+  "protocol": 1,
+  "id": "atelier.bridge.snapshot",
+  "name": "Unity bridge snapshot",
+  "version": "1.0.0",
+  "origin": "official",
+  "sdk": {"protocol": 1, "range": ">=1 <2"},
+  "targets": ["unity-project"],
+  "resources": [
+    {"id": "bridge.snapshot", "type": "snapshot", "mutable": false}
+  ],
+  "actions": [
+    {"id": "inspect", "name": "Inspect bridge snapshot", "class": "read", "inputs": {"project": "project"}, "outputs": ["bridge.snapshot"], "changes": []},
+    {"id": "preview", "name": "Preview bridge snapshot", "class": "preview", "inputs": {"project": "project"}, "outputs": ["bridge.snapshot"], "changes": []}
+  ],
+  "dependencies": [],
+  "ui": {"category": "Diagnostics", "icon": "snapshot", "forms": []},
+  "recovery": {"retry": true, "undo": false}
+}

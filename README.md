@@ -2,6 +2,11 @@
 
 Public source and VPM distribution for Avatar Wardrobe.
 
+**Atelier development:** The independent successor is being built alongside AW.
+Run `python3 -m atelier` from this checkout and see the
+[Atelier development guide](docs/atelier/README.md) for its current support
+boundary, architecture and remaining PRD acceptance work.
+
 **Repository listing URL:**
 
 ```text

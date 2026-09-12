@@ -1,0 +1,40 @@
+name: Validate Atelier
+
+on:
+  pull_request:
+    paths:
+      - 'atelier/**'
+      - 'apps/desktop/**'
+      - 'adapters*/**'
+      - 'unity/bridge/**'
+      - 'tests/**'
+      - 'scripts/*atelier*'
+      - '.github/workflows/atelier.yml'
+  push:
+    branches: ['codex/atelier']
+
+permissions:
+  contents: read
+
+jobs:
+  standalone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - run: for test in tests/*.test.js; do node "$test" || exit; done
+      - run: python3 scripts/build_atelier.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atelier-development-alpha
+          path: dist/atelier-alpha.zip
+
+# Unity execution requires a licensed editor with graphics support. Run the
+# documented disposable fixture locally; this portable job does not claim to
+# replace that gate and does not publish a VPM or Atelier release.
