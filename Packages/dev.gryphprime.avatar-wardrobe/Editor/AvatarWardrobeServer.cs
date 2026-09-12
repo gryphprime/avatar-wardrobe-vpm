@@ -97,6 +97,7 @@ namespace OutfitToggleGenerator
         private static string langPath;
         private static string thumbDir;
         private static string hiDir;
+        private static IDisposable serverUpdateLease;
         // An open page renews this lease even while unfocused. Expiry prevents
         // abandoned tabs from keeping preview work alive indefinitely.
         private static DateTime webActiveUntil = DateTime.MinValue;
@@ -140,6 +141,9 @@ namespace OutfitToggleGenerator
                 }
             }
             if (!Running) return false;
+            // Browser requests must be able to reach the main thread before
+            // an upload has started and acquired its own update lease.
+            serverUpdateLease = ShiroTools.OutfitBatchUploader.UploadUpdatePump.Begin();
             htmlPath = WardrobePackagePaths.File("Web/wardrobe.html");
             langPath = WardrobePackagePaths.File("Web/lang.json");
             thumbDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "AvatarWardrobe", "thumbs"));
@@ -194,6 +198,8 @@ namespace OutfitToggleGenerator
         }
         internal static void Stop()
         {
+            serverUpdateLease?.Dispose();
+            serverUpdateLease = null;
             SessionState.SetBool("Wardrobe.ServerRequested", false);
             if (importLease != null) EndLibraryImport(importLease);
             WardrobeLog.Write("server", "Stopping");

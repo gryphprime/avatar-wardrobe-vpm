@@ -33,6 +33,70 @@ namespace ShiroTools
 {
     public partial class OutfitBatchUploader : EditorWindow
     {
+        // SDK uploads await both player-loop work and panel UI updates. Keep
+        // those moving without requiring the user to focus a Unity window.
+        [InitializeOnLoad]
+        internal static class UploadUpdatePump
+        {
+            private static int leases;
+            private static bool running;
+            private static bool previousRunInBackground;
+            private static double nextUpdate;
+
+            static UploadUpdatePump()
+            {
+                EditorApplication.update += Tick;
+                AssemblyReloadEvents.beforeAssemblyReload += Restore;
+                EditorApplication.quitting += Restore;
+            }
+
+            internal static IDisposable Begin()
+            {
+                leases++;
+                Tick();
+                return new Lease();
+            }
+
+            private sealed class Lease : IDisposable
+            {
+                private bool disposed;
+                public void Dispose()
+                {
+                    if (disposed) return;
+                    disposed = true;
+                    leases--;
+                    Tick();
+                }
+            }
+
+            private static void Tick()
+            {
+                // Session flags also cover resuming after a platform/domain
+                // reload; leases cover setup and gaps between web presets.
+                bool active = leases > 0 || SessionState.GetBool(SESSION_BATCH_ACTIVE, false) ||
+                    SessionState.GetBool(SESSION_EXPRESS_PENDING, false);
+                if (!active) { Restore(); return; }
+                if (!running)
+                {
+                    previousRunInBackground = Application.runInBackground;
+                    Application.runInBackground = true;
+                    running = true;
+                    nextUpdate = 0;
+                }
+                if (EditorApplication.timeSinceStartup < nextUpdate) return;
+                nextUpdate = EditorApplication.timeSinceStartup + 0.1;
+                EditorApplication.QueuePlayerLoopUpdate();
+                if (VRCSdkControlPanel.window != null) VRCSdkControlPanel.window.Repaint();
+            }
+
+            private static void Restore()
+            {
+                if (!running) return;
+                Application.runInBackground = previousRunInBackground;
+                running = false;
+            }
+        }
+
         // ---- Constants ----
         private const string PREFS_PREFIX        = "ShiroOutfitUploader_";
         private const string PREFS_PARENT_NAME   = "ShiroOutfitUploader_OutfitsParentName";
@@ -267,6 +331,7 @@ namespace ShiroTools
         /// <summary>Scene structure changed → cached VRAM values and budget buckets are stale.</summary>
         private void OnHierarchyChangedInvalidate()
         {
+            _avatarsInScene.RemoveAll(avatar => avatar == null);
             _items = null;
             ClearVramCache();
             MarkBudgetsDirty();
@@ -593,6 +658,9 @@ namespace ShiroTools
         // ---- Top bar ----
         private void DrawTopBar()
         {
+            // Closing the previous preset's staging scene destroys its avatar.
+            // OnGUI can run before hierarchyChanged is delivered.
+            _avatarsInScene.RemoveAll(avatar => avatar == null);
             // Row 1: Avatar object field + refresh
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -1423,6 +1491,7 @@ namespace ShiroTools
         // ---- Cross-Domain Batch Queue System ----
         private async Task StartBatchAsync(List<OutfitEntry> targetOutfits)
         {
+            using var uploadUpdates = UploadUpdatePump.Begin();
             if (targetOutfits.Count == 0) return;
 
             if (!TryGetWardrobeBuilder(out var builder))
@@ -1541,6 +1610,7 @@ namespace ShiroTools
 
         private async Task ProcessBatchQueueAsync()
         {
+            using var uploadUpdates = UploadUpdatePump.Begin();
             if (!SessionState.GetBool(SESSION_BATCH_ACTIVE, false)) return;
             _isBatchUploading = true;
             Repaint();

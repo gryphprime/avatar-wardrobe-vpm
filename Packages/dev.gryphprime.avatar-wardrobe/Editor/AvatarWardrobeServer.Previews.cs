@@ -20,6 +20,7 @@ namespace OutfitToggleGenerator
         private static string previewGridPriority = "";
         private static string queuedPreviewGrid;
         private static string queuedPreviewEpoch;
+        private static HashSet<string> queuedPreviewVisible = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static HashSet<string> previewVisiblePriority = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static double lastBackgroundPreviewFinished, lastBackgroundPreviewDuration;
 
@@ -51,9 +52,14 @@ namespace OutfitToggleGenerator
                 string.Equals(parts[4], previewRevision.ToString(), StringComparison.Ordinal);
         }
 
-        // Warm only the browser's current grid, while it has an open-page lease.
+        internal static IEnumerable<string> PrioritizedPreviewGuids(IEnumerable<string> priority, IEnumerable<string> remainder)
+            => priority.Where(IsAssetGuid).Distinct(StringComparer.OrdinalIgnoreCase).Take(120)
+                .Concat(remainder.Where(IsAssetGuid)).Distinct(StringComparer.OrdinalIgnoreCase);
+
+        // Warm the current grid first, then the remaining catalog, while the
+        // browser has an open-page lease.
         // A single prefab render can exceed the dispatcher budget; leave a long
-        // idle interval after expensive renders instead of baking the entire catalog.
+        // idle interval after expensive renders and process only one per tick.
         private static void BakeNextBackgroundPreview()
         {
             if (!WebActive || UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow || EditorApplication.isCompiling || EditorApplication.isUpdating ||
@@ -63,12 +69,17 @@ namespace OutfitToggleGenerator
             HashSet<string> visible;
             lock (webActiveLock) { grid = previewGridPriority; visible = previewVisiblePriority; }
             var epoch = AvatarWardrobeCatalog.CatalogEpoch + "|" + previewRevision;
-            if (queuedPreviewEpoch != epoch || queuedPreviewGrid != grid)
+            if (queuedPreviewEpoch != epoch || queuedPreviewGrid != grid || !queuedPreviewVisible.SetEquals(visible))
             {
-                attemptedBackgroundPreviews.Clear();
+                if (queuedPreviewEpoch != epoch) attemptedBackgroundPreviews.Clear();
                 queuedPreviewEpoch = epoch; queuedPreviewGrid = grid;
-                backgroundPreviews = new Queue<string>(grid.Split(',').Where(IsAssetGuid)
-                    .Distinct(StringComparer.OrdinalIgnoreCase).Take(120));
+                queuedPreviewVisible = new HashSet<string>(visible, StringComparer.OrdinalIgnoreCase);
+                var priority = grid.Split(',').OrderByDescending(visible.Contains);
+                var remainder = AvatarWardrobeCatalog.Records
+                    .Where(r => r != null && (AvatarWardrobeCatalog.EffectiveKind(r) == WardrobeAssetKind.Outfit ||
+                        AvatarWardrobeCatalog.EffectiveKind(r) == WardrobeAssetKind.Candidate))
+                    .Select(r => r.guid);
+                backgroundPreviews = new Queue<string>(PrioritizedPreviewGuids(priority, remainder));
             }
             for (var checkedCount = 0; checkedCount < 16 && backgroundPreviews.Count > 0; checkedCount++)
             {

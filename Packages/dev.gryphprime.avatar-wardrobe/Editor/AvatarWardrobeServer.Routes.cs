@@ -994,6 +994,7 @@ namespace OutfitToggleGenerator
                 return false;
             }
             requestWritesAvatar = !read && !r.Url.AbsolutePath.StartsWith("/api/library_import_", StringComparison.Ordinal) &&
+                r.Url.AbsolutePath != "/api/batch_cancel" &&
                 r.Url.AbsolutePath != "/api/operation_cancel" && r.Url.AbsolutePath != "/api/index" && r.Url.AbsolutePath != "/api/active" && r.Url.AbsolutePath != "/api/thumb" && r.Url.AbsolutePath != "/api/name";
             int.TryParse(r.Headers["X-Wardrobe-Avatar"], out requestAvatarId);
             if (requestWritesAvatar && (suppliedSession != serverSession ||

@@ -139,6 +139,9 @@ namespace ShiroTools
         [Serializable]
         public class WebJobResultDto
         {
+            public string stage = "";
+            public float uploadProgress = -1;
+            public double presetSeconds; public double quietSeconds;
             public int done; public int ok; public string job = ""; public string message = "";
             public int index; public int total; public string current = "";
             public string blueprintId = ""; public List<WebAvatarDto> avatars = new List<WebAvatarDto>();
@@ -750,8 +753,12 @@ namespace ShiroTools
             return -1;
 
         }
+        [Serializable]
         private sealed class WebJobState
         {
+            public string stage = "";
+            public float uploadProgress = -1;
+            public long presetStarted; public long lastProgress;
             public DateTime created = DateTime.UtcNow;
             public bool done; public bool ok; public string message = "";
             public int index; public int total; public string current = "";
@@ -759,7 +766,102 @@ namespace ShiroTools
         }
         private static readonly Dictionary<string, WebJobState> _webJobs = new Dictionary<string, WebJobState>();
         private static readonly object _webJobsLock = new object();
+        private sealed class WebPresetProgress : IDisposable
+        {
+            private readonly string job;
+            private readonly IVRCSdkAvatarBuilderApi builder;
+            internal WebPresetProgress(string job, IVRCSdkAvatarBuilderApi builder)
+            {
+                this.job = job; this.builder = builder;
+                lock (_webJobsLock)
+                    if (_webJobs.TryGetValue(job, out var state)) state.presetStarted = DateTime.UtcNow.Ticks;
+                Report("Preparing preset", -1);
+                builder.OnSdkBuildStart += BuildStart;
+                builder.OnSdkBuildProgress += BuildProgress;
+                builder.OnSdkBuildSuccess += BuildSuccess;
+                builder.OnSdkUploadStart += UploadStart;
+                builder.OnSdkUploadProgress += UploadProgress;
+                builder.OnSdkUploadSuccess += UploadSuccess;
+            }
+            private void Report(string stage, float progress)
+            {
+                // SDK events may arrive while the editor is busy. Keep this
+                // cache free of Unity calls so HTTP polling can read it directly.
+                lock (_webJobsLock)
+                    if (_webJobs.TryGetValue(job, out var state))
+                    {
+                        state.stage = stage; state.uploadProgress = progress;
+                        state.lastProgress = DateTime.UtcNow.Ticks;
+                    }
+            }
+            private void BuildStart(object sender, object target) => Report("Building avatar", -1);
+            private void BuildProgress(object sender, string status) => Report("Building: " + status, -1);
+            private void BuildSuccess(object sender, string path) => Report("Build complete; preparing upload", -1);
+            private void UploadStart(object sender, EventArgs args) => Report("Uploading avatar", 0);
+            private void UploadProgress(object sender, (string status, float percentage) progress) =>
+                Report("Uploading: " + progress.status, float.IsNaN(progress.percentage) ? -1 : Math.Max(0, Math.Min(1, progress.percentage)));
+            private void UploadSuccess(object sender, string result) => Report("Upload complete; saving preset", 1);
+            public void Dispose()
+            {
+                builder.OnSdkBuildStart -= BuildStart;
+                builder.OnSdkBuildProgress -= BuildProgress;
+                builder.OnSdkBuildSuccess -= BuildSuccess;
+                builder.OnSdkUploadStart -= UploadStart;
+                builder.OnSdkUploadProgress -= UploadProgress;
+                builder.OnSdkUploadSuccess -= UploadSuccess;
+            }
+        }
         private static string _webPresetJob = "";
+        private static System.Threading.CancellationTokenSource _webPresetCancellation;
+        private const string WebJobsSessionKey = "Wardrobe.UploadWebJobs";
+        [Serializable] private sealed class SavedWebJob
+        {
+            public string id;
+            public WebJobState state;
+        }
+        [Serializable] private sealed class SavedWebJobs
+        {
+            public string presetJob;
+            public List<SavedWebJob> jobs = new List<SavedWebJob>();
+        }
+        private static void SaveWebJobs()
+        {
+            var saved = new SavedWebJobs { presetJob = _webPresetJob };
+            foreach (var entry in _webJobs)
+                saved.jobs.Add(new SavedWebJob { id = entry.Key, state = entry.Value });
+            SessionState.SetString(WebJobsSessionKey, JsonUtility.ToJson(saved));
+        }
+        [InitializeOnLoadMethod]
+        private static void RestoreWebJobs()
+        {
+            var json = SessionState.GetString(WebJobsSessionKey, "");
+            if (string.IsNullOrEmpty(json)) return;
+            try
+            {
+                var saved = JsonUtility.FromJson<SavedWebJobs>(json);
+                if (saved == null || saved.jobs == null) return;
+                lock (_webJobsLock)
+                {
+                    _webPresetJob = saved.presetJob ?? "";
+                    foreach (var entry in saved.jobs)
+                    {
+                        if (string.IsNullOrEmpty(entry.id) || entry.state == null) continue;
+                        var state = entry.state;
+                        if (!state.done)
+                        {
+                            state.done = true;
+                            state.ok = false;
+                            state.message = "Unity reloaded while this job was running" +
+                                (string.IsNullOrEmpty(state.current) ? "." : " on '" + state.current + "'.") +
+                                " Check the uploader and upload log before retrying; an avatar may already have uploaded.";
+                        }
+                        _webJobs[entry.id] = state;
+                    }
+                    SaveWebJobs();
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("[OutfitBatchUploader] Could not restore upload job history: " + ex.Message); }
+        }
         internal static bool HasWebJob(string id) { lock (_webJobsLock) return _webJobs.ContainsKey(id); }
         internal static string WebRequestId;
         private static string NewWebJob()
@@ -770,18 +872,19 @@ namespace ShiroTools
             {
                 foreach (var expired in _webJobs.Where(kv => kv.Value.done).OrderByDescending(kv => kv.Value.created).Skip(63).Select(kv => kv.Key).ToList()) _webJobs.Remove(expired);
                 _webJobs[id] = new WebJobState();
+                SaveWebJobs();
             }
             return id;
         }
         private static void WebJobProgress(string job, int index, int total, string current)
         {
             lock (_webJobsLock)
-                if (_webJobs.TryGetValue(job, out var st)) { st.index = index; st.total = total; st.current = current ?? ""; }
+                if (_webJobs.TryGetValue(job, out var st)) { st.index = index; st.total = total; st.current = current ?? ""; SaveWebJobs(); }
         }
         private static void WebJobFinish(string job, bool ok, string message, string blueprintId)
         {
             lock (_webJobsLock)
-                if (_webJobs.TryGetValue(job, out var st)) { st.done = true; st.ok = ok; st.message = message ?? ""; st.blueprintId = blueprintId ?? ""; }
+                if (_webJobs.TryGetValue(job, out var st)) { st.done = true; st.ok = ok; st.message = message ?? ""; st.blueprintId = blueprintId ?? ""; SaveWebJobs(); }
         }
         internal static WebJobResultDto WebJobResult(string job)
         {
@@ -799,6 +902,10 @@ namespace ShiroTools
                 r.done = st.done ? 1 : 0; r.ok = st.ok ? 1 : 0; r.message = st.message ?? "";
                 r.index = st.index; r.total = st.total; r.current = st.current ?? "";
                 r.blueprintId = st.blueprintId ?? "";
+                r.stage = st.stage ?? ""; r.uploadProgress = st.uploadProgress;
+                var now = DateTime.UtcNow.Ticks;
+                r.presetSeconds = st.presetStarted == 0 ? 0 : Math.Max(0, (now - st.presetStarted) / (double)TimeSpan.TicksPerSecond);
+                r.quietSeconds = st.lastProgress == 0 ? 0 : Math.Max(0, (now - st.lastProgress) / (double)TimeSpan.TicksPerSecond);
                 if (st.avatars != null) r.avatars = st.avatars;
             }
             return r;
@@ -879,29 +986,44 @@ namespace ShiroTools
                     return new WebJobDto { ok = 1, job = _webPresetJob };
                 job = NewWebJob();
                 _webPresetJob = job;
+                SaveWebJobs();
             }
             // Return the job handle before staging or SDK work can block the editor.
-            EditorApplication.delayCall += () => RunWebPresetJob(job, list);
+            RunWebPresetJob(job, list);
             return new WebJobDto { ok = 1, job = job };
         }
         private static async void RunWebPresetJob(string jobId, List<string> ids)
         {
+            using var uploadUpdates = UploadUpdatePump.Begin();
+            using var cancellation = new System.Threading.CancellationTokenSource();
+            _webPresetCancellation = cancellation;
+            // Preset uploads stay on Windows; their outer async queue cannot
+            // survive a domain reload. Defer pending script reloads until the
+            // final result and staging cleanup are saved.
+            EditorApplication.LockReloadAssemblies();
             try
             {
+                // Return the handle immediately, without relying on an
+                // inspector repaint to deliver EditorApplication.delayCall.
+                await Task.Yield();
                 var lines = new List<string>();
                 var uploaded = new List<string>();
                 bool allOk = true;
                 int i = 0;
                 foreach (var id in ids)
                 {
+                    cancellation.Token.ThrowIfCancellationRequested();
                     var preset = OutfitToggleGenerator.AvatarWardrobePresets.GetPreset(id);
                     string nm = preset != null && !string.IsNullOrEmpty(preset.name) ? preset.name : id;
                     WebJobProgress(jobId, i++, ids.Count, nm);
                     if (preset == null) { lines.Add(nm + ": preset not found."); allOk = false; continue; }
+                    if (!TryGetWardrobeBuilder(out var progressBuilder)) throw new InvalidOperationException("VRChat SDK builder is unavailable.");
+                    using var presetProgress = new WebPresetProgress(jobId, progressBuilder);
                     var outcome = await OutfitToggleGenerator.AvatarWardrobePresets.UploadPresetAsync(id);
                     if (outcome.ok) uploaded.Add(nm);
                     else lines.Add(nm + ": " + (outcome.message ?? "Upload failed."));
                     if (!outcome.ok) allOk = false;
+                    cancellation.Token.ThrowIfCancellationRequested();
                 }
                 WebJobProgress(jobId, ids.Count, ids.Count, "");
                 string summary = uploaded.Count == 1 ? "Uploaded 1 preset: " : "Uploaded " + uploaded.Count + " presets: ";
@@ -909,7 +1031,12 @@ namespace ShiroTools
                 if (lines.Count > 0) summary += "\nCould not upload:\n" + string.Join("\n", lines.ToArray());
                 WebJobFinish(jobId, allOk, summary, null);
             }
+            catch (OperationCanceledException)
+            {
+                WebJobFinish(jobId, false, "Upload cancelled. Remaining presets were not started; completed uploads are kept.", null);
+            }
             catch (Exception ex) { try { WebJobFinish(jobId, false, ex.Message, null); } catch { } }
+            finally { _webPresetCancellation = null; EditorApplication.UnlockReloadAssemblies(); }
         }
         internal static WebJobDto WebExpress(string name, Dictionary<string, string> q)
         {
@@ -1014,6 +1141,21 @@ namespace ShiroTools
             var r = new WebResultDto();
             try
             {
+                if (_webPresetCancellation != null)
+                {
+                    _webPresetCancellation.Cancel();
+                    foreach (var window in Resources.FindObjectsOfTypeAll<OutfitBatchUploader>())
+                    {
+                        window.StopConsentWatcher();
+                        window._cts?.Cancel();
+                    }
+                    lock (_webJobsLock)
+                        if (_webJobs.TryGetValue(_webPresetJob, out var job))
+                            job.stage = "Cancellation requested; waiting for the SDK to stop. Cancel any open SDK dialog in Unity.";
+                    r.ok = 1;
+                    r.message = "Cancellation requested. Remaining presets will not start; any completed uploads are kept.";
+                    return r;
+                }
                 var eng = WebEngine();
                 if (eng._isBatchUploading) { try { if (eng._cts != null) eng._cts.Cancel(); } catch { } eng.CancelBatch(); r.ok = 1; r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.batch.cancel.requested"); }
                 else r.message = global::OutfitToggleGenerator.WardrobeStrings.T("server.no.scene.batch.is.running.upload.set.jobs.finish.on");

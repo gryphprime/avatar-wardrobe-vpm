@@ -1,16 +1,11 @@
-Disable Dressing Room and Library in the Avatar Wardrobe interface.
+Improve preset batch uploads and thumbnail loading.
 
-Desktop opens directly to Wardrobe. Dressing Room, Try on, photo history,
-Library navigation, and file-import entry points are disabled. No automatic
-Dressing Room captures or photo-history requests are started. Existing library
-files and photographs are preserved.
-
-Outfit browsing, Wear/Replace/Remove, presets, uploads, and high-resolution
-thumbnail loading remain available. Help and empty/offline states direct users
-to import packages or reconnect through Unity. The launcher now reads
-Avatar Wardrobe Desktop.
-
-Validation: 45 JavaScript tests, C# assembly compilation, package preflight,
-and a desktop browser fixture check passed.
+- Keep Unity processing browser requests and uploads while unfocused.
+- Show each preset's SDK stage, upload percentage, elapsed time, and quiet periods; reconnect to the active job after refreshing the browser.
+- Support cancelling the preset queue, defer script reloads during uploads, and preserve job results across reloads.
+- Handle the SDK ownership dialog in hidden tabs throughout the upload lifetime.
+- Capture isolated head-and-upper-body portraits without overlapping the source avatar, and tolerate destroyed staging avatars in the picker.
+- Fix malformed setting receipts that left the UI stuck on “Settings are still saving.”
+- Continue warming the remaining high-resolution catalog after prioritized images finish.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.

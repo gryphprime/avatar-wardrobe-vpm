@@ -13,8 +13,141 @@ using ShiroTools;
 
 namespace OutfitToggleGenerator
 {
+    public class CopyrightDialogHandlerTests
+    {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ConfirmsExactSdkDialogEvenInDetachedOrHiddenTab(bool hidden)
+        {
+            var root = new UnityEngine.UIElements.VisualElement();
+            if (hidden) root.style.display = UnityEngine.UIElements.DisplayStyle.None;
+            int confirmations = 0;
+            var modal = VRC.SDKBase.Editor.Elements.Modal.CreateAndShow(
+                "Copyright ownership agreement", "Test dialog only", () => confirmations++, "OK", root);
+            Assert.IsNull(modal.panel);
+            Assert.IsTrue(OutfitBatchUploader.TryConfirmCopyrightInRoot(root));
+            Assert.AreEqual(1, confirmations);
+            Assert.IsFalse(modal.IsOpen);
+            Assert.IsFalse(OutfitBatchUploader.TryConfirmCopyrightInRoot(root));
+            Assert.AreEqual(1, confirmations);
+        }
+
+        [Test]
+        public void IgnoresUnrelatedAndClosedDialogs()
+        {
+            var root = new UnityEngine.UIElements.VisualElement();
+            int confirmations = 0;
+            VRC.SDKBase.Editor.Elements.Modal.CreateAndShow("Delete avatar", "copyright ownership",
+                () => confirmations++, "OK", root);
+            var closed = VRC.SDKBase.Editor.Elements.Modal.CreateAndShow("Copyright ownership agreement",
+                "Test dialog only", () => confirmations++, "OK", root);
+            closed.Close();
+            Assert.IsFalse(OutfitBatchUploader.TryConfirmCopyrightInRoot(root));
+            Assert.AreEqual(0, confirmations);
+        }
+    }
+
+    public class WriteReceiptJsonTests
+    {
+        [TestCase("needs-review", "")]
+        [TestCase("failed", null)]
+        [TestCase("queued", " ")]
+        [TestCase("running", "")]
+        public void MissingResultIsJsonNull(string state, string result)
+        {
+            var json = AvatarWardrobeServer.WriteResultJson(state, result, "Review \"saved\" settings");
+            Assert.AreEqual("{\"state\":\"" + state + "\",\"result\":null,\"error\":\"Review \\\"saved\\\" settings\"}", json);
+        }
+
+        [Test]
+        public void CompletedResultRemainsAnObject()
+        {
+            Assert.AreEqual("{\"state\":\"completed\",\"result\":{\"ok\":1},\"error\":\"\"}",
+                AvatarWardrobeServer.WriteResultJson("completed", "{\"ok\":1}", ""));
+        }
+    }
+
+    public class ThumbnailIsolationTests
+    {
+        [Test]
+        public void CaptureHidesOverlappingSourceAndRestoresVisibilityAfterFailure()
+        {
+            var source = new GameObject("Thumbnail source", typeof(MeshRenderer));
+            var staged = new GameObject("Thumbnail staged", typeof(MeshRenderer));
+            var outfit = new GameObject("Thumbnail outfit", typeof(SkinnedMeshRenderer));
+            var alreadyHidden = new GameObject("Already hidden", typeof(MeshRenderer));
+            try
+            {
+                outfit.transform.SetParent(staged.transform);
+                alreadyHidden.GetComponent<Renderer>().forceRenderingOff = true;
+                Assert.Throws<InvalidOperationException>(() =>
+                {
+                    using (new OutfitBatchUploader.ThumbnailIsolationScope(staged))
+                    {
+                        Assert.IsTrue(source.GetComponent<Renderer>().forceRenderingOff);
+                        Assert.IsTrue(source.activeSelf);
+                        Assert.IsTrue(source.GetComponent<Renderer>().enabled);
+                        Assert.IsFalse(staged.GetComponent<Renderer>().forceRenderingOff);
+                        Assert.IsFalse(outfit.GetComponent<Renderer>().forceRenderingOff);
+                        throw new InvalidOperationException("Simulated capture failure");
+                    }
+                });
+                Assert.IsFalse(source.GetComponent<Renderer>().forceRenderingOff);
+                Assert.IsTrue(alreadyHidden.GetComponent<Renderer>().forceRenderingOff);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(source);
+                UnityEngine.Object.DestroyImmediate(staged);
+                UnityEngine.Object.DestroyImmediate(alreadyHidden);
+            }
+        }
+    }
+
+    public class UploadUpdatePumpTests
+    {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void NestedUploadsKeepBackgroundUpdatesUntilLastLeaseEnds(bool original)
+        {
+            if (AvatarWardrobeServer.Running || SessionState.GetBool("Shiro_Express_Pending", false) ||
+                SessionState.GetBool("Shiro_BatchActive", false))
+                Assert.Ignore("An upload is running.");
+            var previous = Application.runInBackground;
+            IDisposable outer = null, inner = null;
+            try
+            {
+                Application.runInBackground = original;
+                outer = OutfitBatchUploader.UploadUpdatePump.Begin();
+                inner = OutfitBatchUploader.UploadUpdatePump.Begin();
+                Assert.IsTrue(Application.runInBackground);
+                outer.Dispose();
+                outer.Dispose(); // A repeated disposal must not release the inner upload.
+                Assert.IsTrue(Application.runInBackground);
+                inner.Dispose();
+                Assert.AreEqual(original, Application.runInBackground);
+            }
+            finally
+            {
+                outer?.Dispose();
+                inner?.Dispose();
+                Application.runInBackground = previous;
+            }
+        }
+    }
+
     public class PreviewSchedulingTests
     {
+        [Test]
+        public void PriorityQueueContinuesWithRemainderWithoutDuplicates()
+        {
+            string a = new string('a', 32), b = new string('b', 32), c = new string('c', 32);
+            CollectionAssert.AreEqual(new[] { b, a, c },
+                AvatarWardrobeServer.PrioritizedPreviewGuids(new[] { b, "invalid", a }, new[] { a, b.ToUpperInvariant(), c }));
+            CollectionAssert.AreEqual(new[] { a, b },
+                AvatarWardrobeServer.PrioritizedPreviewGuids(Array.Empty<string>(), new[] { a, b }));
+        }
+
         [Test]
         public void PreviewEpochValidationIgnoresNonPixelSegmentsButRejectsStaleKeys()
         {

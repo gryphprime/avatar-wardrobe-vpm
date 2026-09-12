@@ -94,7 +94,7 @@
   "upload.review.title": "Review preset upload",
   "upload.review.back": "Back to presets",
   "upload.review.create": "Create a new VRChat avatar",
-  "upload.review.warning": "This upload cannot be cancelled once it starts. Unity will stage and upload the selected presets in order.",
+  "upload.review.warning": "Unity uploads presets in order. Cancel stops the remaining queue and requests the current SDK upload to stop; completed uploads are kept.",
   "upload.review.changed": "Settings changed while this review was open. Check the updated details before uploading.",
   "upload.review.dirty": "Save or discard the unsaved changes shown above before reviewing an upload.",
   "upload.review.saving": "Settings are still saving. Wait for them to finish, then review the upload again.",
@@ -192,6 +192,7 @@
   upEl("upTabPresets").onclick=function(){ upSetTab("presets"); };
   upEl("upTabDefs").onclick=function(){ upSetTab("defs"); };
   function upRefreshState(){
+    upReconnectJob();
     if(upStateFlight) return upStateFlight;
     var revision=contextRevision;
     upStateFlight=Promise.all([api("/api/batch_state"),api("/api/installed")]).then(function(results){
@@ -212,6 +213,7 @@
     upEl("upJobLabel").textContent=label;
     upEl("upJobBar").style.width="0%";
     upEl("upJobMsg").textContent="";
+    if(upEl("upPresetProgress"))upEl("upPresetProgress").hidden=true;
     upEl("upJobCancel").style.display=canCancel?"":"none";
     upEl("upJobClose").style.display="none";
     upEl("upJobSpin").innerHTML=spinner(16);
@@ -219,6 +221,7 @@
   function upStopPoll(){ if(upJobTimer){ clearInterval(upJobTimer); upJobTimer=null; } }
   function upEndJob(ok,msg){
     upRunning=false;
+    if(upEl("upPresetProgress"))upEl("upPresetProgress").hidden=true;
     upEl("upJobSpin").innerHTML="";
     upEl("upJobLabel").textContent=T(ok?"upload.complete":"upload.finishedErrors");
     if(ok)upEl("upJobBar").style.width="100%";
@@ -229,16 +232,41 @@
     toast(msg||(ok?"OK":T("ui.failed")),ok?"ok":"err");
     upRefreshState();
   }
-  function upStartJob(url,label,canCancel,onDone){
+  var upReconnectFlight=false;
+  function upReconnectJob(){
+    if(upRunning||upReconnectFlight)return;
+    upReconnectFlight=true;
+    var token=upJobToken;
+    // Discover the server-owned queue. Never repeat the upload command.
+    request("/api/batch_job").then(function(q){
+      if(token===upJobToken&&!upRunning&&q&&q.job&&!q.done)
+        upStartJob(null,T("upload.uploading"),true,null,q.job);
+    }).catch(function(){}).finally(function(){upReconnectFlight=false;});
+  }
+  function upStartJob(url,label,canCancel,onDone,resumeJob){
     upShowJob(label,canCancel);
     var token=++upJobToken;
-    var requestId=crypto.randomUUID().replace(/-/g, "");
-    url+=(url.indexOf("?")>=0?"&":"?")+"requestId="+encodeURIComponent(requestId);
+    var requestId=resumeJob||crypto.randomUUID().replace(/-/g, "");
+    if(!resumeJob)url+=(url.indexOf("?")>=0?"&":"?")+"requestId="+encodeURIComponent(requestId);
     function handleResult(q){
       if(token!==upJobToken||!q)return;
       upEl("upJobMsg").textContent="";
       if(q.total>0)upEl("upJobBar").style.width=Math.round(100*q.index/Math.max(1,q.total))+"%";
-      if(q.current)upEl("upJobLabel").textContent=label+" - "+q.current;
+      if(q.current)upEl("upJobLabel").textContent=label+" - "+q.current+(q.total>0?" ("+Math.min(q.index+1,q.total)+"/"+q.total+")":"");
+      var detail=upEl("upPresetProgress");
+      if(detail){
+        detail.hidden=!q.stage||!!q.done;
+        if(q.stage&&!q.done){
+          var percent=Number(q.uploadProgress), known=Number.isFinite(percent)&&percent>=0;
+          upEl("upPresetStage").textContent=q.stage+(known?" — "+Math.round(Math.min(1,percent)*100)+"%":"");
+          var bar=upEl("upPresetBar");
+          if(known)bar.value=Math.min(1,percent)*100;else bar.removeAttribute("value");
+          var elapsed=Math.max(0,Math.floor(Number(q.presetSeconds)||0));
+          var quiet=Math.max(0,Math.floor(Number(q.quietSeconds)||0));
+          upEl("upPresetTiming").textContent="Elapsed: "+Math.floor(elapsed/60)+"m "+elapsed%60+"s"+
+            (quiet>=30?" · No new SDK progress for "+quiet+"s; waiting for the next update.":"");
+        }
+      }
       if(q.done){upStopPoll();upEndJob(!!q.ok,q.message);if(onDone)onDone(q);}
     }
     function followJob(r){
@@ -246,7 +274,7 @@
       if(!r||!r.ok||!r.job){ upEndJob(false,(r&&r.message)||T("upload.failed")); return; }
       var job=r.job;
       upStopPoll();
-      upJobTimer=setInterval(function(){
+      function poll(){
         if(upJobPolling) return;
         upJobPolling=true;
         request("/api/batch_job?job="+encodeURIComponent(job)).then(function(q){
@@ -255,8 +283,11 @@
           // Builds can occupy Unity for a long time. Preserve progress and retry
           // quietly; only an explicit job result can finish the upload UI.
         }).finally(function(){upJobPolling=false;});
-      },2000);
+      }
+      upJobTimer=setInterval(poll,2000);
+      poll();
     }
+    if(resumeJob){followJob({ok:1,job:resumeJob});return;}
     request(url,{timeout:120000}).then(followJob).catch(function(){
       if(token!==upJobToken)return;
       // Recover status only; never resend the upload command. Unity being busy
@@ -275,7 +306,12 @@
       recoverJob();
     });
   }
-  upEl("upJobCancel").onclick=function(){ api("/api/batch_cancel").catch(function(){}); };
+  upEl("upJobCancel").onclick=function(){
+    request("/api/batch_cancel").then(function(r){
+      upEl("upJobMsg").textContent=r.message||"";
+      if(!r.ok)toast(r.message||T("upload.failed"),"err");
+    }).catch(function(error){toast(error.message||T("upload.failed"),"err");});
+  };
   upEl("upJobClose").onclick=function(){ upStopPoll(); upEl("upJob").hidden=true; };
   function upOpenModal(title,html){
     upEl("upModalTitle").textContent=title;
@@ -621,7 +657,7 @@
         var current=presetReview(state,selected,reviewAvatarName);
         if(JSON.stringify(current)!==JSON.stringify(model)){showUploadReview(current,selected,all,revision,U('review.changed'));return;}
         closeUploadModal();
-        upStartJob('/api/batch_upload_presets?ids='+encodeURIComponent(selected.join('\n')),T('upload.uploading'),false);
+        upStartJob('/api/batch_upload_presets?ids='+encodeURIComponent(selected.join('\n')),T('upload.uploading'),true);
       }catch(error){if(upEl('upReviewMessage'))upEl('upReviewMessage').textContent=uploadErrorText(error);}
       finally{if(button.isConnected)button.disabled=false;}
     };

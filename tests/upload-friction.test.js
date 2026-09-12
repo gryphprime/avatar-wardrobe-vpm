@@ -76,11 +76,11 @@ function reviewHarness(){
   assert.match(test.dialogs[0].html,/Windows, Android/);
   assert.match(test.dialogs[0].html,/Update existing avatar/);
   assert.match(test.dialogs[0].html,/Create a new VRChat avatar/);
-  assert.match(test.dialogs[0].html,/cannot be cancelled/);
+  assert.match(test.dialogs[0].html,/Cancel stops the remaining queue/);
   await test.element('upReviewConfirm').onclick();
   assert.equal(test.uploads.length,1);
   assert.match(test.uploads[0][0],/ids=one%0Atwo/);
-  assert.equal(test.uploads[0][2],false);
+  assert.equal(test.uploads[0][2],true);
   for(const [name,value] of [['defaultsDirty',true],['upBlueprintDrafts',{one:'draft'}],['pendingConfigWrites',1],['upRunning',true]]){
     test=reviewHarness();test.context[name]=value;await test.context.openUploadReview(['one']);
     assert.equal(test.dialogs.length,0,name+' must block a review until resolved.');assert.equal(test.uploads.length,0);

@@ -5,6 +5,7 @@
     "AvatarWardrobe.Runtime",
     "VRC.SDK3A",
     "VRC.SDKBase",
+    "VRC.SDKBase.Editor",
     "nadena.dev.modular-avatar.core",
     "nadena.dev.ndmf"
   ],

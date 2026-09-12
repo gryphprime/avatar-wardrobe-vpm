@@ -138,9 +138,19 @@ namespace OutfitToggleGenerator
                 var receipt = validId ? LoadWrite(id) : null;
                 if (receipt == null)
                 { WriteText(context, 409, "text/plain", "Write receipt unavailable after a restart or expiry. Refresh and check Unity before retrying; the change may have applied."); return true; }
-                json = "{\"state\":" + JsonString(receipt.state) + ",\"result\":" + (receipt.result ?? "null") + ",\"error\":" + JsonString(receipt.error) + "}";
+                json = WriteResultJson(receipt.state, receipt.result, receipt.error);
             }
             WriteText(context, 200, "application/json", json); return true;
+        }
+
+        internal static string WriteResultJson(string state, string result, string error)
+        {
+            // JsonUtility restores an unset serialized string as empty after a
+            // reload. Queued/failed receipts have no result object; emit JSON
+            // null so browser polling can observe their terminal state.
+            return "{\"state\":" + JsonString(state) + ",\"result\":" +
+                (string.IsNullOrWhiteSpace(result) ? "null" : result) +
+                ",\"error\":" + JsonString(error) + "}";
         }
     }
 }

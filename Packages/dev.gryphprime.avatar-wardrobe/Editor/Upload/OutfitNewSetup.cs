@@ -431,6 +431,7 @@ namespace ShiroTools
 
         private async Task ExpressSetupAsync(OutfitEntry entry, AdvancedDraft draft = null, bool skipConfirm = false)
         {
+            using var uploadUpdates = UploadUpdatePump.Begin();
             _expressSucceeded = false;
             _expressRemoteId = null;
             _expressQuietMode = skipConfirm;
@@ -548,6 +549,7 @@ namespace ShiroTools
         /// then writes the freshly created Blueprint ID back into the tool.</summary>
         private async Task ContinueExpressUploadAsync()
         {
+            using var uploadUpdates = UploadUpdatePump.Begin();
             if (!SessionState.GetBool(SESSION_EXPRESS_PENDING, false)) { _isExpressBusy = false; return; }
 
             // Make sure defaults (incl. _nsAutoConsent) are loaded — after a domain reload
@@ -593,7 +595,8 @@ namespace ShiroTools
             try
             {
                 ValidateWardrobeBuildTarget();
-                    await builder.BuildAndUpload(_avatarRoot, newAvatar, thumbPath);
+                    await builder.BuildAndUpload(_avatarRoot, newAvatar, thumbPath,
+                        cancellationToken: _webPresetCancellation?.Token ?? CancellationToken.None);
 
                 // The SDK writes the new ID onto the PipelineManager after a successful create.
                 // On some SDK versions that happens a moment AFTER BuildAndUpload returns,
@@ -653,13 +656,11 @@ namespace ShiroTools
         //  Auto-confirm the SDK copyright/ownership modal
         // ============================================================
         private bool _consentWatcherActive;
-        private double _consentWatcherStarted;
 
         private void StartConsentWatcher()
         {
             if (_consentWatcherActive) return;
             _consentWatcherActive = true;
-            _consentWatcherStarted = EditorApplication.timeSinceStartup;
             EditorApplication.update += ConsentWatcherTick;
         }
 
@@ -672,8 +673,10 @@ namespace ShiroTools
 
         private void ConsentWatcherTick()
         {
-            // Safety timeout so the watcher never runs forever (e.g. 5 min)
-            if (EditorApplication.timeSinceStartup - _consentWatcherStarted > 300.0)
+            // The awaiting upload owns this watcher and releases it in finally.
+            // Long builds/API calls must not expire it before the dialog appears.
+            if ((_cts != null && _cts.IsCancellationRequested) ||
+                (_webPresetCancellation != null && _webPresetCancellation.IsCancellationRequested))
             {
                 StopConsentWatcher();
                 return;
@@ -696,12 +699,10 @@ namespace ShiroTools
 
         private sealed class SceneUploadConsentScope : IDisposable
         {
-            private readonly double started = EditorApplication.timeSinceStartup;
             private bool disposed;
             internal SceneUploadConsentScope() { EditorApplication.update += Tick; }
             private void Tick()
             {
-                if (EditorApplication.timeSinceStartup - started > 300) { Dispose(); return; }
                 try { TryAutoConfirmCopyrightModal(); }
                 catch (Exception error) { Debug.LogWarning("Avatar upload consent handler: " + error.Message); }
             }
@@ -715,37 +716,37 @@ namespace ShiroTools
 
         private static void TryAutoConfirmCopyrightModal()
         {
-            var panel = VRCSdkControlPanel.window;
-            if (panel == null) return;
-            var root = panel.rootVisualElement;
-            if (root == null) return;
-
-            foreach (var btn in root.Query<Button>("modal-action-button").ToList())
+            foreach (var panel in Resources.FindObjectsOfTypeAll<VRCSdkControlPanel>())
             {
-                if (btn == null || btn.panel == null) continue;
-                if (btn.resolvedStyle.display == DisplayStyle.None) continue;
-
-                // Walk up to the owning Modal element
-                VisualElement modal = btn;
-                while (modal != null && modal.GetType().Name != "Modal") modal = modal.parent;
-                if (modal == null) continue;
-                if (modal.ClassListContains("d-none")) continue;     // hidden modal
-
-                if (!ModalLooksLikeCopyright(modal)) continue;
-
-                if (InvokeButtonClick(btn))
+                if (TryConfirmCopyrightInRoot(panel.rootVisualElement))
+                {
                     Debug.Log("[OutfitBatchUploader] Auto-confirmed the SDK copyright/ownership dialog.");
+                    return;
+                }
             }
         }
 
-        private static bool ModalLooksLikeCopyright(VisualElement modal)
+        internal static bool TryConfirmCopyrightInRoot(VisualElement root)
         {
-            foreach (var label in modal.Query<Label>().ToList())
+            if (root == null) return false;
+            foreach (var modal in root.Query<VRC.SDKBase.Editor.Elements.Modal>().ToList())
             {
-                string txt = (label.text ?? "").ToLowerInvariant();
-                if (txt.Contains("necessary rights") || txt.Contains("copyright") ||
-                    txt.Contains("ownership") || txt.Contains("intellectual property"))
-                    return true;
+                // IsOpen is SDK state, unlike resolvedStyle/panel which depend
+                // on the docked tab being visible and attached to a UI panel.
+                if (!modal.IsOpen || modal.ClassListContains("d-none")) continue;
+                if (!string.Equals(modal.Q<Label>("modal-title")?.text,
+                    "Copyright ownership agreement", StringComparison.Ordinal)) continue;
+                var button = modal.Q<Button>("modal-action-button");
+                if (button == null || !button.enabledInHierarchy || button.text != "OK") continue;
+                bool confirmed = InvokeButtonClick(button);
+                lock (_webJobsLock)
+                    if (_webJobs.TryGetValue(_webPresetJob, out var job) && !job.done)
+                    {
+                        var stage = confirmed ? "Ownership confirmed; preparing build" :
+                            "Waiting for SDK ownership confirmation in Unity";
+                        if (job.stage != stage) { job.stage = stage; job.lastProgress = DateTime.UtcNow.Ticks; }
+                    }
+                if (confirmed) return true;
             }
             return false;
         }
@@ -964,7 +965,7 @@ namespace ShiroTools
         /// <summary>Renders the avatar with a temporary camera against a solid (filled) background
         /// and writes a 1200x900 PNG to a temp file. Returns the absolute path or null.
         /// With <paramref name="useSceneView"/> the current Scene view's camera angle/position/FOV
-        /// is used (exactly what you see); otherwise a standard auto-framed front shot.</summary>
+        /// is used; otherwise a head-and-upper-body portrait. Only the selected avatar is rendered.</summary>
         private string CaptureSceneThumbnail(bool useSceneView = false)
         {
             const int W = 1200, H = 900;
@@ -994,27 +995,20 @@ namespace ShiroTools
                     }
                     else
                     {
-                        Debug.LogWarning("[OutfitBatchUploader] No Scene view open — falling back to the standard auto-framed thumbnail.");
+                        Debug.LogWarning("[OutfitBatchUploader] No Scene view open — falling back to the automatic portrait.");
                         useSceneView = false;
                     }
                 }
 
                 if (!useSceneView)
                 {
-                    // Frame the avatar from the renderers' combined bounds
-                    Bounds b = ComputeRenderBounds(_avatarRoot);
-                    Vector3 center = b.center;
-                    float radius = Mathf.Max(0.25f, b.extents.magnitude);
-                    float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-                    // Slightly above center, looking at the upper body
-                    Vector3 dir = new Vector3(0f, 0.15f, 1f).normalized;
-                    cam.transform.position = center + dir * dist * 1.05f + Vector3.up * radius * 0.15f;
-                    cam.transform.LookAt(center + Vector3.up * radius * 0.15f);
+                    FrameThumbnailPortrait(cam, _avatarRoot);
                 }
 
                 rt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
-                cam.Render();
+                using (new ThumbnailIsolationScope(_avatarRoot))
+                    cam.Render();
 
                 RenderTexture.active = rt;
                 var tex = new Texture2D(W, H, TextureFormat.RGB24, false);
@@ -1039,6 +1033,68 @@ namespace ShiroTools
                 RenderTexture.active = prevActive;
                 if (rt != null) { rt.Release(); DestroyImmediate(rt); }
                 if (camGo != null) DestroyImmediate(camGo);
+            }
+        }
+
+        private static void FrameThumbnailPortrait(Camera camera, GameObject root)
+        {
+            Bounds bounds = ComputeRenderBounds(root);
+            var animator = root.GetComponentInChildren<Animator>();
+            var headBone = animator != null && animator.isHuman
+                ? animator.GetBoneTransform(HumanBodyBones.Head) : null;
+            var descriptor = root.GetComponent<VRC.SDK3.Avatars.Components.VRCAvatarDescriptor>();
+            Vector3 head = headBone != null ? headBone.position :
+                descriptor != null && descriptor.ViewPosition.sqrMagnitude > 0.001f
+                    ? root.transform.TransformPoint(descriptor.ViewPosition)
+                    : new Vector3(bounds.center.x, bounds.min.y + bounds.size.y * 0.85f, bounds.center.z);
+
+            // Use head-to-floor height rather than full renderer width: arms,
+            // skirts and props should not pull the camera back to a full-body shot.
+            float height = Mathf.Max(0.1f, head.y - bounds.min.y);
+            float top = Mathf.Clamp(bounds.max.y, head.y + height * 0.15f, head.y + height * 0.35f);
+            float bottom = head.y - height * 0.35f;
+            Vector3 center = new Vector3(head.x, (top + bottom) * 0.5f, head.z);
+            float halfHeight = (top - bottom) * 0.5f * 1.1f;
+            float distance = halfHeight / Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            Vector3 forward = Vector3.ProjectOnPlane(root.transform.forward, Vector3.up).normalized;
+            if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
+            camera.transform.position = center + forward * distance;
+            camera.transform.LookAt(center, Vector3.up);
+            camera.farClipPlane = Mathf.Max(camera.farClipPlane, distance + bounds.size.magnitude);
+        }
+
+        // Staging scenes are additive and overlap their source avatar. Limit
+        // the synchronous camera render to the intended hierarchy without
+        // deactivating objects (which would run component lifecycle callbacks).
+        internal sealed class ThumbnailIsolationScope : IDisposable
+        {
+            private readonly List<Renderer> hidden = new List<Renderer>();
+
+            internal ThumbnailIsolationScope(GameObject avatarRoot)
+            {
+                if (avatarRoot == null) throw new ArgumentNullException(nameof(avatarRoot));
+                try
+                {
+                    foreach (var renderer in UnityEngine.Object.FindObjectsOfType<Renderer>(true))
+                    {
+                        if (renderer == null || renderer.forceRenderingOff ||
+                            renderer.transform.IsChildOf(avatarRoot.transform)) continue;
+                        hidden.Add(renderer);
+                        renderer.forceRenderingOff = true;
+                    }
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
+            }
+
+            public void Dispose()
+            {
+                foreach (var renderer in hidden)
+                    if (renderer != null) renderer.forceRenderingOff = false;
+                hidden.Clear();
             }
         }
 
