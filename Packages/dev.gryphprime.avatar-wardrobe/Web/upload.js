@@ -516,19 +516,7 @@
       if(file.size>4*1024*1024)throw new Error("Settings file exceeds 4 MB.");
       var text=await file.text();
       JSON.parse(text);
-      var begin=await api("/api/batch_import");
-      if(!begin||!begin.ok)throw new Error((begin&&begin.message)||T("upload.failed"));
-      var token=encodeURIComponent(begin.message),pos=0;
-      while(pos<text.length){
-        // Keep URI-encoded Japanese text under common request-line limits.
-        var end=Math.min(pos+768,text.length);
-        if(end<text.length && text.charCodeAt(end-1)>=0xD800 && text.charCodeAt(end-1)<=0xDBFF)end--;
-        var chunk=text.slice(pos,end);
-        var part=await api("/api/batch_import?op=chunk&token="+token+"&data="+encodeURIComponent(chunk));
-        if(!part||!part.ok)throw new Error((part&&part.message)||T("upload.failed"));
-        pos=end;
-      }
-      var result=await api("/api/batch_import?op=commit&token="+token);
+      var result=await api("/api/batch_import", {method:"POST", headers:{"Content-Type":"application/json"}, body:text});
       if(!result||!result.ok)throw new Error((result&&result.message)||T("upload.failed"));
       defaultsDirty=false;defaultsSignature="";
       toast(result.message||T("upload.saved"),"ok");

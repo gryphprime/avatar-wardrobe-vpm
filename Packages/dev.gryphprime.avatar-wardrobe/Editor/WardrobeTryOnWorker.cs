@@ -537,6 +537,8 @@ namespace OutfitToggleGenerator
                         if (!initial.Contains(obj) && obj != null && !EditorUtility.IsPersistent(obj)) view.owned.Add(obj);
             }
         }
+        internal static readonly string[] SettingsFingerprintFiles = { "AvatarWardrobePresets.json", "AvatarWardrobeOverrides.json", ShiroTools.OutfitProjectData.FILE_NAME };
+        internal static long FingerprintTraversals, FingerprintEditorMilliseconds;
         internal static string SourceFingerprint(VRCAvatarDescriptor avatar) => Fingerprint(avatar, false);
         internal static string VisualFingerprint(VRCAvatarDescriptor avatar) => Fingerprint(avatar, true);
         private static string Fingerprint(VRCAvatarDescriptor avatar, bool visual)
@@ -551,19 +553,41 @@ namespace OutfitToggleGenerator
             if (avatar == null) return "";
             Func<string> finish = null;
             var budget = System.Diagnostics.Stopwatch.StartNew();
+            var generation = AvatarWardrobeServer.FingerprintGeneration;
             foreach (var step in FingerprintSteps(avatar, visual, value => finish = value))
             {
                 if (budget.ElapsedMilliseconds < 2) continue;
+                FingerprintEditorMilliseconds += budget.ElapsedMilliseconds;
                 await Task.Yield(); // Resume Unity object access on its captured synchronization context.
                 budget.Restart();
-                if (avatar == null) throw new InvalidOperationException("Avatar was removed during inspection.");
+                if (avatar == null || generation != AvatarWardrobeServer.FingerprintGeneration) throw new InvalidOperationException("Avatar changed during inspection.");
             }
+            FingerprintEditorMilliseconds += budget.ElapsedMilliseconds;
             return await Task.Run(finish);
         }
-        private static IEnumerable<bool> FingerprintSteps(VRCAvatarDescriptor avatar, bool visual, Action<Func<string>> completed)
+        internal static async Task<string[]> FingerprintPairAsync(VRCAvatarDescriptor avatar)
         {
+            if (avatar == null) return new[] { "", "" };
+            Func<string[]> finish = null;
+            var generation = AvatarWardrobeServer.FingerprintGeneration;
+            var budget = System.Diagnostics.Stopwatch.StartNew();
+            foreach (var step in FingerprintSteps(avatar, false, null, value => finish = value))
+            {
+                if (budget.ElapsedMilliseconds < 2) continue;
+                FingerprintEditorMilliseconds += budget.ElapsedMilliseconds;
+                await Task.Yield(); budget.Restart();
+                if (avatar == null || generation != AvatarWardrobeServer.FingerprintGeneration)
+                    throw new InvalidOperationException("Avatar changed during inspection.");
+            }
+            FingerprintEditorMilliseconds += budget.ElapsedMilliseconds;
+            return await Task.Run(finish);
+        }
+        private static IEnumerable<bool> FingerprintSteps(VRCAvatarDescriptor avatar, bool visual, Action<Func<string>> completed, Action<Func<string[]>> paired = null)
+        {
+            FingerprintTraversals++;
             var text = new StringBuilder();
             text.Append(avatar.GetInstanceID()).Append('|').Append(avatar.gameObject.scene.handle).Append('|');
+            var visualText = paired == null ? null : new StringBuilder(text.ToString());
             var assets = new HashSet<Object>();
             var paths = new HashSet<string>(StringComparer.Ordinal);
             foreach (var transform in avatar.GetComponentsInChildren<Transform>(true))
@@ -571,7 +595,7 @@ namespace OutfitToggleGenerator
                 Append(transform.gameObject);
                 foreach (var component in transform.GetComponents<Component>())
                 {
-                    if (component == null) { text.Append("missing;"); continue; }
+                    if (component == null) { text.Append("missing;"); visualText?.Append("missing;"); continue; }
                     Append(component);
                     foreach (var step in References(component)) yield return step;
                     yield return true;
@@ -580,33 +604,40 @@ namespace OutfitToggleGenerator
             for (var parent = avatar.transform.parent; parent != null; parent = parent.parent) Append(parent);
             foreach (var path in paths.OrderBy(path => path, StringComparer.Ordinal))
             {
-                text.Append(path).Append('=').Append(AssetVersion(path));
+                var version = AssetVersion(path);
+                text.Append(path).Append('=').Append(version);
+                visualText?.Append(path).Append('=').Append(version);
                 yield return true;
             }
-            var project = visual ? System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..")) : "";
+            var project = visual || paired != null ? System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..")) : "";
             var capturedText = text.ToString();
-            // Finish reads only captured strings and plain files. Hash128's string API is thread-safe.
-            completed(() =>
+            var capturedVisual = visualText?.ToString();
+            string Finish(string value, bool includeSettings)
             {
-                var captured = new StringBuilder(capturedText);
-                if (visual)
-                    foreach (var name in new[] { "AvatarWardrobePresets.json", "AvatarWardrobeOverrides.json", "ShiroOutfitProjectData.json" })
+                var captured = new StringBuilder(value);
+                if (includeSettings)
+                    foreach (var name in SettingsFingerprintFiles)
                     {
                         var settings = System.IO.Path.Combine(project, "ProjectSettings", name);
                         if (System.IO.File.Exists(settings)) captured.Append(name).Append('=').Append(Hash128.Compute(System.IO.File.ReadAllText(settings)));
                     }
                 return Hash128.Compute(captured.ToString()).ToString();
-            });
+            }
+            completed?.Invoke(() => Finish(capturedText, visual));
+            paired?.Invoke(() => new[] { Finish(capturedText, false), Finish(capturedVisual, true) });
             void Append(Object obj)
             {
                 var json = EditorJsonUtility.ToJson(obj);
-                var presentation = visual && obj is WardrobeMenuLayout;
-                // The supported Menu rename edits only these logical folder labels. Every other field
-                // remains in the photo identity, including control order, defaults and parameters.
-                if (presentation) json = System.Text.RegularExpressions.Regex.Replace(json,
-                    "\"label\"\\s*:\\s*\"(?:\\\\.|[^\"\\\\])*\"", "\"label\":\"\"");
-                text.Append(obj.GetInstanceID()).Append(':').Append(presentation ? 0 : EditorUtility.GetDirtyCount(obj)).Append(':')
-                    .Append(json).Append(';');
+                var id = obj.GetInstanceID(); var dirty = EditorUtility.GetDirtyCount(obj);
+                AppendTo(text, visual);
+                if (visualText != null) AppendTo(visualText, true);
+                void AppendTo(StringBuilder builder, bool isVisual)
+                {
+                    var presentation = isVisual && obj is WardrobeMenuLayout;
+                    var value = presentation ? System.Text.RegularExpressions.Regex.Replace(json,
+                        "\"label\"\\s*:\\s*\"(?:\\\\.|[^\"\\\\])*\"", "\"label\":\"\"") : json;
+                    builder.Append(id).Append(':').Append(presentation ? 0 : dirty).Append(':').Append(value).Append(';');
+                }
             }
             IEnumerable<bool> References(Object obj)
             {
@@ -634,7 +665,9 @@ namespace OutfitToggleGenerator
             IEnumerable<bool> Visit(Object reference)
             {
                 if (reference == null || reference is Component || reference is GameObject || !assets.Add(reference)) yield break;
-                text.Append(reference.GetInstanceID()).Append(':').Append(EditorUtility.GetDirtyCount(reference));
+                var referenceId = reference.GetInstanceID(); var referenceDirty = EditorUtility.GetDirtyCount(reference);
+                text.Append(referenceId).Append(':').Append(referenceDirty);
+                visualText?.Append(referenceId).Append(':').Append(referenceDirty);
                 var path = AssetDatabase.GetAssetPath(reference);
                 if (!string.IsNullOrEmpty(path)) paths.Add(path);
                 if (reference is Shader || reference is Texture || reference is MonoScript || reference is AudioClip || reference is ComputeShader) yield break;

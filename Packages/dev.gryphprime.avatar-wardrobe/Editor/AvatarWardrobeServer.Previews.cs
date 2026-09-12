@@ -20,9 +20,36 @@ namespace OutfitToggleGenerator
         private static string previewGridPriority = "";
         private static string queuedPreviewGrid;
         private static string queuedPreviewEpoch;
-        private static double nextBackgroundPreviewPass;
+        private static HashSet<string> previewVisiblePriority = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static double lastBackgroundPreviewFinished, lastBackgroundPreviewDuration;
+
+        // Visible work uses at most ~50% of main-thread time; speculative work
+        // stays at ~9%.  Visible high-res cards are explicit user demand, so
+        // waiting three render durations made first-view loading unnecessarily
+        // sluggish while background prefetch remains conservative.
+        internal static double PreviewIdleDelay(double renderSeconds, bool visible)
+            => visible ? Math.Max(.1, renderSeconds) : Math.Max(1, renderSeconds * 10);
         private static Queue<string> backgroundPreviews = new Queue<string>();
         private static readonly HashSet<string> attemptedBackgroundPreviews = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        private static bool HasEncodingHeadroom(string path)
+        {
+            var highPrefix = string.IsNullOrEmpty(hiDir) ? null : hiDir + Path.DirectorySeparatorChar;
+            var isHigh = highPrefix != null && path.StartsWith(highPrefix, StringComparison.Ordinal);
+            var max = isHigh ? 4 : 8;
+            var highCount = highPrefix == null ? 0 : previewEncoding.Keys.Count(key => key.StartsWith(highPrefix, StringComparison.Ordinal));
+            return (isHigh ? highCount : previewEncoding.Count - highCount) < max;
+        }
+
+        internal static bool IsCurrentPreviewEpoch(string requested)
+        {
+            if (string.IsNullOrEmpty(requested)) return false;
+            var parts = requested.Split('|');
+            if (parts.Length < 5) return false;
+            return string.Equals(parts[0], serverSession, StringComparison.Ordinal) &&
+                string.Equals(parts[1], AvatarWardrobeCatalog.CatalogEpoch.ToString(), StringComparison.Ordinal) &&
+                string.Equals(parts[4], previewRevision.ToString(), StringComparison.Ordinal);
+        }
 
         // Warm only the browser's current grid, while it has a focus lease.
         // A single prefab render can exceed the dispatcher budget; leave a long
@@ -30,10 +57,11 @@ namespace OutfitToggleGenerator
         private static void BakeNextBackgroundPreview()
         {
             if (!WebActive || UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow || EditorApplication.isCompiling || EditorApplication.isUpdating ||
-                EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.timeSinceStartup < nextBackgroundPreviewPass) return;
+                EditorApplication.isPlayingOrWillChangePlaymode) return;
             RefreshPreviewVersions();
             string grid;
-            lock (webActiveLock) grid = previewGridPriority;
+            HashSet<string> visible;
+            lock (webActiveLock) { grid = previewGridPriority; visible = previewVisiblePriority; }
             var epoch = AvatarWardrobeCatalog.CatalogEpoch + "|" + previewRevision;
             if (queuedPreviewEpoch != epoch || queuedPreviewGrid != grid)
             {
@@ -44,12 +72,23 @@ namespace OutfitToggleGenerator
             }
             for (var checkedCount = 0; checkedCount < 16 && backgroundPreviews.Count > 0; checkedCount++)
             {
-                var guid = backgroundPreviews.Dequeue();
-                if (HasHiThumb(guid) || thumbDead.Contains("hi:" + guid) || !attemptedBackgroundPreviews.Add(guid)) continue;
+                var guid = backgroundPreviews.Peek();
+                if (HasHiThumb(guid) || thumbDead.Contains("hi:" + guid) || attemptedBackgroundPreviews.Contains(guid))
+                { backgroundPreviews.Dequeue(); continue; }
+                // Re-evaluate against current visibility, so an old prefetch cooldown
+                // cannot hold newly visible cards behind it after scrolling.
+                if (EditorApplication.timeSinceStartup < lastBackgroundPreviewFinished +
+                    PreviewIdleDelay(lastBackgroundPreviewDuration, visible.Contains(guid))) return;
+                // Do not consume/mark a candidate until its encoder has room.
+                // Otherwise a saturated queue discards the rendered texture and
+                // the GUID stays permanently attempted until the grid changes.
+                if (!HasEncodingHeadroom(ThumbPath(guid, true))) return;
+                backgroundPreviews.Dequeue(); attemptedBackgroundPreviews.Add(guid);
                 var started = EditorApplication.timeSinceStartup;
                 BakeThumbHi(guid);
                 var finished = EditorApplication.timeSinceStartup;
-                nextBackgroundPreviewPass = finished + Math.Max(1, (finished - started) * 10);
+                lastBackgroundPreviewDuration = finished - started;
+                lastBackgroundPreviewFinished = finished;
                 return;
             }
         }
@@ -65,7 +104,10 @@ namespace OutfitToggleGenerator
         private static readonly ConcurrentDictionary<string, Task<byte[]>> previewEncoding = new ConcurrentDictionary<string, Task<byte[]>>(StringComparer.Ordinal);
         private static byte[] QueueThumbEncoding(Texture2D texture, string path)
         {
-            if (previewEncoding.ContainsKey(path) || previewEncoding.Count >= 8) return null;
+            // Keep low-res scroll work bounded, but do not let a burst of
+            // 128px encodes starve the 512px path.  Hi-res previews are the
+            // user's explicit quality request and get their own headroom.
+            if (previewEncoding.ContainsKey(path) || !HasEncodingHeadroom(path)) return null;
             // Copy pixels while the texture is alive; the worker owns only a managed array.
             var pixels = texture.GetPixels32();
             var width = (uint)texture.width; var height = (uint)texture.height;
@@ -168,6 +210,7 @@ namespace OutfitToggleGenerator
             if (record == null) return new byte[0];
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(record.assetPath);
             if (prefab == null) return new byte[0];
+            if (!HasEncodingHeadroom(path)) return null;
             Texture2D icon = null;
             try
             {

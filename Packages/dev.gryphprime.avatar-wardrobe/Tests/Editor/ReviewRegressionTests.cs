@@ -13,6 +13,33 @@ using ShiroTools;
 
 namespace OutfitToggleGenerator
 {
+    public class PreviewSchedulingTests
+    {
+        [Test]
+        public void PreviewEpochValidationIgnoresNonPixelSegmentsButRejectsStaleKeys()
+        {
+            var session = (string)typeof(AvatarWardrobeServer)
+                .GetField("serverSession", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).GetValue(null);
+            var revision = (int)typeof(AvatarWardrobeServer)
+                .GetField("previewRevision", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).GetValue(null);
+            var catalog = AvatarWardrobeCatalog.CatalogEpoch;
+            var current = session + "|" + catalog + "|overrides|base|" + revision;
+            Assert.IsTrue(AvatarWardrobeServer.IsCurrentPreviewEpoch(current));
+            Assert.IsFalse(AvatarWardrobeServer.IsCurrentPreviewEpoch("stale|" + catalog + "|overrides|base|" + revision));
+            Assert.IsFalse(AvatarWardrobeServer.IsCurrentPreviewEpoch(session + "|999999|overrides|base|" + revision));
+            Assert.IsFalse(AvatarWardrobeServer.IsCurrentPreviewEpoch(session + "|" + catalog + "|overrides|base|999999"));
+        }
+
+        [TestCase(.01, .1, 1)]
+        [TestCase(.5, .5, 5)]
+        [TestCase(2, 2, 20)]
+        public void VisibleRendersHaveShorterAdaptiveCooldown(double cost, double visible, double prefetched)
+        {
+            Assert.AreEqual(visible, AvatarWardrobeServer.PreviewIdleDelay(cost, true), .00001);
+            Assert.AreEqual(prefetched, AvatarWardrobeServer.PreviewIdleDelay(cost, false), .00001);
+        }
+    }
+
     public class ReviewRegressionTests
     {
         private Scene scene, previous;
@@ -133,7 +160,7 @@ namespace OutfitToggleGenerator
             if (File.Exists(path + ".bak")) File.Delete(path + ".bak");
             File.WriteAllText(path, "broken");
             Assert.Throws<IOException>(() => OutfitProjectData.GetOutfit("Avatar", "Preset"));
-            Assert.IsFalse(OutfitProjectData.ImportRaw("{\"avatars\":[{\"name\":\"Other\",\"outfits\":[]}]}"));
+            Assert.Throws<IOException>(() => OutfitProjectData.ImportRaw("{\"avatars\":[{\"name\":\"Other\",\"outfits\":[]}]}"));
             Assert.AreEqual("broken", File.ReadAllText(path));
         }
         [Test] public void SaveAndImportFailureDoNotCommitInMemoryState()
@@ -149,10 +176,63 @@ namespace OutfitToggleGenerator
                 data.blueprintId = "avtr-unsaved";
                 Assert.Throws<IOException>(() => OutfitProjectData.Save());
                 Assert.AreEqual("avtr-original", OutfitProjectData.GetOutfit("Avatar", "Preset").blueprintId);
-                Assert.IsFalse(OutfitProjectData.ImportRaw("{\"avatars\":[{\"name\":\"Other\",\"outfits\":[]}]}"));
+                Assert.Throws<IOException>(() => OutfitProjectData.ImportRaw("{\"avatars\":[{\"name\":\"Other\",\"outfits\":[]}]}"));
                 Assert.AreEqual("avtr-original", OutfitProjectData.GetOutfit("Avatar", "Preset").blueprintId);
             }
             finally { Directory.Delete(path); OutfitProjectData.RestoreSettings(original); }
+        }
+        [Test] public void SameNamedLiveRootsAndHoldersKeepIndependentSettingsAfterRename()
+        {
+            var other = new GameObject(root.name);
+            SceneManager.MoveGameObjectToScene(other, scene);
+            try
+            {
+                var holderA = new GameObject("Casual"); holderA.transform.SetParent(root.transform);
+                var holderB = new GameObject("Casual"); holderB.transform.SetParent(other.transform);
+                var aKey = OutfitProjectData.SceneAvatarKey(root);
+                var bKey = OutfitProjectData.SceneAvatarKey(other);
+                Assert.AreNotEqual(aKey, bKey);
+                var a = OutfitProjectData.SceneOutfit(aKey, holderA);
+                var b = OutfitProjectData.SceneOutfit(bKey, holderB);
+                a.blueprintId = "avtr-a"; b.blueprintId = "avtr-b";
+                a.buildAndroid = true; b.buildAndroid = false;
+                root.name = "Renamed"; holderA.name = "Renamed holder";
+                EditorSceneManager.SaveScene(scene);
+                Assert.AreEqual(aKey, OutfitProjectData.SceneAvatarKey(root));
+                Assert.AreSame(a, OutfitProjectData.SceneOutfit(aKey, holderA));
+                Assert.AreEqual("avtr-b", b.blueprintId); Assert.IsFalse(b.buildAndroid);
+                OutfitProjectData.Save();
+                OutfitProjectData.RestoreSettings(OutfitProjectData.CaptureSettings());
+                Assert.AreEqual("avtr-a", OutfitProjectData.SceneOutfit(OutfitProjectData.SceneAvatarKey(root), holderA).blueprintId);
+                var generated = OutfitProjectData.GetOutfit("Shinano_Wardrobe_fixture", "Casual");
+                generated.blueprintId = "avtr-generated";
+                Assert.AreEqual("avtr-generated", OutfitProjectData.GetOutfit("Shinano_Wardrobe_fixture", "Casual").blueprintId);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(other); }
+        }
+        [Test] public void InvalidVersionsRejectEntireSettingsBundle()
+        {
+            var before = OutfitProjectData.CaptureSettings();
+            var bundle = "{\"data\":\"{\\\"avatars\\\":[]}\",\"versions\":\"{}\"}";
+            Assert.Throws<InvalidDataException>(() => OutfitBatchUploader.ImportSettingsBundle(bundle));
+            Assert.AreEqual(before, OutfitProjectData.CaptureSettings());
+        }
+        [Test] public void VersionPersistenceFailureRestoresMainSettings()
+        {
+            const string path = "ProjectSettings/ShiroOutfit_versions.json";
+            var disk = AvatarVersionManager.CaptureSettings();
+            var memory = AvatarVersionManager.ExportRaw();
+            var before = OutfitProjectData.CaptureSettings();
+            if (File.Exists(path)) File.Delete(path);
+            Directory.CreateDirectory(path);
+            try
+            {
+                var bundle = "{\"data\":\"{\\\"avatars\\\":[]}\",\"versions\":\"{\\\"versions\\\":[]}\"}";
+                Assert.Throws<AggregateException>(() => OutfitBatchUploader.ImportSettingsBundle(bundle));
+                Assert.AreEqual(before, OutfitProjectData.CaptureSettings());
+                Assert.AreEqual(memory, AvatarVersionManager.ExportRaw());
+            }
+            finally { Directory.Delete(path); AvatarVersionManager.RestoreSettings(disk, memory); }
         }
         [Test] public void BackupRecoveryPreservesCorruptPrimary()
         {

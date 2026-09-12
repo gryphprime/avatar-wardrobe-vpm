@@ -20,8 +20,9 @@ Open Tools > Avatar Wardrobe after Unity compiles.
 Windows includes a private Python runtime. macOS requires python3 on PATH;
 optional Apple Intelligence features require macOS 26 or later.
 
-This initial VPM has C# compilation and packaging checks, but has not yet
-been validated through a full fresh VCC/ALCOM installation and avatar upload.
+The local release candidate passes Unity 2022.3.22f1 compilation and the
+Avatar Wardrobe EditMode suite (105 passed, three optional integrations skipped).
+A fresh VCC/ALCOM installation and a real avatar upload remain release gates.
 
 ## Local experimental views
 
@@ -97,3 +98,42 @@ node Tools/Tests/test_write_queue.cjs
 ```
 
 Editor coverage is in `OffloadTests` (revision identity, worker PNG pixels/alpha, catalog replacement/deletion/schema handling) and the updated `OperationExecutorTests`. The standalone checks and compilation passed during implementation; the Editor-only tests were compiled but could not be executed through the available Test Runner automation. No upload or live-avatar performance benchmark was performed.
+
+
+### Thumbnail performance and release checks (2026-09-12)
+
+The browser schedules cached thumbnail reads separately from Unity renders: four
+cache probes can proceed while up to two grid render requests wait on the Editor,
+with a third render slot reserved for the selected item. Low-resolution previews
+still appear first when a 512px image is unavailable. Fingerprinted, current-session
+responses permit browser caching; explicit retries bypass cached responses and
+replace pending requests without replaying old work.
+
+Visible high-resolution renders now wait one render duration (minimum 100 ms)
+between jobs, instead of three. Speculative renders retain the existing longer
+idle interval. Low/high PNG encoding queues have independent limits of eight/four;
+capacity is checked before rendering so a saturated queue cannot discard a preview
+and leave it permanently marked as attempted.
+
+The selected-item gallery delegates loading and failure states to the preview
+pipeline. Worn-copy controls tolerate responses without exact instance IDs and
+keep removal disabled until a valid copy can be selected. Saved appearance controls
+wait for Unity's asynchronous inspection revision before enabling Save and refresh
+that readiness for up to 30 attempts without blocking the page.
+
+Focused regression commands from the project root:
+
+```sh
+node Tools/Tests/test_preview_pipeline.cjs
+node Tools/Tests/test_worn_copy_identity.cjs
+node Tools/Tests/test_preset_appearance_readiness.cjs
+python3 Tools/ReviewTests/package_preflight.py Packages/dev.gryphprime.avatar-wardrobe
+```
+
+The controlled scheduler regression delivered 12 cached images behind two simulated
+300 ms Unity requests in about 1–2 ms, versus 302 ms before the change. This measures
+queue scheduling, not real prefab render time. The full EditMode suite was run with
+graphics in a disposable Unity project. Live large-avatar latency and Windows runtime
+validation still need target-machine testing. The package version is unchanged;
+carry these installed-package edits into the source repository and assign the release
+version before publishing.

@@ -42,6 +42,7 @@
   }
   var writeStatusNode=null;
   window.addEventListener('wardrobe-write-status',function(event){
+    if(event.detail.error)toast(event.detail.error,'err');
     var pending=event.detail.pending;
     if(!pending){if(writeStatusNode)writeStatusNode.remove();writeStatusNode=null;return;}
     if(!writeStatusNode){writeStatusNode=document.createElement('div');writeStatusNode.className='toast';writeStatusNode.setAttribute('role','status');$('toasts').appendChild(writeStatusNode);}
@@ -230,25 +231,45 @@
     if(gridPreloadFrame) return;
     gridPreloadFrame=requestAnimationFrame(function(){gridPreloadFrame=0;preloadGrid();});
   }
-  function preloadGrid(){
-    if(document.hidden||!document.hasFocus()||currentView!=="wardrobe") return;
+  // Share the same viewport and look-ahead set with the Unity high-res warmer.
+  function gridPreviewDemand(){
     var main=$("main"),bounds=main.getBoundingClientRect();
     var cards=Array.from(grid.children).filter(function(card){return !card.hidden;});
-    var lastVisible=-1;
-    cards.forEach(function(card,index){
+    var visible=[],lastVisible=-1;
+    if(currentView==="wardrobe") cards.forEach(function(card,index){
       var rect=card.getBoundingClientRect();
-      if(rect.bottom>bounds.top&&rect.top<bounds.bottom){
-        lastVisible=index;
-        previews.bind(card.querySelector(".thumb"),card._family.thumb,{priority:1,root:main});
+      if(rect.width>0&&rect.height>0&&rect.bottom>bounds.top&&rect.top<bounds.bottom&&rect.right>bounds.left&&rect.left<bounds.right){
+        lastVisible=index;visible.push(card);
       }
     });
-    if(lastVisible<0) return;
-    cards.slice(lastVisible+1,lastVisible+1+gridPreloadCount).forEach(function(card){
+    var ahead=lastVisible<0?[]:cards.slice(lastVisible+1,lastVisible+1+gridPreloadCount);
+    return {visible:visible,ahead:ahead,remaining:lastVisible<0?gridPreloadCount:cards.length-lastVisible-1,
+      visibleGuids:visible.map(function(card){return card._family.thumb;}).filter(Boolean).join(","),
+      guids:Array.from(new Set(visible.concat(ahead).map(function(card){return card._family.thumb;}).filter(Boolean))).slice(0,120).join(",")};
+  }
+  var previewDemandTimer=0,lastPreviewDemand="";
+  function schedulePreviewDemand(){
+    if(previewDemandTimer) return;
+    previewDemandTimer=setTimeout(function(){
+      previewDemandTimer=0;
+      var demand=gridPreviewDemand();
+      if(!document.hidden&&document.hasFocus()&&demand.guids+"|"+demand.visibleGuids!==lastPreviewDemand) pingActive(true);
+    },150);
+  }
+  function preloadGrid(){
+    if(document.hidden||!document.hasFocus()||currentView!=="wardrobe") return;
+    var main=$("main"),demand=gridPreviewDemand();
+    demand.visible.forEach(function(card){
+      previews.bind(card.querySelector(".thumb"),card._family.thumb,{priority:1,root:main});
+    });
+    demand.ahead.forEach(function(card){
       previews.bind(card.querySelector(".thumb"),card._family.thumb,{priority:3,root:main});
     });
+    schedulePreviewDemand();
     // Fetch the next metadata page early enough to keep forty cards ahead of the viewport.
-    if(cards.length-lastVisible-1<gridPreloadCount) loadMore();
+    if(demand.remaining<gridPreloadCount) loadMore();
   }
+
   function renderGrid(){
     R.reconcile(grid,listItems,function(f){return f.id;},function(f){
       var card=cardCache.get(f.id);
@@ -520,7 +541,7 @@
       modalContent.innerHTML=
         '<div class="detail-columns"><section class="detail-gallery" aria-label="'+esc(T("detail.variants"))+'">'+
         '<div id="dCreator" class="inspector-creator"></div>'+
-        '<div class="imgwrap"><div class="imgspin" id="dSpin">'+spinner(30)+'</div><img class="big" id="dImg" style="display:none;position:relative"></div>'+
+        '<div class="imgwrap preview-loading"></div>'+
         '<div class="variant-head"><span>'+esc(multi?T("detail.variants"):T("variant.default"))+'</span><span id="dVariantCount"></span></div>'+
         (multi
           ? '<div class="variant-control"><button class="variant-nav" id="dPrevVar" aria-label="'+esc(T("nav.prev.variant"))+'">&#8249;</button><div class="filmstrip" id="dFilm"></div><button class="variant-nav" id="dNextVar" aria-label="'+esc(T("nav.next.variant"))+'">&#8250;</button></div>'
@@ -743,9 +764,13 @@
         document.getElementById('dPresetWrap').appendChild(copyWrap);copy=document.getElementById('dInstance');
       }
       var copies=installedPresets.find(function(p){return p.id===id;}),oldId=detailInstanceId||Number(copy.value)||0;
-      copy.innerHTML='<option value="">'+esc(T('detail.chooseCopy'))+'</option>'+(copies?copies.paths:[]).map(function(path,index){return '<option value="'+esc(copies.instanceIds[index])+'">'+esc(path)+'</option>';}).join('');
-      if(copies&&copies.instanceIds.indexOf(oldId)>=0)copy.value=String(oldId);
-      else if(copies&&copies.instanceIds.length===1)copy.value=String(copies.instanceIds[0]);
+      // Older hosts can report paths without exact scene instance IDs. Keep
+      // removal disabled until identities arrive instead of breaking the panel.
+      var paths=copies&&Array.isArray(copies.paths)?copies.paths:[],ids=copies&&Array.isArray(copies.instanceIds)?copies.instanceIds:[];
+      var choices=paths.length===ids.length?paths.map(function(path,index){return {path:path,id:Number(ids[index])};}).filter(function(item){return Number.isInteger(item.id)&&item.id!==0;}):[];
+      copy.innerHTML='<option value="">'+esc(T('detail.chooseCopy'))+'</option>'+choices.map(function(item){return '<option value="'+esc(item.id)+'">'+esc(item.path)+'</option>';}).join('');
+      if(choices.some(function(item){return item.id===oldId;}))copy.value=String(oldId);
+      else if(choices.length===1)copy.value=String(choices[0].id);
       copy.parentElement.hidden=!present;
       function chooseCopy(){
         detailInstanceId=Number(copy.value)||0;
@@ -934,7 +959,7 @@
   }
 
 
-  var operations=window.WardrobeOperations.create({api:api,onChange:paintOperations,onSettled:function(record){
+  var operations=window.WardrobeOperations.create({api:api,onChange:paintOperations,onHydrated:function(){dropCaches();loadInstalled();load(false,true);refreshState();},onSettled:function(record){
     if(window.WardrobeOperations.isMutation(record.type)&&record.state==='succeeded'){
       if(snapshots)snapshots.mutationSettled(record);
       dropCaches();sideContent.dataset.signature='';loadInstalled();load(false,true);refreshState();
@@ -1013,6 +1038,7 @@
 
   var uploadUI=new WardrobeUpload({api:api,T:T,toast:toast,esc:esc,spinner:spinner,onChange:refreshState,onPresetCreated:presetCreated});
   function setBatchView(view){
+    schedulePreviewDemand();
     if(Object.prototype.hasOwnProperty.call(viewFeatures,view)&&!viewFeatures[view]) return;
     if(detailBusy()) return;
     closeModal(); currentView=view;document.body.dataset.view=view;
@@ -1150,7 +1176,10 @@
     loadLangs().then(function(){applyStrings();paintHide();paintAvatarMode();dropCaches();sideContent.dataset.signature="";loadShops();load(false,true);refreshState();uploadUI.localize();if(selected) openDetail(selected);});
   };
   function pingActive(on){
-    return R.request("/api/active?on="+(on?"1":"0")+(on?"&grid="+encodeURIComponent(listItems.slice(0,120).map(function(item){return item.thumb;}).join(",")):""),{timeout:5000,keepalive:!on}).catch(function(){});
+    var previewDemand=on?gridPreviewDemand():null;
+    var demand=previewDemand?previewDemand.guids:"";
+    lastPreviewDemand=previewDemand?previewDemand.guids+"|"+previewDemand.visibleGuids:"";
+    return R.request("/api/active?on="+(on?"1":"0")+(on?"&grid="+encodeURIComponent(demand)+"&visible="+encodeURIComponent(previewDemand.visibleGuids):""),{timeout:5000,keepalive:!on}).catch(function(){});
   }
   var tickInFlight=false;
   async function tick(){

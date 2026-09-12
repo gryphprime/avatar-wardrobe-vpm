@@ -86,11 +86,29 @@ namespace OutfitToggleGenerator
                 throw new InvalidOperationException("Wait for pending outfit changes to settle before reviewing or building the avatar.");
         }
         private static string StableObjectId(UnityEngine.Object obj) => obj == null ? "" : GlobalObjectId.GetGlobalObjectIdSlow(obj).ToString();
+        internal static int FingerprintGeneration => contextGeneration;
+        private static async Task<string> RevisionAsync(VRCAvatarDescriptor avatar)
+        {
+            if (avatar == null) return "";
+            var generation = contextGeneration;
+            var source = await WardrobeTryOnWorker.FingerprintAsync(avatar, false);
+            var project = serverProjectPath;
+            var revision = await Task.Run(() =>
+            {
+                var text = source;
+                foreach (var name in WardrobeTryOnWorker.SettingsFingerprintFiles)
+                    text += ":" + WardrobeAtomicFile.HashFile(Path.Combine(project, "ProjectSettings", name));
+                return Digest(text);
+            });
+            if (avatar == null || generation != contextGeneration)
+                throw new InvalidOperationException("The avatar changed during revision inspection. Review again.");
+            return revision;
+        }
         private static string Revision(VRCAvatarDescriptor avatar)
         {
             if (avatar == null) return "";
             var text = WardrobeTryOnWorker.SourceFingerprint(avatar);
-            foreach (var name in new[] { "AvatarWardrobePresets.json", "AvatarWardrobeOverrides.json", "ShiroOutfit_data.json" })
+            foreach (var name in WardrobeTryOnWorker.SettingsFingerprintFiles)
                 text += ":" + WardrobeAtomicFile.HashFile(Path.Combine(serverProjectPath, "ProjectSettings", name));
             return Digest(text);
         }
@@ -142,16 +160,17 @@ namespace OutfitToggleGenerator
                 };
                 // Chunk scene reads across editor updates; no full-avatar traversal in Pump.
                 var project = context.projectId;
-                var visualSettings = await Task.Run(() => string.Join(":", new[] { "AvatarWardrobePresets.json", "AvatarWardrobeOverrides.json", "ShiroOutfitProjectData.json" }
+                var visualSettings = await Task.Run(() => string.Join(":", WardrobeTryOnWorker.SettingsFingerprintFiles
                     .Select(name => WardrobeAtomicFile.HashFile(Path.Combine(project, "ProjectSettings", name)))));
                 var reuse = cachedSourceAvatar == context.avatarInstanceId && cachedFingerprintGeneration == generation &&
                     EditorApplication.timeSinceStartup < nextFullFingerprint && !string.IsNullOrEmpty(cachedSourceFingerprint);
-                var source = reuse ? cachedSourceFingerprint : await WardrobeTryOnWorker.FingerprintAsync(avatar, false);
-                context.visualRevision = reuse && cachedVisualSettings == visualSettings ? cachedVisualFingerprint : await WardrobeTryOnWorker.FingerprintAsync(avatar, true);
+                var pair = reuse ? null : await WardrobeTryOnWorker.FingerprintPairAsync(avatar);
+                var source = reuse ? cachedSourceFingerprint : pair[0];
+                context.visualRevision = !reuse ? pair[1] : cachedVisualSettings == visualSettings ? cachedVisualFingerprint : await WardrobeTryOnWorker.FingerprintAsync(avatar, true);
                 context.revision = avatar == null ? "" : await Task.Run(() =>
                 {
                     var text = source;
-                    foreach (var name in new[] { "AvatarWardrobePresets.json", "AvatarWardrobeOverrides.json", "ShiroOutfit_data.json" })
+                    foreach (var name in WardrobeTryOnWorker.SettingsFingerprintFiles)
                         text += ":" + WardrobeAtomicFile.HashFile(Path.Combine(project, "ProjectSettings", name));
                     return Digest(text);
                 });
@@ -291,7 +310,7 @@ namespace OutfitToggleGenerator
                         throw new InvalidOperationException("The predecessor is not a confirmed change for this exact target.");
                     expected = prior.result.confirmedRevision;
                 }
-                if (Revision(avatar) != expected) throw new InvalidOperationException("The avatar or wardrobe settings changed since this command was prepared. Refresh and review.");
+                if (await RevisionAsync(avatar) != expected) throw new InvalidOperationException("The avatar or wardrobe settings changed since this command was prepared. Refresh and review.");
                 var asset = string.IsNullOrEmpty(c.payload.variantId) ? "" : AssetDatabase.GUIDToAssetPath(c.payload.variantId);
                 if (!string.IsNullOrEmpty(c.payload.variantId) && (string.IsNullOrEmpty(asset) ||
                     (!string.IsNullOrEmpty(c.payload.assetVersion) && AssetDatabase.GetAssetDependencyHash(asset).ToString() != c.payload.assetVersion)))
@@ -300,7 +319,7 @@ namespace OutfitToggleGenerator
                 if (c.type == "remove-outfit" && AssetDatabase.AssetPathToGUID(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(exact)) != c.payload.variantId)
                     throw new InvalidOperationException("The worn copy is no longer the requested variant.");
                 if ((await Task.Run(() => ledger.Change(c.id, "running"))).state != "running") return ledger.Get(c.id);
-                if (operationQueue.IsClosed || session != serverSession || avatar != SceneAvatar || Revision(avatar) != expected)
+                if (operationQueue.IsClosed || session != serverSession || avatar != SceneAvatar || await RevisionAsync(avatar) != expected)
                     throw new InvalidOperationException("The target changed while the operation was being recorded. Review before retrying.");
                 activeOperationId = c.id;
                 var outcome = new WardrobeOperationReceipt.Outcome { sourceRevision = expected, affectedInstanceIds = new string[0] };
@@ -374,7 +393,7 @@ namespace OutfitToggleGenerator
                 }
                 if (operationQueue.IsClosed || session != serverSession || avatar == null || avatar != SceneAvatar)
                     throw new InvalidOperationException("The Unity session or target changed while working. Review the result.");
-                outcome.confirmedRevision = Revision(avatar); outcome.unsaved = avatar.gameObject.scene.isDirty;
+                outcome.confirmedRevision = await RevisionAsync(avatar); outcome.unsaved = avatar.gameObject.scene.isDirty;
                 if (checkpoint != null)
                 {
                     Undo.FlushUndoRecordObjects();

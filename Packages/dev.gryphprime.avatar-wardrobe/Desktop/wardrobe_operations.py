@@ -109,6 +109,7 @@ class OperationQueue:
         self.owner = str(uuid.uuid4())
         self.lock = threading.RLock()
         self.closed = False
+        self.wake = threading.Event()
         self._observed_session = None
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, timeout=5, check_same_thread=False, isolation_level=None)
@@ -146,6 +147,10 @@ class OperationQueue:
                         self._fingerprint(raw), _json(command.get('target', {})), state, row['created'],
                         self.clock(), row['result'], 'Legacy receipt: review the scene before creating another command.', 1))
                 self.db.execute('DROP TABLE operations_legacy')
+            if self.db.execute('PRAGMA user_version').fetchone()[0] < 1:
+                # Older hosts marked cancellation sent before transport delivery.
+                self.db.execute("UPDATE operations SET cancel_sent=0 WHERE state='running' AND cancel_requested=1")
+                self.db.execute('PRAGMA user_version=1')
             self._prune()
 
     @contextmanager
@@ -201,6 +206,7 @@ class OperationQueue:
             self.db.execute('''INSERT INTO operations (id,project,type,command,fingerprint,target_key,state,created,updated,waiting_reason)
                 VALUES (?,?,?,?,?,?,'queued',?,?,?)''', (identifier, self.project_id, command['type'], raw, fingerprint, target_key, now, now, waiting))
             self._prune()
+            self.wake.set()
             return self._receipt(self._lookup(identifier))
 
     def _lookup(self, identifier):
@@ -247,6 +253,7 @@ class OperationQueue:
                 elif row['state'] == 'running':
                     self.db.execute('UPDATE operations SET cancel_requested=1,updated=? WHERE id=?', (self.clock(), identifier))
                 self._prune()
+            self.wake.set()
             return self._receipt(self._lookup(identifier)) if row else self._unknown(identifier)
 
     def reconcile_session(self, context):
@@ -279,7 +286,15 @@ class OperationQueue:
         self._observed_session = session
         return changed
 
+    def has_work(self):
+        with self.lock:
+            return self.db.execute("SELECT 1 FROM operations WHERE project=? AND state IN ('queued','running') LIMIT 1", (self.project_id,)).fetchone() is not None
+
     def acquire_lease(self):
+        with self.lock:
+            row = self.db.execute("SELECT owner,expires FROM operation_leases WHERE project=?", (self.project_id,)).fetchone()
+            if row and row["owner"] == self.owner and row["expires"] > self.clock() + self.lease_seconds / 3:
+                return True
         with self._transaction():
             now = self.clock()
             row = self.db.execute('SELECT * FROM operation_leases WHERE project=?', (self.project_id,)).fetchone()
@@ -333,6 +348,9 @@ class OperationQueue:
             return None
 
     def _update(self, identifier, **fields):
+        row = self._lookup(identifier)
+        if row and all(row[key] == value for key, value in fields.items()):
+            return
         fields['updated'] = self.clock()
         self.db.execute('UPDATE operations SET ' + ','.join(key + '=?' for key in fields) + ' WHERE id=? AND project=?',
                         tuple(fields.values()) + (identifier, self.project_id))
@@ -351,8 +369,8 @@ class OperationQueue:
     def waiting(self, identifier, reason):
         with self._transaction():
             if self._owns_lease():
-                self.db.execute("UPDATE operations SET waiting_reason=?,updated=? WHERE id=? AND project=? AND state IN ('queued','running')",
-                                (reason[:1024], self.clock(), identifier, self.project_id))
+                self.db.execute("UPDATE operations SET waiting_reason=?,updated=? WHERE id=? AND project=? AND state IN ('queued','running') AND waiting_reason != ?",
+                                (reason[:1024], self.clock(), identifier, self.project_id, reason[:1024]))
         return self.get(identifier)
 
     def request_bridge_cancel(self, identifier):
@@ -362,7 +380,7 @@ class OperationQueue:
             row = self._lookup(identifier)
             if not row or 'receipt' in row.keys() or row['state'] != 'running' or not row['cancel_requested'] or row['cancel_sent']:
                 return False
-            self._update(identifier, cancel_sent=1)
+            # Intent is durable; only a valid Unity acknowledgement marks delivery.
             return True
 
     def record_bridge(self, identifier, receipt):
@@ -391,7 +409,8 @@ class OperationQueue:
             self._update(identifier, state='running' if state == 'queued' else state,
                          result=_json(result) if result is not None else None, error=error[:4096] if error else None,
                          waiting_reason=waiting[:1024] if isinstance(waiting, str) else '',
-                         cancel_requested=int(bool(row['cancel_requested'] or receipt.get('cancelRequested'))))
+                         cancel_requested=int(bool(row['cancel_requested'] or receipt.get('cancelRequested'))),
+                         cancel_sent=int(bool(row['cancel_sent'] or receipt.get('cancelRequested') is True)))
             self._prune()
             return self.get(identifier)
 
@@ -439,7 +458,7 @@ class OperationDriver:
 
     def _step(self):
         queue = self.queue
-        if not queue.acquire_lease():
+        if not queue.has_work() or not queue.acquire_lease():
             return None
         operation = queue.next()
         if not operation:

@@ -144,6 +144,42 @@ def load_manifest(path):
     return path, manifest
 
 
+def process_identity(pid):
+    """Non-signalling query: (alive/dead/unknown, OS process start identity)."""
+    if not isinstance(pid, int) or pid <= 0: return 'unknown', None
+    if os.name == 'nt':
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+        handle = kernel.OpenProcess(0x1000, False, pid) # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle: return ('dead' if ctypes.get_last_error() == 87 else 'unknown'), None
+        try:
+            code = wintypes.DWORD()
+            if not kernel.GetExitCodeProcess(handle, ctypes.byref(code)): return 'unknown', None
+            if code.value != 259: return 'dead', None
+            times = [wintypes.FILETIME() for _ in range(4)]
+            if not kernel.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]): return 'unknown', None
+            return 'alive', str((times[0].dwHighDateTime << 32) | times[0].dwLowDateTime)
+        finally: kernel.CloseHandle(handle)
+    try:
+        os.kill(pid, 0) # POSIX only; never used on Windows.
+    except ProcessLookupError: return 'dead', None
+    except OSError: return 'unknown', None
+    try:
+        if Path('/proc').is_dir():
+            fields = Path('/proc', str(pid), 'stat').read_text().rsplit(')', 1)[1].split()
+            return 'alive', fields[19]
+        result = subprocess.run(['ps', '-p', str(pid), '-o', 'lstart='], capture_output=True, text=True, timeout=2)
+        stamp = result.stdout.strip()
+        return ('alive', stamp) if result.returncode == 0 and stamp else ('unknown', None)
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired): return 'unknown', None
+
+
 def lifecycle_locked(function):
     @wraps(function)
     def invoke(self, *args, **kwargs):
@@ -198,8 +234,10 @@ class ShadowWorker:
         if destination.is_relative_to(source / 'Assets') or destination.is_relative_to(source / 'Packages'):
             raise ValueError('The shadow project cannot be inside source Assets or Packages.')
         self.cache.mkdir(parents=True, exist_ok=True)
+        preserve_library = False
         if self.project.exists():
             owner = self._owner()
+            preserve_library = owner.get("environmentRevision") == manifest["environmentRevision"] and owner.get("sourceProject") == str(source)
             if owner.get('captureId') == manifest['captureId'] and owner.get('environmentRevision') == manifest['environmentRevision']:
                 return owner
             if (self.project / 'Temp/UnityLockfile').exists() or self.status().get('state') not in ('stopped', 'not-started', 'failed'):
@@ -217,13 +255,22 @@ class ShadowWorker:
                     continue
                 package_source = Path(package['sourcePath']).absolute()
                 package_target = temporary / 'Packages' / package['name']
-                for entry in package['files']:
-                    copy_checked(package_source, entry, package_target)
+                if preserve_library:
+                    package_target = self.project / 'Packages' / package['name']
+                    for entry in package['files']:
+                        existing = package_target / relative_path(entry['path'])
+                        no_links(existing, package_target)
+                        if existing.stat().st_size != entry['bytes'] or sha256(existing) != entry['sha256']:
+                            raise ValueError('The preserved package environment changed. Reset the private worker before staging.')
+                else:
+                    for entry in package['files']:
+                        copy_checked(package_source, entry, package_target)
                 data = json.loads((package_target / 'package.json').read_text(encoding='utf-8'))
                 if data.get('name') != package['name'] or data.get('version') != package['version']:
                     raise ValueError('Copied package identity does not match the capture.')
                 dependencies[package['name']] = 'file:' + str(destination / 'Packages' / package['name'])
-            atomic_json(temporary / 'Packages/manifest.json', {'dependencies': dependencies})
+            if not preserve_library:
+                atomic_json(temporary / 'Packages/manifest.json', {'dependencies': dependencies})
             runtime_relative = Path('Library/AvatarWardrobeShadow')
             for folder in ('commands', 'results', 'images'):
                 (temporary / runtime_relative / folder).mkdir(parents=True, exist_ok=True)
@@ -239,8 +286,22 @@ class ShadowWorker:
             atomic_json(temporary / runtime_relative / 'state.json', {'state': 'not-started', 'captureId': manifest['captureId']})
             if self.project.exists():
                 self._owner()  # Recheck immediately before replacing only our owned output.
+                if preserve_library:
+                    if (self.project / 'Packages').is_symlink(): raise ValueError('Linked worker packages cannot be preserved.')
+                    os.replace(self.project / 'Packages', temporary / 'Packages')
+                if preserve_library and (self.project / 'Library').is_dir():
+                    library = self.project / 'Library'
+                    if library.is_symlink(): raise ValueError('Linked worker Library cannot be preserved.')
+                    # Runtime receipts belong to the old capture; import artifacts do not.
+                    old_runtime = library / 'AvatarWardrobeShadow'
+                    if old_runtime.is_symlink(): raise ValueError('Linked worker runtime cannot be replaced.')
+                    if old_runtime.exists(): shutil.rmtree(old_runtime)
+                    os.replace(temporary / runtime_relative, old_runtime)
+                    (temporary / 'Library').rmdir()
+                    os.replace(library, temporary / 'Library')
                 shutil.rmtree(self.project)
             os.replace(temporary, self.project)
+            self.process = None
             return owner
         finally:
             if temporary.exists():
@@ -250,6 +311,8 @@ class ShadowWorker:
     def start(self, unity):
         self._owner()
         current = self.status()
+        if current.get('state') == 'unknown':
+            raise ValueError(current.get('message') or 'Worker ownership is unknown.')
         if current.get('state') in ('starting', 'initializing', 'processing', 'ready'):
             return current
         if (self.project / 'Temp/UnityLockfile').exists():
@@ -272,7 +335,7 @@ class ShadowWorker:
         except Exception:
             atomic_json(self.runtime / 'state.json', {'state': 'failed', 'message': 'Unity could not be started.'})
             raise
-        atomic_json(self.runtime / 'launch.json', {'pid': self.process.pid, 'command': command, 'started': time.time()})
+        atomic_json(self.runtime / 'launch.json', {'pid': self.process.pid, 'command': command, 'started': time.time(), 'processIdentity': process_identity(self.process.pid)[1]})
         return {**state, 'pid': self.process.pid}
 
     def status(self):
@@ -285,12 +348,13 @@ class ShadowWorker:
             return {**state, 'state': 'failed', 'message': 'The Unity worker exited. Inspect its Unity.log.', 'exitCode': self.process.returncode}
         launch = self.runtime / 'launch.json'
         if self.process is None and launch.exists() and state.get('state') not in ('stopped', 'not-started', 'failed'):
-            pid = json.loads(launch.read_text()).get('pid')
-            if isinstance(pid, int) and pid > 0:
-                try:
-                    os.kill(pid, 0)  # Read-only liveness probe; never terminate a recovered PID.
-                except ProcessLookupError:
-                    return {**state, 'state': 'failed', 'message': 'The Unity worker exited. Inspect its Unity.log.'}
+            launch_data = json.loads(launch.read_text())
+            health, identity = process_identity(launch_data.get('pid'))
+            expected = launch_data.get('processIdentity')
+            if health == 'dead' or (identity and expected and identity != expected):
+                return {**state, 'state': 'failed', 'message': 'The original Unity worker exited. Inspect its Unity.log.'}
+            if health != 'alive' or not identity or not expected:
+                return {**state, 'state': 'unknown', 'message': 'Worker ownership could not be verified. Close the private editor before recovery.'}
         return state
 
     def wait_ready(self, timeout=180):

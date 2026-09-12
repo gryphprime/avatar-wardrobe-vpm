@@ -613,7 +613,7 @@ namespace ShiroTools
                     // was rebuilt in the meantime and the UI entry object is stale/gone.
                     var entry = _outfits.FirstOrDefault(o => o.Name == outfitName);
                     var data = entry?.Data ?? (_avatarRoot != null
-                        ? OutfitProjectData.GetOutfit(_avatarRoot.name, outfitName)
+                        ? OutfitProjectData.GetOutfit(UploadAvatarKey, UploadOutfitKey(outfitName))
                         : null);
                     if (entry != null) entry.BlueprintId = newId;
                     if (data != null)

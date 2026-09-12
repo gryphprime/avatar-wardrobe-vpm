@@ -118,10 +118,12 @@ namespace OutfitToggleGenerator
             var staging = "Assets/__WardrobeCapture_" + id;
             var output = Path.Combine(project, "Library", "AvatarWardrobe", "captures", id);
             var journalPath = Path.Combine(project, "Library", "AvatarWardrobe", "capture-staging", id + ".json");
+            var fingerprints = offload ? await WardrobeTryOnWorker.FingerprintPairAsync(avatar) :
+                new[] { WardrobeTryOnWorker.SourceFingerprint(avatar), WardrobeTryOnWorker.VisualFingerprint(avatar) };
             var manifest = new Manifest
             {
                 captureId = id, projectPath = project, avatarId = avatar.GetInstanceID(), appearanceRecipe = recipe,
-                sourceRevision = WardrobeTryOnWorker.SourceFingerprint(avatar), visualRevision = WardrobeTryOnWorker.VisualFingerprint(avatar),
+                sourceRevision = fingerprints[0], visualRevision = fingerprints[1],
                 unityVersion = Application.unityVersion, buildTarget = EditorUserBuildSettings.activeBuildTarget.ToString(),
                 colorSpace = QualitySettings.activeColorSpace.ToString(), qualityLevel = QualitySettings.GetQualityLevel(),
                 originalCandidateGuid = candidateGuid ?? "", candidateGuid = "",
@@ -220,7 +222,7 @@ namespace OutfitToggleGenerator
                     string.Join(";", manifest.files.Where(file => file.path.StartsWith("ProjectSettings/", StringComparison.Ordinal))
                         .Select(file => file.path + "=" + file.sha256)));
                 }, offload);
-                if ((canContinue != null && !canContinue()) || avatar == null || manifest.sourceRevision != WardrobeTryOnWorker.SourceFingerprint(avatar) || sourceDirty != avatar.gameObject.scene.isDirty)
+                if ((canContinue != null && !canContinue()) || avatar == null || manifest.sourceRevision != (offload ? await WardrobeTryOnWorker.FingerprintAsync(avatar, false) : WardrobeTryOnWorker.SourceFingerprint(avatar)) || sourceDirty != avatar.gameObject.scene.isDirty)
                     throw new InvalidOperationException("The source avatar changed during capture. Capture it again.");
                 manifest.manifestPath = Path.Combine(output, "manifest.json");
                 await Disk(() => WriteJson(manifest.manifestPath, manifest), offload);
@@ -338,45 +340,34 @@ namespace OutfitToggleGenerator
             public string kind = "wardrobe-package-snapshot-v1", key, name, version;
             public long bytes, lastUsed;
         }
-        [Serializable] private sealed class CacheLockOwner { public int pid; public long created; }
         private sealed class SnapshotCacheLock : IDisposable
         {
-            private readonly string path;
+            private static readonly object Gate = new object();
             private FileStream stream;
             internal SnapshotCacheLock(string project)
             {
-                var folder = Path.Combine(project, "Library", "AvatarWardrobe");
-                Directory.CreateDirectory(folder);
-                path = Path.Combine(folder, "snapshot-retention.lock");
-                for (var attempt = 0; attempt < 200; attempt++)
+                System.Threading.Monitor.Enter(Gate);
+                try
                 {
-                    try
+                    var folder = Path.Combine(project, "Library", "AvatarWardrobe");
+                    Directory.CreateDirectory(folder);
+                    stream = new FileStream(Path.Combine(folder, "snapshot-retention-v2.lock"),
+                        FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+                    for (var attempt = 0; attempt < 200; attempt++)
                     {
-                        stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
-                        var value = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new CacheLockOwner
-                        { pid = System.Diagnostics.Process.GetCurrentProcess().Id, created = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }));
-                        stream.Write(value, 0, value.Length); stream.Flush(); return;
+                        try { stream.Lock(0, 1); return; }
+                        catch (IOException) { System.Threading.Thread.Sleep(10); }
                     }
-                    catch (IOException)
-                    {
-                        if (stream != null) { stream.Dispose(); stream = null; if (File.Exists(path)) File.Delete(path); throw; }
-                        if (File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) > TimeSpan.FromMinutes(5))
-                        {
-                            try
-                            {
-                                var owner = JsonUtility.FromJson<CacheLockOwner>(File.ReadAllText(path));
-                                var process = System.Diagnostics.Process.GetProcessById(owner.pid);
-                                if (process.HasExited || process.StartTime.ToUniversalTime() > DateTimeOffset.FromUnixTimeSeconds(owner.created).UtcDateTime.AddSeconds(2)) File.Delete(path);
-                            }
-                            catch (ArgumentException) { File.Delete(path); }
-                            catch (Exception) { }
-                        }
-                        System.Threading.Thread.Sleep(10);
-                    }
+                    throw new InvalidOperationException("Snapshot retention is busy. Try the capture again.");
                 }
-                throw new InvalidOperationException("Snapshot retention is busy. Try the capture again.");
+                catch { stream?.Dispose(); stream = null; System.Threading.Monitor.Exit(Gate); throw; }
             }
-            public void Dispose() { stream?.Dispose(); if (stream != null && File.Exists(path)) File.Delete(path); }
+            public void Dispose()
+            {
+                if (stream == null) return;
+                try { stream.Unlock(0, 1); }
+                finally { stream.Dispose(); stream = null; System.Threading.Monitor.Exit(Gate); }
+            }
         }
         private static void SnapshotPackage(string project, PackageRecord entry)
         {

@@ -1,10 +1,26 @@
-Preserve catalog scroll position when adding an outfit.
+Speed up thumbnail loading and improve wardrobe recovery.
 
-Adding an outfit and background catalog refreshes retain all previously loaded
-pages, keeping the browser at its current scroll position. Changing filters or
-search queries continues to start at the top.
+Cached high-resolution images now load through a separate bounded queue, so they
+can appear while Unity generates other previews. Current fingerprinted thumbnails
+use browser caching, and selected previews retain a render slot. Visible thumbnail
+generation has a shorter cooldown without increasing speculative background work.
 
-Validation: JavaScript syntax and focused pagination/scroll behavior checks,
-plus the package regression suite.
+Preview retry and selected-item error states recover reliably. Worn-copy controls
+handle incomplete scene identity data, and saved appearance waits for a valid
+inspection revision before enabling Save.
+
+Also includes asynchronous shared avatar fingerprinting, complete library
+pagination, bounded background operation queues, persistent write receipts,
+transactional settings import, and scene-scoped preset settings.
+
+Validation: 105 Unity EditMode tests passed with graphics in a disposable project;
+3 optional integrations skipped. Repository Python and JavaScript regressions
+passed, including controlled preview latency, retry, identity, and appearance tests.
+The preview queue benchmark improved from about 302 ms to 1–2 ms for cached images
+behind two simulated 300 ms renders; this is not a live avatar render benchmark.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.
+
+Post-push QA also fixed shared-preview retry repainting and styling, one-time
+retry state, generated Python-cache validation, and disposable Unity test setup.
+See QA-2026-09-12.md for exercised workflows and remaining integration checks.

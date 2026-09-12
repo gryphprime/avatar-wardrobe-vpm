@@ -32,6 +32,60 @@ namespace OutfitToggleGenerator
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
         }
+        [UnityTest] public IEnumerator PairedFingerprintSharesTraversalAndPreservesBothIdentities()
+        {
+            var root = new GameObject("Paired fingerprint");
+            try
+            {
+                var avatar = root.AddComponent<VRCAvatarDescriptor>();
+                var source = WardrobeTryOnWorker.SourceFingerprint(avatar);
+                var visual = WardrobeTryOnWorker.VisualFingerprint(avatar);
+                var count = WardrobeTryOnWorker.FingerprintTraversals;
+                var pair = WardrobeTryOnWorker.FingerprintPairAsync(avatar);
+                while (!pair.IsCompleted) yield return null;
+                Assert.IsFalse(pair.IsFaulted, pair.Exception?.ToString());
+                Assert.AreEqual(source, pair.Result[0]); Assert.AreEqual(visual, pair.Result[1]);
+                Assert.AreEqual(count + 1, WardrobeTryOnWorker.FingerprintTraversals);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+        [Test] public void MenuLabelsRemainSemanticButDoNotInvalidateVisualIdentity()
+        {
+            var root = new GameObject("Menu fingerprint");
+            try
+            {
+                var avatar = root.AddComponent<VRCAvatarDescriptor>();
+                var layout = root.AddComponent<WardrobeMenuLayout>();
+                layout.nodes.Add(new WardrobeMenuLayout.Node { id = "folder", label = "Before", folder = true });
+                var source = WardrobeTryOnWorker.SourceFingerprint(avatar);
+                var visual = WardrobeTryOnWorker.VisualFingerprint(avatar);
+                layout.nodes[0].label = "After"; EditorUtility.SetDirty(layout);
+                Assert.AreNotEqual(source, WardrobeTryOnWorker.SourceFingerprint(avatar));
+                Assert.AreEqual(visual, WardrobeTryOnWorker.VisualFingerprint(avatar));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+        [Test] public void EveryDeclaredSettingsFileParticipatesInVisualIdentity()
+        {
+            var root = new GameObject("Settings fingerprint");
+            try
+            {
+                var avatar = root.AddComponent<VRCAvatarDescriptor>();
+                foreach (var file in WardrobeTryOnWorker.SettingsFingerprintFiles)
+                {
+                    var path = Path.Combine("ProjectSettings", file);
+                    var original = File.Exists(path) ? File.ReadAllBytes(path) : null;
+                    var before = WardrobeTryOnWorker.VisualFingerprint(avatar);
+                    try
+                    {
+                        File.AppendAllText(path, " ");
+                        Assert.AreNotEqual(before, WardrobeTryOnWorker.VisualFingerprint(avatar), file);
+                    }
+                    finally { if (original == null) File.Delete(path); else File.WriteAllBytes(path, original); }
+                }
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
         [UnityTest] public IEnumerator WorkerPngPreservesPixelOrientationAndAlpha()
         {
             var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);

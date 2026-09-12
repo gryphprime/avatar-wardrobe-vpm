@@ -37,6 +37,7 @@
     });
     Array.from(parent.children).forEach(function (node) { if (!retained.has(node)) node.remove(); });
   }
+  var queuedWrites = new Set(["cache_clear", "install", "remove", "preset_remove_item", "part_toggles", "menu_groups", "menu_execute", "scene_execute", "appearance_apply", "appearance_tool", "appearance_optimizer_apply", "regenerate_toggles", "migrate_avatar", "preset_save", "preset_delete", "preset_assign", "preset_show", "preset_include", "avatar_base", "workflow", "preset_appearance_save", "preset_appearance_apply", "batch_preset_config", "batch_preset_blends", "batch_preset_items", "batch_preset_faceemo", "batch_preset_from_scene", "batch_outfit_set", "batch_import", "batch_config_set", "batch_defaults_set", "batch_blendshape", "batch_item", "batch_faceemo"]);
   async function request(path, options) {
     options = options || {};
     var controller = new AbortController(), upstream = options.signal;
@@ -60,30 +61,71 @@
       read = init.method === "GET";
       if (!read) {
         init.headers = Object.assign({}, init.headers, {"X-Wardrobe-Request":"1", "X-Wardrobe-Queue":"1"});
+        if (queuedWrites.has(endpoint)) init.headers["X-Wardrobe-Write-Id"] = init.headers["X-Wardrobe-Write-Id"] || global.crypto.randomUUID();
         if (session) init.headers["X-Wardrobe-Session"] = session;
         if (avatarId) init.headers["X-Wardrobe-Avatar"] = String(avatarId);
       }
     } else if (!init.method) init.method = "GET";
+    var writeId = queuedWrites.has(endpoint) && !read && init.headers && init.headers["X-Wardrobe-Write-Id"];
+    if (writeId) rememberWrite(writeId, true);
     try {
-      var response = await fetch(path, init);
+      var response, body;
+      try { response = await fetch(path, init); if (!options.binary) body = await response.text(); }
+      catch (error) {
+        if (!read && queuedWrites.has(endpoint) && init.headers && init.headers['X-Wardrobe-Write-Id']) {
+          clearTimeout(timer);
+          return await waitForWrite(init.headers['X-Wardrobe-Write-Id']);
+        }
+        throw error;
+      }
       if (options.binary) return response;
-      var body = await response.text(), value;
+      var value;
       try { value = body ? JSON.parse(body) : null; }
-      catch (_) { throw new Error(response.ok ? "Invalid server response" : body.slice(0, 240)); }
-      if (!response.ok) throw new Error((value && (value.message || value.error)) || "Request failed (" + response.status + ")");
+      catch (_) {
+        if (response.status === 202 && writeId) { clearTimeout(timer); return await waitForWrite(writeId); }
+        var malformed = new Error(response.ok ? "Invalid server response" : body.slice(0, 240));
+        malformed.status = response.status; throw malformed;
+      }
+      if (!response.ok) {
+        var failure = new Error((value && (value.message || value.error)) || "Request failed (" + response.status + ")");
+        failure.status = response.status;
+        if (value && value.accepted === false) { failure.accepted = false; if (writeId) rememberWrite(writeId, false); }
+        throw failure;
+      }
       if (response.status === 202 && value && value.writeJob) {
         // Acceptance has its own timeout. Do not abort an accepted write after 45s.
         clearTimeout(timer);
         return await waitForWrite(value.writeJob);
       }
+      if (writeId) rememberWrite(writeId, false);
       return value;
     } finally {
       clearTimeout(timer);
       if (upstream) upstream.removeEventListener("abort", relay);
     }
   }
-  var pendingWrites = 0;
-  async function waitForWrite(id) {
+  var pendingWrites = 0, writePolls = new Map();
+  function rememberWrite(id, pending) {
+    try {
+      var ids = JSON.parse(global.localStorage.getItem('wardrobe.pendingWrites') || '[]');
+      ids = ids.filter(function(value){return value !== id;});
+      if (pending) ids.push(id);
+      global.localStorage.setItem('wardrobe.pendingWrites', JSON.stringify(ids.slice(-256)));
+    } catch (_) {}
+  }
+  function recoverWrites() {
+    try {
+      var ids = JSON.parse(global.localStorage.getItem('wardrobe.pendingWrites') || '[]');
+      ids.forEach(function(id){waitForWrite(id).catch(function(error){global.dispatchEvent(new CustomEvent('wardrobe-write-status', {detail:{pending:pendingWrites, error:error.message, id:id}}));});});
+    } catch (_) {}
+  }
+  function waitForWrite(id) {
+    if (writePolls.has(id)) return writePolls.get(id);
+    var result = pollWrite(id); writePolls.set(id, result);
+    result.then(function(){writePolls.delete(id);}, function(){writePolls.delete(id);});
+    return result;
+  }
+  async function pollWrite(id) {
     pendingWrites++;
     global.dispatchEvent(new CustomEvent('wardrobe-write-status', {detail:{pending:pendingWrites}}));
     var deadline = Date.now() + 30 * 60 * 1000;
@@ -92,9 +134,9 @@
         await new Promise(function(resolve){setTimeout(resolve, 500);});
         var receipt;
         try { receipt = await request('/api/write_result?id=' + encodeURIComponent(id), {method:'GET',timeout:8000}); }
-        catch (error) { throw new Error('Write status is unconfirmed. Refresh and check Unity before retrying. ' + error.message); }
-        if (receipt.state === 'completed') return receipt.result;
-        if (receipt.state === 'failed') throw new Error(receipt.error || 'Unity could not apply the change.');
+        catch (error) { if (error.status === 409 && Date.now() > deadline - 30 * 60 * 1000 + 10000) throw error; continue; }
+        if (receipt.state === 'completed') { rememberWrite(id, false); return receipt.result; }
+        if (receipt.state === 'failed' || receipt.state === 'needs-review') { rememberWrite(id, false); throw new Error(receipt.error || 'Unity could not confirm the change.'); }
       }
       throw new Error('Write status is unconfirmed. Refresh and check Unity before retrying.');
     } finally {
@@ -123,7 +165,7 @@
     if (event.shiftKey && index <= 0) { event.preventDefault(); targets[targets.length-1].focus(); }
     else if (!event.shiftKey && (index < 0 || index === targets.length-1)) { event.preventDefault(); targets[0].focus(); }
   });
-  global.WardrobeRuntime = {text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,setContext:function(value,id){session=value||"";avatarId=id||0;},openDialog:openDialog,closeDialog:closeDialog};
+  global.WardrobeRuntime = {text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,setContext:function(value,id){var previous=session;session=value||"";avatarId=id||0;if(session&&previous!==session)recoverWrites();},openDialog:openDialog,closeDialog:closeDialog};
 })(window);
 
 /* Update checks run in the browser, never on Unity's editor thread. */

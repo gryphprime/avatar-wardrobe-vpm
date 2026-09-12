@@ -24,12 +24,13 @@ from wardrobe_snapshot_cache import CaptureRetention
 
 
 class ShadowSnapshotService:
-    def __init__(self, cache, unity, project, *, timeout=180, history_bytes=256 * 1024 * 1024):
+    def __init__(self, cache, unity, project, *, timeout=180, history_bytes=256 * 1024 * 1024, max_active=16, max_completed=128):
         self.cache = Path(cache).expanduser().resolve()
         self.cache.mkdir(parents=True, exist_ok=True)
         self.unity = str(Path(unity).expanduser().resolve())
         self.project = str(Path(project).resolve())
         self.timeout, self.history_bytes = timeout, history_bytes
+        self.max_active, self.max_completed = max_active, max_completed
         self.worker = ShadowWorker(self.cache / 'worker')
         self.retention = CaptureRetention(self.project)
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='wardrobe-shadow')
@@ -46,8 +47,11 @@ class ShadowSnapshotService:
                 if receipt.get('state') in ('queued', 'waiting-for-worker', 'rendering', 'cancelling'):
                     receipt.update(state='needs-review', message='The desktop host restarted before this snapshot completed.')
                     atomic_json(path, receipt)
+                    try: self.retention.release(receipt.get('captureManifestPath', ''), receipt.get('id', ''))
+                    except (OSError, ValueError, RuntimeError): pass
             except (OSError, ValueError):
                 continue
+        self._prune_receipts()
 
     def submit(self, manifest_path, view='front', *, before=False, zoom=1.0, confirmed_revision='', target=None, operation_id='', source_input=None):
         path, manifest = load_manifest(manifest_path)
@@ -64,6 +68,17 @@ class ShadowSnapshotService:
         with self.lock:
             if self.closed:
                 raise RuntimeError('The snapshot service is closed.')
+            active = [r for r in self.requests.values() if r['receipt']['state'] in ('queued', 'waiting-for-worker', 'rendering', 'cancelling')]
+            for request in active:
+                receipt = request['receipt']
+                if (not request['cancel'].is_set() and receipt['snapshotKey'] == key and
+                        receipt['captureId'] == manifest['captureId'] and receipt['confirmedRevision'] == confirmed_revision and
+                        receipt['target'] == dict(target or {'projectId': self.project, 'avatarInstanceId': manifest.get('avatarId')}) and
+                        receipt['operationId'] == operation_id and receipt['input'] == dict(source_input or {})):
+                    return dict(receipt)
+            if len(active) >= self.max_active:
+                raise OverflowError('Snapshot queue is full. Wait for a photograph to finish.')
+            self._prune_receipts()
             identifier = uuid.uuid4().hex
             self.retention.acquire(path, identifier, max(3600, self.timeout * 3))
             receipt = {'id': identifier, 'state': 'queued', 'snapshotKey': key, 'captureId': manifest['captureId'],
@@ -72,10 +87,37 @@ class ShadowSnapshotService:
                        'operationId': operation_id, 'input': dict(source_input or {}), **specification}
             cancellation = threading.Event()
             self.requests[identifier] = {'receipt': receipt, 'cancel': cancellation}
-            self._write(receipt)
-            future = self.executor.submit(self._run, identifier, path, manifest)
-            self.requests[identifier]['future'] = future
+            try:
+                self._write(receipt)
+                future = self.executor.submit(self._run, identifier, path, manifest)
+                self.requests[identifier]['future'] = future
+                future.add_done_callback(lambda _: self._completed(identifier))
+            except BaseException:
+                self.requests.pop(identifier, None)
+                try: (self.cache / 'receipts' / (identifier + '.json')).unlink(missing_ok=True)
+                finally: self.retention.release(path, identifier)
+                raise
             return dict(receipt)
+
+    def _completed(self, identifier):
+        with self.lock:
+            self._prune_receipts()
+
+    def _prune_receipts(self):
+        terminal = []
+        for path in (self.cache / 'receipts').glob('*.json'):
+            if not re.fullmatch('[a-f0-9]{32}', path.stem) or path.is_symlink(): continue
+            try:
+                value = json.loads(path.read_text())
+                if value.get('state') in ('succeeded', 'failed', 'cancelled', 'needs-review'):
+                    request = self.requests.get(path.stem)
+                    if request and request.get('future') and not request['future'].done(): continue
+                    terminal.append((value.get('updated', value.get('created', 0)), path))
+            except (OSError, ValueError, TypeError): continue
+        terminal.sort(key=lambda item: item[0], reverse=True)
+        for _, path in terminal[self.max_completed:]:
+            path.unlink(missing_ok=True)
+            self.requests.pop(path.stem, None)
 
     def get(self, identifier):
         if not isinstance(identifier, str) or len(identifier) != 32 or uuid.UUID(identifier).hex != identifier:
@@ -96,7 +138,8 @@ class ShadowSnapshotService:
             request['cancel'].set()
             queued = request['future'].cancel()
             if queued:
-                self.retention.release(request['receipt']['captureManifestPath'], identifier)
+                try: self.retention.release(request['receipt']['captureManifestPath'], identifier)
+                except (OSError, ValueError, RuntimeError): pass  # Expiry also releases abandoned leases.
             self._set(identifier, state='cancelled' if queued else 'cancelling',
                       message='' if queued else 'Discarding this photograph when the current synchronous worker step finishes.')
             return dict(request['receipt'])

@@ -41,5 +41,6 @@ deps['dev.gryphprime.avatar-wardrobe']='file:'+str(repo/'Packages/dev.gryphprime
 (out/'Assets').mkdir()
 (out/'ProjectSettings').mkdir()
 (out/'ProjectSettings/ProjectVersion.txt').write_text('m_EditorVersion: 2022.3.22f1\n')
+(out/'.wardrobe-test-fixture').write_text('Avatar Wardrobe isolated test fixture v1\n')
 (out/'Packages/manifest.json').write_text(json.dumps({'dependencies':deps,'testables':['dev.gryphprime.avatar-wardrobe']},indent=2)+'\n')
 print(out)

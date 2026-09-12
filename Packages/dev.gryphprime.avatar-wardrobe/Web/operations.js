@@ -21,7 +21,7 @@
       precondition:{observedRevision:context.revision,afterOperationId:predecessor||''},payload:payload};
   }
   function create(options){
-    var records=new Map(),context=null,enabled=false,timer=null,polling=false,waiters=new Map(),retrying=new Map();
+    var hydrated=false,records=new Map(),context=null,enabled=false,timer=null,polling=false,waiters=new Map(),retrying=new Map();
     var dismissalKey='wardrobe.operations.dismissed.v1',dismissals=new Map(),retryLinks=new Map();
     try{var saved=JSON.parse(global.localStorage.getItem(dismissalKey)||'[]');if(Array.isArray(saved))saved.slice(-512).forEach(function(entry){if(Array.isArray(entry)&&typeof entry[0]==='string'&&entry[0].length<=64&&typeof entry[1]==='string'&&entry[1].length<=8192){dismissals.set(entry[0],entry[1]);if(typeof entry[2]==='string'&&entry[2].length<=64)retryLinks.set(entry[0],entry[2]);}});}catch(error){}
     function dismissalStamp(record){return JSON.stringify([record.state,String(record.error||'').slice(0,8000)]);}
@@ -37,7 +37,7 @@
       next.dismissed=dismissals.get(record.id)===dismissalStamp(next);if(retryLinks.get(record.id))next.retryOperationId=retryLinks.get(record.id);records.set(record.id,next);
       if(terminal.has(record.state)){
         var waiting=waiters.get(record.id);if(waiting){waiters.delete(record.id);waiting.forEach(function(done){done(record);});}
-        if((!old||!terminal.has(old.state))&&options.onSettled)options.onSettled(record);
+        if(old&&!terminal.has(old.state)&&options.onSettled)options.onSettled(record);
       }
     }
     async function refresh(){
@@ -46,6 +46,7 @@
         // Both routes are desktop/thread-safe reads and remain responsive while Unity is occupied.
         var all=await options.api('/api/operations',{method:'GET',timeout:4000});
         (all.items||all.operations||[]).forEach(merge);changed();
+        if(!hydrated){hydrated=true;if(options.onHydrated)options.onHydrated();}
         var next=await options.api('/api/operation_context',{method:'GET',timeout:4000});
         if(next&&next.revision){context=next;changed();}
       }catch(error){if(context)context=Object.assign({},context,{waitingReason:'Unity connection unavailable'});changed();}
@@ -69,7 +70,7 @@
       if(old&&JSON.stringify(old.command)!==JSON.stringify(command))throw new Error('This operation ID already belongs to another command.');
       records.set(command.id,Object.assign({},old,{id:command.id,type:command.type,command:command,label:label||(old&&old.label)||command.payload.variantId||command.type,createdAt:old?old.createdAt:Date.now()/1000,state:'submitting'}));changed();
       try{var record=await options.api('/api/operations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command),timeout:8000});merge(record);changed();return record;}
-      catch(error){var record=records.get(command.id);record.state='acceptance-unknown';record.error='Acceptance is unconfirmed. Check or retry this same operation ID. '+error.message;changed();throw error;}
+      catch(error){var record=records.get(command.id);record.state=error.accepted===false?'failed':'acceptance-unknown';record.error=error.accepted===false?error.message:'Acceptance is unconfirmed. Check or retry this same operation ID. '+error.message;merge(record);changed();throw error;}
     }
     async function cancel(id){var result=await options.api('/api/operations/cancel?id='+encodeURIComponent(id),{method:'POST',timeout:5000});merge(result);changed();return result;}
     function dismiss(id){

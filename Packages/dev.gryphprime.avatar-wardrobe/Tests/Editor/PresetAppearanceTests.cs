@@ -1,12 +1,15 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using nadena.dev.modular_avatar.core;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
+using System.Collections;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDK3.Avatars.ScriptableObjects;
 using Object = UnityEngine.Object;
@@ -58,8 +61,10 @@ namespace OutfitToggleGenerator
         }
         private void Save(string id = "common")
         {
-            var state = WardrobePresetAppearance.Describe(avatar, id); Assert.AreEqual(1, state.ok, state.message);
-            var result = WardrobePresetAppearance.Save(avatar, id, state.revision); Assert.AreEqual(1, result.ok, result.message);
+            var describe = WardrobePresetAppearance.Describe(avatar, id); Assert.AreEqual(1, describe.ok, describe.message);
+            var revision = typeof(WardrobePresetAppearance).GetMethod("Revision", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, new object[] { avatar }) as string;
+            Assert.IsNotEmpty(revision, "Strict appearance revision unavailable.");
+            var result = WardrobePresetAppearance.Save(avatar, id, revision); Assert.AreEqual(1, result.ok, result.message);
         }
         [Test] public void SaveAndReviewedRestoreKeepMaterialsBodyFitPlacementAndDefaultsTogether()
         {
@@ -135,10 +140,30 @@ namespace OutfitToggleGenerator
         }
         [Test] public void SaveRejectsStaleRevisionAndUnsupportedSavedSchemaIsActionable()
         {
-            var before = WardrobePresetAppearance.Describe(avatar, "common"); body.SetBlendShapeWeight(0, 80);
-            Assert.AreEqual(0, WardrobePresetAppearance.Save(avatar, "common", before.revision).ok);
+            var before = typeof(WardrobePresetAppearance).GetMethod("Revision", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, new object[] { avatar }) as string; body.SetBlendShapeWeight(0, 80);
+            Assert.AreEqual(0, WardrobePresetAppearance.Save(avatar, "common", before).ok);
             Save(); var recipe = AvatarWardrobePresets.GetAppearance("common"); recipe.version = 99; AvatarWardrobePresets.SetAppearance("common", recipe);
             var review = WardrobePresetAppearance.Review(avatar, "common"); Assert.AreEqual(0, review.ok); StringAssert.Contains("unsupported", review.message);
+        }
+
+        [UnityTest] public IEnumerator DisplayRevisionPublishesAndSaveAcceptsIt()
+        {
+            var serverType = typeof(AvatarWardrobeServer);
+            var pathField = serverType.GetField("serverProjectPath", BindingFlags.NonPublic | BindingFlags.Static);
+            var publish = serverType.GetMethod("PublishOperationContextAsync", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(pathField); Assert.IsNotNull(publish);
+            var previousPath = pathField.GetValue(null);
+            try
+            {
+                pathField.SetValue(null, Directory.GetParent(Application.dataPath).FullName);
+                var task = (System.Threading.Tasks.Task)publish.Invoke(null, null);
+                while (!task.IsCompleted) yield return null;
+                var state = WardrobePresetAppearance.Describe(avatar, "common");
+                Assert.AreEqual(1, state.ok, state.message); Assert.IsNotEmpty(state.revision);
+                var result = WardrobePresetAppearance.Save(avatar, "common", state.revision);
+                Assert.AreEqual(1, result.ok, result.message);
+            }
+            finally { pathField.SetValue(null, previousPath); }
         }
     }
 }

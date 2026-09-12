@@ -92,7 +92,7 @@ namespace ShiroTools
                     if (p.ParameterType == typeof(int) && pn.Contains("offset"))      args[i] = offset;
                     else if (p.ParameterType == typeof(int))                          args[i] = PAGE;   // count / number / n
                     else if (p.HasDefaultValue)                                       args[i] = p.DefaultValue;
-                    else args[i] = p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null;
+                    else throw new NotSupportedException("Unsupported required thumbnail API parameter: " + p.Name);
                 }
 
                 var task = (Task)method.Invoke(null, args);
@@ -224,7 +224,7 @@ namespace ShiroTools
             ThumbPreviewWindow.Open(path, () => _ = UploadThumbnailAsync(entry, path));
         }
 
-        private async Task UploadThumbnailAsync(OutfitEntry entry, string thumbPath)
+        private async Task<bool> UploadThumbnailAsync(OutfitEntry entry, string thumbPath, bool cleanup = true)
         {
             try
             {
@@ -233,41 +233,23 @@ namespace ShiroTools
 
                 var avatar = await VRCApi.GetAvatar(entry.BlueprintId);
 
-                // VRCApi.UpdateAvatarImage via reflection (parameter order/name varies per SDK version)
-                var method = typeof(VRCApi).GetMethods(BindingFlags.Public | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == "UpdateAvatarImage");
-                if (method == null)
-                    throw new Exception("This SDK version has no VRCApi.UpdateAvatarImage.");
-
-                var pars = method.GetParameters();
-                object[] args = new object[pars.Length];
-                for (int i = 0; i < pars.Length; i++)
-                {
-                    var p = pars[i];
-                    string pn = (p.Name ?? "").ToLowerInvariant();
-                    if (p.ParameterType == typeof(string) && pn.Contains("id"))          args[i] = entry.BlueprintId;
-                    else if (p.ParameterType == typeof(string))                          args[i] = thumbPath;   // pathToImage
-                    else if (p.ParameterType == typeof(VRCAvatar))                       args[i] = avatar;
-                    else if (p.HasDefaultValue)                                          args[i] = p.DefaultValue;
-                    else args[i] = p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null;
-                }
-
-                var task = (Task)method.Invoke(null, args);
-                await task;
+                await VRCApi.UpdateAvatarImage(entry.BlueprintId, avatar, thumbPath);
 
                 LogUpload($"OK    {entry.Name} (thumbnail update) → {entry.BlueprintId}");
                 SetStatus($"✓ Thumbnail updated for '{entry.Name}'.", MessageType.Info);
                 if (_soundEnabled) PlayConfirmSound();
+                return true;
             }
             catch (Exception ex)
             {
                 Debug.LogError("[OutfitBatchUploader] Thumbnail update failed: " + ex);
                 LogUpload($"FAIL  {entry.Name} (thumbnail update): {ex.Message}");
                 SetStatus("Thumbnail update failed: " + Truncate(ex.Message, 120), MessageType.Error);
+                return false;
             }
             finally
             {
-                CleanupTempThumb(thumbPath);
+                if (cleanup) CleanupTempThumb(thumbPath);
                 Repaint();
             }
         }
@@ -304,6 +286,48 @@ namespace ShiroTools
             }
         }
 
+        private static SettingsBundle ParseSettingsBundle(string json)
+        {
+            if (System.Text.Encoding.UTF8.GetByteCount(json ?? "") > 4 * 1024 * 1024)
+                throw new InvalidDataException("Settings file exceeds 4 MiB.");
+            var envelope = Newtonsoft.Json.Linq.JObject.Parse(json);
+            string data = json, versions = null;
+            if (envelope.Property("data") != null || envelope.Property("versions") != null)
+            {
+                if (envelope["data"]?.Type != Newtonsoft.Json.Linq.JTokenType.String)
+                    throw new InvalidDataException("Settings bundle requires a data string.");
+                data = (string)envelope["data"];
+                if (envelope["versions"] != null && envelope["versions"].Type != Newtonsoft.Json.Linq.JTokenType.String)
+                    throw new InvalidDataException("Settings versions must be a string.");
+                versions = (string)envelope["versions"];
+            }
+            OutfitProjectData.ValidateImport(data);
+            if (!string.IsNullOrEmpty(versions)) AvatarVersionManager.ValidateImport(versions);
+            return new SettingsBundle { data = data, versions = versions };
+        }
+        internal static void ValidateSettingsBundle(string json) => ParseSettingsBundle(json);
+        internal static bool ImportSettingsBundle(string json)
+        {
+            var bundle = ParseSettingsBundle(json);
+            var data = bundle.data; var versions = bundle.versions;
+            var oldData = OutfitProjectData.CaptureSettings();
+            var oldVersions = AvatarVersionManager.CaptureSettings();
+            var oldVersionMemory = AvatarVersionManager.ExportRaw();
+            try
+            {
+                OutfitProjectData.ImportRaw(data);
+                if (!string.IsNullOrEmpty(versions)) AvatarVersionManager.ImportRaw(versions);
+                return true;
+            }
+            catch (Exception failure)
+            {
+                var errors = new List<Exception> { failure };
+                try { OutfitProjectData.RestoreSettings(oldData); } catch (Exception error) { errors.Add(error); }
+                try { AvatarVersionManager.RestoreSettings(oldVersions, oldVersionMemory); } catch (Exception error) { errors.Add(error); }
+                throw new AggregateException("Settings import failed; previous stores were restored where possible.", errors);
+            }
+        }
+
         private void ImportAllSettings()
         {
             string path = EditorUtility.OpenFilePanel("Import Preset Uploader settings", "", "json");
@@ -318,19 +342,7 @@ namespace ShiroTools
             try
             {
                 string json = File.ReadAllText(path);
-                var bundle = JsonUtility.FromJson<SettingsBundle>(json);
-
-                bool ok;
-                if (bundle != null && !string.IsNullOrEmpty(bundle.data))
-                {
-                    ok = OutfitProjectData.ImportRaw(bundle.data);
-                    if (ok && !string.IsNullOrEmpty(bundle.versions))
-                        AvatarVersionManager.ImportRaw(bundle.versions);
-                }
-                else
-                {
-                    ok = OutfitProjectData.ImportRaw(json);   // plain data-file fallback
-                }
+                bool ok = ImportSettingsBundle(json);
 
                 if (ok)
                 {
