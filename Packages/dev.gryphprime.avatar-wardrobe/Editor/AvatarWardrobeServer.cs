@@ -97,8 +97,8 @@ namespace OutfitToggleGenerator
         private static string langPath;
         private static string thumbDir;
         private static string hiDir;
-        // Baking runs only while the web UI holds a focus lease, so thumbnail
-        // renders never steal the main thread during Unity work.
+        // An open page renews this lease even while unfocused. Expiry prevents
+        // abandoned tabs from keeping preview work alive indefinitely.
         private static DateTime webActiveUntil = DateTime.MinValue;
         private static readonly object webActiveLock = new object();
         [ThreadStatic] private static string requestSession;

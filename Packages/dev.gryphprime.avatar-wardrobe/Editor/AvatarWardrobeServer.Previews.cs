@@ -51,7 +51,7 @@ namespace OutfitToggleGenerator
                 string.Equals(parts[4], previewRevision.ToString(), StringComparison.Ordinal);
         }
 
-        // Warm only the browser's current grid, while it has a focus lease.
+        // Warm only the browser's current grid, while it has an open-page lease.
         // A single prefab render can exceed the dispatcher budget; leave a long
         // idle interval after expensive renders instead of baking the entire catalog.
         private static void BakeNextBackgroundPreview()
@@ -199,7 +199,7 @@ namespace OutfitToggleGenerator
         // Icon-pipeline render, same frame as toggle icons: 512px neutral on
         // transparency, baked synchronously. Empty when the prefab cannot
         // render (client 404s it dead on the first try, no polling loop).
-        // Null only while the web UI holds no focus lease (Unity stays idle).
+        // Encoding already queued or temporarily at capacity returns null.
         private static byte[] BakeThumbHi(string guid)
         {
             if (string.IsNullOrEmpty(guid)) return new byte[0];

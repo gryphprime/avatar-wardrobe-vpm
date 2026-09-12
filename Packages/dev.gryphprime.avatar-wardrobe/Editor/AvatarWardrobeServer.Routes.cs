@@ -252,8 +252,9 @@ namespace OutfitToggleGenerator
             }
             if (path == "/api/active")
             {
-                // Focus heartbeat from the page: a 15s lease, tolerant of
-                // two missed 5s beats; cleared the moment the page hides.
+                // Open-page heartbeat, independent of keyboard focus. Hidden
+                // browser timers can be throttled, so allow two minutes between
+                // beats; pagehide explicitly releases the lease on close.
                 var query = Query(request.Url.Query);
                 string on;
                 query.TryGetValue("on", out on);
@@ -262,12 +263,17 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("visible", out var visibleGrid);
                 lock (webActiveLock)
                 {
-                    webActiveUntil = on == "1" ? DateTime.UtcNow.AddSeconds(15) : DateTime.MinValue;
+                    webActiveUntil = on == "1" ? DateTime.UtcNow.AddMinutes(2) : DateTime.MinValue;
                     if (on == "1" && grid != null)
                     {
                         previewGridPriority = grid.Length <= 4096 ? grid : grid.Substring(0, 4096);
                         previewVisiblePriority = new HashSet<string>((visibleGrid ?? "").Split(',').Where(IsAssetGuid)
                             .Take(120), StringComparer.OrdinalIgnoreCase);
+                    }
+                    else if (on != "1")
+                    {
+                        previewGridPriority = "";
+                        previewVisiblePriority.Clear();
                     }
                 }
                 WriteJson(context, 200, new ResultDto { ok = 1 });
@@ -322,8 +328,8 @@ namespace OutfitToggleGenerator
                     WriteText(context, 202, "text/plain", "pending");
                     return;
                 }
-                // Disk hits above serve any time; fresh bakes wait for web
-                // focus so Unity keeps its main thread while editing.
+                // Disk hits above serve any time; fresh bakes require an open
+                // page lease. The dispatcher still yields to foreground work.
                 if (!WebActive)
                 {
                     WriteJson(context, 202, new ResultDto { ok = 0, message = "pending" });

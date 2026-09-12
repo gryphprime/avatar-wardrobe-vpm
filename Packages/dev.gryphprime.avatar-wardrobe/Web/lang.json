@@ -1122,7 +1122,7 @@
         },
         {
           "k": "activity.onDemand",
-          "v": "High-resolution previews continue while this window is focused, prioritizing the current grid."
+          "v": "High-resolution previews continue in the background while this page is open, prioritizing the current grid."
         },
         {
           "k": "activity.local",
@@ -1250,7 +1250,7 @@
         },
         {
           "k": "settings.previewHint",
-          "v": "High-resolution previews continue while this window is focused, prioritizing the current grid."
+          "v": "High-resolution previews continue in the background while this page is open, prioritizing the current grid."
         },
         {
           "k": "grid.error",
@@ -3477,6 +3477,14 @@
         {
           "k": "grid.openLibrary",
           "v": "ローカルライブラリを開く"
+        },
+        {
+          "k": "activity.onDemand",
+          "v": "このページを開いている間は、現在のグリッドを優先して高解像度プレビューをバックグラウンドで生成します。"
+        },
+        {
+          "k": "settings.previewHint",
+          "v": "このページを開いている間は、現在のグリッドを優先して高解像度プレビューをバックグラウンドで生成します。"
         }
       ]
     }

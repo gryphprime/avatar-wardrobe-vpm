@@ -1,26 +1,20 @@
-Speed up thumbnail loading and improve wardrobe recovery.
+Keep high-resolution previews loading while Avatar Wardrobe is unfocused.
 
-Cached high-resolution images now load through a separate bounded queue, so they
-can appear while Unity generates other previews. Current fingerprinted thumbnails
-use browser caching, and selected previews retain a render slot. Visible thumbnail
-generation has a shorter cooldown without increasing speculative background work.
+Switching apps, switching browser tabs, or minimizing the browser no longer pauses
+thumbnail requests and cache upgrades. Unity continues warming the last visible
+catalog grid and its existing look-ahead queue. Hidden pages send a light heartbeat
+without refreshing the full catalog; the server allows two minutes between beats
+to tolerate browser timer throttling. Closing the page releases the preview lease.
 
-Preview retry and selected-item error states recover reliably. Worn-copy controls
-handle incomplete scene identity data, and saved appearance waits for a valid
-inspection revision before enabling Save.
+Rendering still yields to Unity's foreground work and pauses during compilation,
+imports, play mode, and uploads. Image request limits, cache bounds, and selected
+preview priority are preserved. Activity and Settings explain the new behavior in
+English and Japanese.
 
-Also includes asynchronous shared avatar fingerprinting, complete library
-pagination, bounded background operation queues, persistent write receipts,
-transactional settings import, and scene-scoped preset settings.
-
-Validation: 105 Unity EditMode tests passed with graphics in a disposable project;
-3 optional integrations skipped. Repository Python and JavaScript regressions
-passed, including controlled preview latency, retry, identity, and appearance tests.
-The preview queue benchmark improved from about 302 ms to 1–2 ms for cached images
-behind two simulated 300 ms renders; this is not a live avatar render benchmark.
+Validation: all 11 repository JavaScript test scripts and 10 Python tests passed,
+including 16 preview scheduler cases and 2 page-lifecycle cases. Supported Unity
+Runtime, Editor, and Test assemblies compile. Source and package preflight checks
+passed; local browser fixture loaded thumbnails without console errors. Hidden-tab
+and focus-loss behavior was verified with controlled browser API fixtures in tests.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.
-
-Post-push QA also fixed shared-preview retry repainting and styling, one-time
-retry state, generated Python-cache validation, and disposable Unity test setup.
-See QA-2026-09-12.md for exercised workflows and remaining integration checks.

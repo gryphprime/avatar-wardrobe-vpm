@@ -137,3 +137,9 @@ graphics in a disposable Unity project. Live large-avatar latency and Windows ru
 validation still need target-machine testing. The package version is unchanged;
 carry these installed-package edits into the source repository and assign the release
 version before publishing.
+
+High-resolution previews continue while the browser is unfocused or hidden. The
+last visible grid and its look-ahead queue keep warming while the page is open;
+closing the page stops demand. Unity compilation, importing, play mode and uploads
+still pause rendering. If the browser fully suspends or discards the page, the
+preview lease expires after two minutes without a heartbeat.

@@ -247,17 +247,17 @@
       visibleGuids:visible.map(function(card){return card._family.thumb;}).filter(Boolean).join(","),
       guids:Array.from(new Set(visible.concat(ahead).map(function(card){return card._family.thumb;}).filter(Boolean))).slice(0,120).join(",")};
   }
-  var previewDemandTimer=0,lastPreviewDemand="";
+  var previewDemandTimer=0,lastPreviewDemand="",lastPreviewGrid=null;
   function schedulePreviewDemand(){
     if(previewDemandTimer) return;
     previewDemandTimer=setTimeout(function(){
       previewDemandTimer=0;
       var demand=gridPreviewDemand();
-      if(!document.hidden&&document.hasFocus()&&demand.guids+"|"+demand.visibleGuids!==lastPreviewDemand) pingActive(true);
+      if(!document.hidden&&demand.guids+"|"+demand.visibleGuids!==lastPreviewDemand) pingActive(true);
     },150);
   }
   function preloadGrid(){
-    if(document.hidden||!document.hasFocus()||currentView!=="wardrobe") return;
+    if(document.hidden||currentView!=="wardrobe") return;
     var main=$("main"),demand=gridPreviewDemand();
     demand.visible.forEach(function(card){
       previews.bind(card.querySelector(".thumb"),card._family.thumb,{priority:1,root:main});
@@ -323,7 +323,7 @@
       var scrollTop=$("main").scrollTop;
       renderGrid();
       if(preserveScroll) $("main").scrollTop=scrollTop;
-      if(!document.hidden&&document.hasFocus()) pingActive(true);
+      if(!document.hidden) pingActive(true);
       if(!append&&!preserveScroll) $("main").scrollTop=0;
     } catch(error){
       if(token!==listToken||error.name==="AbortError") return;
@@ -1176,27 +1176,31 @@
     loadLangs().then(function(){applyStrings();paintHide();paintAvatarMode();dropCaches();sideContent.dataset.signature="";loadShops();load(false,true);refreshState();uploadUI.localize();if(selected) openDetail(selected);});
   };
   function pingActive(on){
-    var previewDemand=on?gridPreviewDemand():null;
+    if(on&&previewPageClosed) return Promise.resolve();
+    // Hidden/minimized tabs may report empty bounds. Keep warming the last
+    // visible grid instead of replacing its demand with an empty viewport.
+    var previewDemand=on?(document.hidden?lastPreviewGrid:gridPreviewDemand()):null;
+    if(on&&!document.hidden) lastPreviewGrid=previewDemand;
     var demand=previewDemand?previewDemand.guids:"";
     lastPreviewDemand=previewDemand?previewDemand.guids+"|"+previewDemand.visibleGuids:"";
-    return R.request("/api/active?on="+(on?"1":"0")+(on?"&grid="+encodeURIComponent(demand)+"&visible="+encodeURIComponent(previewDemand.visibleGuids):""),{timeout:5000,keepalive:!on}).catch(function(){});
+    return R.request("/api/active?on="+(on?"1":"0")+(on?"&grid="+encodeURIComponent(demand)+"&visible="+encodeURIComponent(previewDemand?previewDemand.visibleGuids:""):""),{timeout:5000,keepalive:!on||document.hidden}).catch(function(){});
   }
-  var tickInFlight=false;
+  var tickInFlight=false,previewPageClosed=false;
   async function tick(){
     clearTimeout(pollTimer);
-    if(tickInFlight) return;
+    if(tickInFlight||previewPageClosed) return;
     tickInFlight=true;
-    try { if(!document.hidden){await pingActive(document.hasFocus());await refreshState();} }
-    finally {tickInFlight=false;if(!document.hidden) pollTimer=setTimeout(tick,5000);}
+    try { await pingActive(true);if(!document.hidden&&!previewPageClosed) await refreshState(); }
+    finally {tickInFlight=false;if(!previewPageClosed) pollTimer=setTimeout(tick,document.hidden?30000:5000);}
   }
   document.addEventListener("visibilitychange",function(){
-    if(document.hidden){clearTimeout(pollTimer);pingActive(false);}
+    if(document.hidden) tick();
     else {renderGrid();previews.resume();tick();}
   });
   window.addEventListener("focus",function(){pingActive(true).then(function(){renderGrid();previews.resume();loadInstalled();});});
-  window.addEventListener("blur",function(){pingActive(false);});
-  window.addEventListener("pagehide",function(){pingActive(false);clearTimeout(pollTimer);if(listController) listController.abort();});
-  window.addEventListener("pageshow",function(event){if(event.persisted) tick();});
+  window.addEventListener("blur",function(){pingActive(true);});
+  window.addEventListener("pagehide",function(){previewPageClosed=true;pingActive(false);clearTimeout(pollTimer);if(listController) listController.abort();});
+  window.addEventListener("pageshow",function(event){if(event.persisted){previewPageClosed=false;tick();}});
   loadLangs().then(function(){
     applyStrings();paintHide();paintAvatarMode();setBatchView("wardrobe");
     document.querySelectorAll("#chips button").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.f===filter));});

@@ -77,7 +77,6 @@
     async function run(job) {
       if (job.controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
       var low = cache.get(job.key);
-      if (document.hidden || !document.hasFocus()) return low || {paused: true};
       if (low) publishLow(job, low);
       // Disk hits have their own bounded lane. A slow Unity render must never
       // hold cached high-res cards behind it, including after a scroll.
@@ -241,7 +240,7 @@
     // Low-res is useful immediately, but is not a terminal quality level.
     // Probe only visible consumers, through the same bounded request scheduler.
     function refresh() {
-      if (stopped || document.hidden || !document.hasFocus()) return;
+      if (stopped) return;
       document.querySelectorAll("[data-thumb]").forEach(function (node) {
         var binding = bindings.get(node), data = node._wardrobePreview;
         if (!data || !binding || binding.loading || binding.hi || Date.now() - binding.checkedAt < 1000) return;

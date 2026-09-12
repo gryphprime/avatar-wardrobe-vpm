@@ -158,17 +158,24 @@ test('visible low-res card upgrades when a later background render becomes avail
   assert.equal(h.calls.length, count, 'high-res bindings stop polling'); h.close();
 });
 
-test('upgrade probes pause for hidden pages and offscreen cards and respect their interval', async () => {
+test('upgrade probes skip offscreen cards and respect their interval', async () => {
   const h = setup(call => call.hi ? response(202) : response(200));
   const node = previewNode(); h.nodes.push(node);
   h.pipeline.bind(node, 'card', {priority:1}); await tick(); await tick();
   const count = h.calls.length;
   h.pipeline.refresh(); await tick(); assert.equal(h.calls.length, count);
-  h.advance(); h.document.hidden = true; h.pipeline.refresh(); await tick();
-  assert.equal(h.calls.length, count);
-  h.document.hidden = false;
+  h.advance();
   node.getBoundingClientRect = () => ({width:100,height:100,top:900,left:0,bottom:1000,right:100});
   h.pipeline.refresh(); await tick(); assert.equal(h.calls.length, count); h.close();
+});
+
+test('hidden and unfocused pages continue bounded preview work', async () => {
+  const h = setup(call => call.cached ? response(202) : response(200, call.hi));
+  h.document.hidden = true; h.document.hasFocus = () => false;
+  assert.equal((await h.pipeline.get('hidden', 0)).hi, true);
+  const node = previewNode(); h.nodes.push(node); h.pipeline.bind(node, 'upgrade', {priority:1}); await tick(); await tick();
+  const count = h.calls.length; h.advance(); h.pipeline.refresh(); await tick(); await tick();
+  assert.ok(h.calls.length > count, 'hidden cache upgrades should continue'); h.close();
 });
 
 test('cached high-res cards bypass blocked Unity renders', async () => {

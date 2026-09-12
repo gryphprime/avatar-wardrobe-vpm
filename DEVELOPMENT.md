@@ -93,3 +93,18 @@ The earlier runner-provisioning section describes the intended gate. The Unity
 job is presently disabled in `validate.yml`; green CI covers fast tests only.
 Fresh VCC/ALCOM installation, Windows runtime validation, real large-avatar timing,
 and confirmed VRChat upload smoke tests remain release integration checks.
+
+## Unfocused high-resolution previews
+
+The preview heartbeat now represents an open page, independent of keyboard focus.
+It runs every 5 seconds normally and requests a 30-second interval while hidden.
+Unity accepts a 120-second lease to tolerate throttled browser timers. Pagehide
+releases the lease and suppresses in-flight heartbeat rescheduling; back/forward
+restoration renews it. A suspended or discarded page eventually expires.
+
+Hidden pages retain the last visible grid and look-ahead queue, without performing
+heavy catalog refreshes or speculative pagination. Requests and bounded cache
+upgrades can finish while unfocused; Unity busy-state gates remain unchanged.
+`tests/preview-lifecycle.test.js` covers retention, light hidden heartbeats, close
+races, and back/forward restoration. `tests/previews.test.js` verifies hidden and
+unfocused image work alongside concurrency, offscreen, cache and retry bounds.
