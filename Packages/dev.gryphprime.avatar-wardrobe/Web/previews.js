@@ -189,7 +189,10 @@
         runtime.escape(label("preview." + state)) + '</strong>' + (guid ? '<button type="button" class="preview-retry">' +
         runtime.escape(label("preview.retry")) + '</button>' : "") + '</div>';
       var retry = node.querySelector("button");
-      if (retry) retry.onclick = function (event) { event.stopPropagation(); bind(node, guid, {priority: 0, retry: true}); };
+      if (retry) retry.onclick = function (event) {
+        event.stopPropagation();
+        bind(node, guid, Object.assign({}, (node._wardrobePreview && node._wardrobePreview.config) || {}, {priority: 0, retry: true, upgrade: false}));
+      };
     }
     function bind(node, guid, config) {
       config = config || {};
@@ -203,7 +206,7 @@
       }
       var binding = {guid: guid, epoch: epoch, loading: true, ready: false, hi: false, blob: config.upgrade && previous ? previous.blob : null, checkedAt: Date.now()};
       bindings.set(node, binding);
-      node._wardrobePreview = {guid: guid, config: Object.assign({}, config, {upgrade: false})}; node.dataset.thumb = guid;
+      node._wardrobePreview = {guid: guid, config: Object.assign({}, config, {upgrade: false, retry: false})}; node.dataset.thumb = guid;
       if (!node.querySelector("img")) {
         node.classList.add("preview-loading"); node.setAttribute("aria-busy", "true");
         node.innerHTML = '<span class="preview-placeholder" aria-hidden="true"></span>';
@@ -241,7 +244,11 @@
       if (stopped || document.hidden || !document.hasFocus()) return;
       document.querySelectorAll("[data-thumb]").forEach(function (node) {
         var binding = bindings.get(node), data = node._wardrobePreview;
-        if (!data || !binding || binding.loading || binding.hi || !binding.blob || Date.now() - binding.checkedAt < 1000) return;
+        if (!data || !binding || binding.loading || binding.hi || Date.now() - binding.checkedAt < 1000) return;
+        // Failed consumers have no blob of their own. Repaint them only after
+        // another consumer's retry populated the shared cache, avoiding a
+        // retry storm while still recovering every visible filmstrip card.
+        if (!binding.blob && !cache.has(key(data.guid))) return;
         var rect = node.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0 || rect.bottom <= 0 || rect.right <= 0 || rect.top >= global.innerHeight || rect.left >= global.innerWidth) return;
         bind(node, data.guid, Object.assign({}, data.config, {upgrade: true}));

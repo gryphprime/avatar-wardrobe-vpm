@@ -20,3 +20,7 @@ The preview queue benchmark improved from about 302 ms to 1–2 ms for cached im
 behind two simulated 300 ms renders; this is not a live avatar render benchmark.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.
+
+Post-push QA also fixed shared-preview retry repainting and styling, one-time
+retry state, generated Python-cache validation, and disposable Unity test setup.
+See QA-2026-09-12.md for exercised workflows and remaining integration checks.

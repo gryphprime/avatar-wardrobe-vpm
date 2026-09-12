@@ -14,7 +14,7 @@ function setup(handler) {
   const calls = [], listeners = {}, nodes = [];
   let now = 0;
   const window = {innerWidth:1200, innerHeight:800, addEventListener: (name, fn) => { listeners[name] = fn; },
-    WardrobeRuntime: {request: async (url, options) => {
+    WardrobeRuntime: {escape: value => String(value), request: async (url, options) => {
       const q = new URL(url, 'http://localhost').searchParams;
       const call = {guid:q.get('guid'), hi:q.has('hi'), cached:q.has('cached'), retry:q.has('retry'), signal:options.signal, cache:options.cache};
       calls.push(call); return handler(call);
@@ -108,13 +108,38 @@ test('unavailable images recover on explicit retry and reset both resolutions', 
   h.close();
 });
 
+test('successful shared retry repaints a visible failed consumer without a second render', async () => {
+  let recovered = false;
+  const h = setup(call => call.retry || recovered ? response(200, call.hi) : response(404));
+  const failed = previewNode(); h.nodes.push(failed);
+  h.pipeline.bind(failed, 'filmstrip', {priority:1}); await tick(); await tick();
+  assert.equal(h.pipeline.isUnavailable('filmstrip'), true);
+  recovered = true;
+  await h.pipeline.get('filmstrip', 0, true);
+  const before = h.calls.length;
+  h.advance(); h.pipeline.refresh(); await tick(); await tick();
+  assert.ok(failed.image, 'failed visible consumer should adopt the shared recovered blob');
+  assert.equal(h.calls.length, before, 'repainting from cache must not issue another request');
+  h.close();
+});
+
 function previewNode() {
-  return {isConnected:true, dataset:{}, image:null,
+  const node = {isConnected:true, dataset:{}, image:null, button:null,
     classList:{add(){},remove(){}}, setAttribute(){},removeAttribute(){},
-    querySelector(selector){return selector === 'img' ? this.image : null;},
+    querySelector(selector){return selector === 'img' ? this.image : selector === 'button' ? this.button : null;},
     replaceChildren(image){this.image=image;},
     getBoundingClientRect(){return {width:100,height:100,top:0,left:0,bottom:100,right:100};}};
+  Object.defineProperty(node, 'innerHTML', {set(value){this.button = value.indexOf('preview-retry') >= 0 ? {onclick:null} : null;}, get(){return '';}});
+  return node;
 }
+
+test('detail retry preserves detail image styling', async () => {
+  let recovered = false;
+  const h = setup(call => recovered ? response(200, true) : response(404));
+  const node = previewNode(); h.nodes.push(node); h.pipeline.bind(node, 'detail', {priority:0, detail:true}); await tick(); await tick();
+  recovered = true; node.button.onclick({stopPropagation(){}}); await tick(); await tick();
+  assert.equal(node.image.className, 'big instant'); assert.equal(node.image.id, 'dImg'); h.close();
+});
 
 test('visible low-res card upgrades when a later background render becomes available', async () => {
   let ready = false;
@@ -202,3 +227,16 @@ test('disk probe concurrency stays bounded during a large scroll', async () => {
   assert.equal(h.pipeline.stats().queued, 0);
   h.close();
 });
+
+ test('cache upgrades never replay a one-time explicit retry', async () => {
+  const h = setup(call => call.hi ? response(202) : response(200));
+  const node = previewNode(); h.nodes.push(node);
+  h.pipeline.bind(node, 'retry-once', {priority:1, retry:true});
+  await tick(); await tick();
+  assert.ok(node.image);
+  const before = h.calls.length; h.advance(); h.pipeline.refresh();
+  await tick(); await tick();
+  assert.equal(h.calls.slice(before).filter(call => call.retry).length, 0);
+  assert.ok(h.calls.slice(before).every(call => call.cached));
+  h.close();
+ });

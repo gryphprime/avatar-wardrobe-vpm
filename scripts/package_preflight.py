@@ -5,6 +5,11 @@ import re
 from pathlib import Path
 from zipfile import ZipFile
 
+IGNORED_PARTS = {'.git', '__pycache__'}
+
+def ignored(path: Path) -> bool:
+    return any(part in IGNORED_PARTS or part == '.DS_Store' or part.startswith('._') or part.endswith('.pyc') for part in path.parts)
+
 
 def check_package(root: Path):
     manifest = json.loads((root / 'package.json').read_text(encoding='utf-8'))
@@ -16,6 +21,8 @@ def check_package(root: Path):
     missing = []
     guids = {}
     for path in root.rglob('*'):
+        if ignored(path.relative_to(root)):
+            continue
         if path.is_dir() and path != root and not path.name.startswith('._'):
             if not Path(str(path) + '.meta').is_file():
                 missing.append(str(path.relative_to(root)) + ' (folder meta)')
@@ -47,7 +54,7 @@ def main():
             assert archive.testzip() is None, 'archive CRC check failed'
             archived_manifest = json.loads(archive.read('package.json'))
             assert archived_manifest == json.loads((args.package / 'package.json').read_text()), 'archive manifest differs from source'
-            files = [p for p in args.package.rglob('*') if p.is_file() and not any(part.startswith('._') or part in ('.DS_Store', '__pycache__', '.git') for part in p.relative_to(args.package).parts)]
+            files = [p for p in args.package.rglob('*') if p.is_file() and not ignored(p.relative_to(args.package))]
             expected = {p.relative_to(args.package).as_posix() for p in files}
             actual = {name for name in archive.namelist() if not name.endswith('/')}
             assert actual == expected, 'archive inputs differ from package source'
