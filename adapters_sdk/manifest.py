@@ -6,7 +6,7 @@ from typing import Any, Mapping
 PROTOCOL = 1
 _CLASSES = {"read", "preview", "mutation"}
 _ALLOWED_TOP = {"protocol", "id", "name", "version", "origin", "sdk", "targets",
-                "resources", "actions", "dependencies", "ui", "recovery"}
+                "resources", "actions", "dependencies", "ui", "recovery", "description", "package", "license", "homepage"}
 _FORBIDDEN = {"script", "code", "frontend", "javascript", "command", "exec", "executable"}
 
 
@@ -44,9 +44,23 @@ def validate_manifest(manifest: Mapping[str, Any]) -> dict:
         _text(manifest.get(field), field)
     if manifest["origin"] not in {"official", "community"}:
         raise ManifestError("origin must be official or community")
+    for field in ('description', 'license', 'homepage'):
+        if field in manifest:
+            _text(manifest[field], field, 2048)
+    if 'package' in manifest:
+        package = manifest['package']
+        if not isinstance(package, Mapping) or set(package) - {'id', 'version', 'repository'}:
+            raise ManifestError('package must declare an id, optional version, and repository')
+        _text(package.get('id'), 'package.id', 128)
+        if 'version' in package:
+            _text(package['version'], 'package.version', 128)
+        if 'repository' in package:
+            _text(package['repository'], 'package.repository', 2048)
     sdk = manifest.get("sdk", {})
     if not isinstance(sdk, Mapping) or sdk.get("protocol") != PROTOCOL:
         raise ManifestError("sdk.protocol must be 1")
+    if sdk.get('range', '>=1 <2') != '>=1 <2':
+        raise ManifestError('This host supports SDK range >=1 <2 only')
     targets = manifest.get("targets", [])
     if not isinstance(targets, list) or any(not isinstance(x, str) for x in targets) or len(targets) > 64:
         raise ManifestError("targets must be a bounded list of names")
@@ -88,6 +102,12 @@ def validate_manifest(manifest: Mapping[str, Any]) -> dict:
             raise ManifestError("dependency must be an object")
         _text(dependency.get("id"), "dependency.id")
         _text(dependency.get("version", "*"), "dependency.version")
+        if 'preinstalled' in dependency and type(dependency['preinstalled']) is not bool:
+            raise ManifestError('dependency.preinstalled must be a boolean')
+        if 'minimumVersion' in dependency:
+            import re
+            if not isinstance(dependency['minimumVersion'], str) or not re.fullmatch(r'\d{1,5}\.\d{1,5}\.\d{1,5}', dependency['minimumVersion']):
+                raise ManifestError('dependency.minimumVersion requires a numeric semantic version')
     if "ui" in manifest and not isinstance(manifest["ui"], Mapping):
         raise ManifestError("ui must contain simple metadata only")
     cloned = json.loads(json.dumps(manifest))

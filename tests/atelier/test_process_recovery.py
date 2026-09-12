@@ -38,7 +38,7 @@ class ProcessRecoveryTests(unittest.TestCase):
             try:
                 workspace = request(origin, token, '/api/workspaces', {'projectPath': str(project)})
                 request(origin, token, '/api/workspaces/' + workspace['id'] + '/desired',
-                        {'expectedRevision': 0, 'recipe': {'items': [], 'appearance': {'draftParameter': 1}}})
+                        {'expectedRevision': 0, 'recipe': {'items': [{'id': 'copy-1', 'assetId': 'fixture', 'name': 'Jacket', 'prefabGuid': 'a' * 32}], 'appearance': {}}})
                 process.kill()
                 process.wait(timeout=5)
                 process.stdout.close(); process.stderr.close()

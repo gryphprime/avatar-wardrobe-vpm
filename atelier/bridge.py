@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -54,7 +55,7 @@ class BridgeClient:
         try:
             with self._opener.open(request, timeout=self.timeout) as response:
                 raw = response.read(self.max_payload_bytes + 1)
-        except (urllib.error.URLError, urllib.error.HTTPError) as error:
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as error:
             raise BridgeError(str(error)) from error
         if len(raw) > self.max_payload_bytes:
             raise BridgeError("Bridge response exceeds 256 KiB")
@@ -65,6 +66,42 @@ class BridgeClient:
 
     def context(self):
         return self._request("GET", "/context")
+
+    def inspect(self, target=None):
+        """Read a bounded inspection payload for a target, when supported.
+
+        Bridge versions that do not expose ``/inspect`` return a normal
+        ``BridgeError``; callers can fall back to ``context()``. Values are
+        encoded as query parameters so no unbounded path segment is accepted.
+        """
+        query = ""
+        if target is not None:
+            if not isinstance(target, dict):
+                raise ValueError("target must be an object")
+            values = {}
+            for key in ("sceneGuid", "objectId"):
+                value = target.get(key)
+                if value is not None:
+                    if not isinstance(value, str) or len(value) > 512:
+                        raise ValueError("target fields must be bounded strings")
+                    values[key] = value
+            if values:
+                query = "?" + urllib.parse.urlencode(values)
+        return self._request("GET", "/inspect" + query)
+
+    def probe(self, expected_project=None):
+        """Return ``True`` only for an authenticated, exact-project context."""
+        try:
+            value = self.context()
+            if not isinstance(value, dict):
+                return False
+            if expected_project is not None:
+                actual = str(Path(value.get("projectPath", "")).expanduser().resolve())
+                if actual != str(Path(expected_project).expanduser().resolve()):
+                    return False
+            return True
+        except (BridgeError, OSError, ValueError, TypeError):
+            return False
 
     def shutdown(self):
         """Ask the authenticated private Unity worker to exit cleanly."""

@@ -1,7 +1,7 @@
 # Atelier development alpha
 
 Atelier is being developed alongside Avatar Wardrobe as an independent product.
-This branch implements the first runnable vertical slice of the supplied
+This branch implements an expanding runnable alpha of the supplied
 [product definition](Atelier_PRD.md). It is a development alpha, not completion
 of the entire MVP or a production release.
 
@@ -45,12 +45,25 @@ Use a disposable project while evaluating this alpha.
   camera presets, retained photos and export.
 - Independent Unity bridge for the supported saved-scene/prefab workflow. See
   [the bridge support boundary](../../unity/bridge/README.md).
-- Declarative public adapter manifest API and a built-in example declaration.
-- A tested `vrc-get` subprocess boundary for reviewed package plans; this is not
-  yet a reviewed catalog of production integrations.
+- Declared material colors and static blendshapes on Atelier-owned prefab copies,
+  with immutable source materials, reversible generated assignments, whole-recipe
+  undo, unsupported-control warnings, and debounced desired-state UI.
+- Authoritative inspection and explicit recovery that compares Unity with the
+  draft, checks the review is still current, and rebases without replaying an
+  ambiguous mutation. Current and desired recipes are shown side by side.
+- Authenticated worker adoption after desktop restart, stable process identity,
+  shared project ownership across file operations, exact Unity-version discovery,
+  and cached health status. Native Unity receives the same bridge on handoff.
+- A host-selected adapter registry with durable inspection and snapshot handlers,
+  public declaration/execution APIs, and a Modular Avatar integration for existing
+  VRChat Avatar SDK projects. Package requests have an explicit plan/apply UI.
+- Durable package/import journals. Interrupted project operations block new work
+  until a fingerprinted review is acknowledged; missing staged files stay visible.
 
-The standalone distribution is deliberately a Python-hosted web UI at this
-stage. Native application bundles, code signing and installers are later work.
+The standalone distribution is a Python-hosted web UI. Portable launchers and an
+unsigned macOS development `.app` are available; they require installed Python.
+See [distribution instructions](distribution.md). Self-contained installers,
+code signing and notarization remain release work.
 
 ## Code boundaries
 
@@ -81,10 +94,11 @@ Undo restores the previous desired recipe. Synchronizing that recipe applies
 the reversal to Unity. This is distinct from claiming an offline Undo has
 already changed the project.
 
-The first bridge supports its own generated prefab copies. It does not reproduce
-AW's complete Modular Avatar/NDMF setup, fitting, appearance editor, upload flow,
-advanced scene tools or plugin compatibility. Unsupported appearance is rejected
-explicitly. Final validation/build remains an interactive Unity handoff. A
+The bridge supports its own generated prefab copies and their declared static
+appearance fields. It does not reproduce AW's complete Modular Avatar/NDMF
+processing, fitting, arbitrary base-avatar appearance, upload flow, advanced scene
+tools or plugin compatibility. Animated, HDR, ambiguous and unsupported controls
+are omitted or rejected explicitly. Final validation/build remains an interactive Unity handoff. A
 photograph does not establish production avatar compatibility or build validity.
 
 ## Validation
@@ -100,17 +114,27 @@ Tests include the original AW parser/browser regressions and the new Atelier
 state, transport, library, package and SDK checks. The Unity fixture validation
 uses only generated test assets, without a user avatar or VRChat credentials.
 The Unity fixture additionally needs Pillow to inspect actual rendered pixels.
-It exercises add/replace/remove, repeat receipt reads, stale and wrong targets,
-worker restart, unreadable receipt recovery and graphics-enabled PNG output.
+It exercises add/replace/remove, supported color/shape controls, whole-recipe undo,
+immutable source bytes, HDR/ambiguous-control handling, inspection, repeat receipt
+reads, stale and wrong targets, worker restart, unreadable receipt recovery and
+graphics-enabled PNG output. A separate opt-in
+[package fixture](../../scripts/test_atelier_packages.py) validates the real
+vrc-get install/remove path and Unity package compilation with isolated settings.
 
-Local validation on September 12, 2026 passed 34 Python tests, seven JavaScript
-test scripts, standalone archive execution without the AW package, and the
-Unity 2022.3.22f1 fixture with real graphics. Browser checks covered onboarding,
-offline archive import, prefab selection, separate draft/confirmed display and
-import review. Reconnecting the browser after a development-host restart was
-blocked by automatic approval review; reviewed project import was subsequently
-verified through the authenticated HTTP/application tests. These are generated
-fixture results, not representative production-avatar acceptance evidence.
+The automated suite includes actual process interruption for accepted drafts,
+partial imports, worker adoption, second-writer exclusion and interactive handoff.
+The development archive is executed after extraction without the AW package.
+The previous alpha's browser checks covered onboarding and library/import flows;
+the new UI's live browser access currently awaits specific localhost permission.
+Generated fixture results are not representative production-avatar acceptance
+evidence, and the PRD's performance thresholds remain unmeasured acceptance goals.
+
+On September 12, 2026, the final local run passed 56 Python tests, all seven
+JavaScript test scripts, archive and macOS development-bundle builds, and the
+Unity 2022.3.22f1 graphics fixture. The real integration fixture installed Modular
+Avatar 1.18.7 and NDMF 1.14.8 into a generated VRChat Avatar SDK 3.10.5 project,
+compiled and reconnected the bridge, removed Modular Avatar, then compiled and
+reconnected again. No avatar upload or production-project edit was performed.
 
 `build_atelier.py` creates `dist/atelier-alpha.zip` containing Atelier's modules,
 web UI, bridge and documentation. The Avatar Wardrobe distributable package is
@@ -121,15 +145,13 @@ excluded. Extract it, enter the extracted `atelier` folder and run
 
 1. Production avatar dressing through extracted AW setup/adapter behavior,
    including Modular Avatar/NDMF processing and complete reversible configuration.
-2. Supported appearance mappings and generated material/shape workflows.
-3. Complete worker reconnect/manual-editor reconciliation and package-reload
-   recovery across real interruptions, with explicit ambiguous-state resolution.
-4. At least one reviewed optional integration, usable installation UI and public
-   adapter execution API. The current declarative example is not that acceptance.
-5. Native desktop packaging, fresh-install testing and release-level licensing
-   decisions for Atelier and the public SDK/first-party adapters.
-6. Representative avatar, cold/warm-worker, package reload, rendering, build and
-   usability measurements. Performance targets in the PRD remain targets.
+2. Broader base-avatar appearance mappings and plugin/animation compatibility;
+   current controls are deliberately limited to supported owned-copy fields.
+3. Fresh-machine distribution testing, self-contained runtime packaging, signing,
+   and release-level licensing decisions for Atelier and the public SDK/adapters.
+4. Representative avatar, cold/warm-worker, rendering, build and usability
+   measurements, plus further real interruption cases during render/build.
+5. Full dependency-solver previews and a broader reviewed integration catalog.
 
 Avatar Wardrobe's package, version and release pipeline retain their separate
 identity. This branch does not publish Atelier or alter the live VPM listing.

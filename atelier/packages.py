@@ -44,8 +44,12 @@ def _manifest(project):
 
 
 class PackageRuntime:
-    def __init__(self, executable=None):
-        self.executable = executable or shutil.which("vrc-get")
+    def __init__(self, executable=None, environment=None):
+        candidate = executable or os.environ.get('ATELIER_VRC_GET') or shutil.which("vrc-get")
+        if not candidate and os.name != 'nt':
+            candidate = next((str(path) for path in (Path('/opt/homebrew/bin/vrc-get'), Path('/usr/local/bin/vrc-get')) if path.is_file()), None)
+        self.executable = str(Path(candidate).expanduser().resolve()) if candidate else None
+        self.environment = dict(environment) if environment is not None else None
 
     def available(self):
         return bool(self.executable and Path(self.executable).is_file() and os.access(self.executable, os.X_OK))
@@ -67,6 +71,15 @@ class PackageRuntime:
                 "requiresReview": True, "network": True}
 
     def apply(self, plan):
+        if not isinstance(plan, dict) or not isinstance(plan.get('cwd'), str):
+            raise ValueError('Invalid package plan.')
+        from .project_runtime import project_mutation_lock
+        root = Path(plan['cwd']).resolve()
+        _manifest(root)
+        with project_mutation_lock(root):
+            return self._apply_locked(plan)
+
+    def _apply_locked(self, plan):
         if not isinstance(plan, dict) or plan.get("action") not in ("install", "remove"):
             raise ValueError("Invalid package plan.")
         if plan["action"] == "remove" and plan.get("version") is not None:
@@ -98,7 +111,7 @@ class PackageRuntime:
                 if (root / "Library/UnityLockfile").exists() or (root / "Temp/UnityLockfile").exists():
                     raise RuntimeError("Unity is running; close it before changing packages.")
                 process = subprocess.Popen(command, cwd=str(root), shell=False, stdin=subprocess.DEVNULL,
-                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.environment)
                 output = {"stdout": [], "stderr": []}
                 def drain(name, stream):
                     total = 0

@@ -5,10 +5,13 @@ on:
     paths:
       - 'atelier/**'
       - 'apps/desktop/**'
+      - 'apps/native/**'
       - 'adapters*/**'
       - 'unity/bridge/**'
       - 'tests/**'
       - 'scripts/*atelier*'
+      - 'docs/atelier/**'
+      - 'protocol/**'
       - '.github/workflows/atelier.yml'
   push:
     branches: ['codex/atelier']

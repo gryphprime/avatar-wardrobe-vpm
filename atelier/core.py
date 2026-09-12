@@ -2,11 +2,13 @@
 
 Carries forward Avatar Wardrobe's persisted-before-dispatch and receipt-only
 recovery boundaries. The domain is independent of Unity and of the AW package.
-Only a matching successful execution receipt can advance confirmed state.
+Confirmed state advances through matching receipts or explicitly reviewed,
+revision-checked observations when recovering an external change.
 """
 from contextlib import contextmanager
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import sqlite3
@@ -49,6 +51,32 @@ def validate_recipe(value):
         if item['id'] in seen or not GUID.fullmatch(item['prefabGuid']):
             raise ValueError('Each copy needs a unique identity and an exact prefab GUID.')
         seen.add(item['id'])
+    if set(appearance) - {'materials', 'blendshapes'}:
+        raise ValueError('Appearance supports material colors and static blendshapes only.')
+    for kind in ('materials', 'blendshapes'):
+        entries = appearance.get(kind, [])
+        if not isinstance(entries, list) or len(entries) > 256:
+            raise ValueError('Appearance controls must be a bounded list.')
+        identities = set()
+        for entry in entries:
+            allowed = {'rendererId', 'slot', 'property', 'color'} if kind == 'materials' else {'rendererId', 'index', 'value'}
+            if not isinstance(entry, dict) or set(entry) != allowed or not OBJECT_ID.fullmatch(str(entry.get('rendererId', ''))):
+                raise ValueError('Appearance requires an exact renderer and supported control fields.')
+            index = entry.get('slot' if kind == 'materials' else 'index')
+            if type(index) is not int or not 0 <= index <= 65535:
+                raise ValueError('Appearance control index is invalid.')
+            key = (entry['rendererId'], index, entry.get('property'))
+            if key in identities:
+                raise ValueError('Each appearance control must appear only once.')
+            identities.add(key)
+            if kind == 'materials':
+                if entry['property'] not in ('_Color', '_BaseColor'):
+                    raise ValueError('Unsupported material color property.')
+                color = entry['color']
+                if not isinstance(color, list) or len(color) != 4 or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in color):
+                    raise ValueError('Material colors require four finite channels between zero and one.')
+            elif type(entry['value']) not in (int, float) or not math.isfinite(entry['value']) or not -100 <= entry['value'] <= 100:
+                raise ValueError('Static blendshape weights must be between -100 and 100.')
     encoded = canonical({'items': items, 'appearance': appearance})
     if len(encoded.encode()) > 65536:
         raise ValueError('Recipe exceeds 64 KiB.')
@@ -77,7 +105,16 @@ class Store:
                 workspace TEXT, action TEXT, state TEXT, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS artifacts(id TEXT PRIMARY KEY, workspace TEXT, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, created REAL, data TEXT);
+            CREATE TABLE IF NOT EXISTS reviews(id TEXT PRIMARY KEY, workspace TEXT, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS project_jobs(id TEXT PRIMARY KEY, workspace TEXT, state TEXT, data TEXT NOT NULL);
         ''')
+        # A project mutation is never replayed on restart. Its durable journal
+        # remains visible until the project has been inspected and acknowledged.
+        with self.transaction():
+            for row in self.db.execute("SELECT data FROM project_jobs WHERE state='running'").fetchall():
+                job = json.loads(row[0])
+                job.update(state='needs-review', error='Atelier stopped during this project operation. Inspect the project before continuing.')
+                self.db.execute('UPDATE project_jobs SET state=?,data=? WHERE id=?', (job['state'], canonical(job), job['id']))
 
     @contextmanager
     def transaction(self):
@@ -185,16 +222,18 @@ class Store:
             self._save(workspace)
             return workspace
 
-    def enqueue(self, workspace_id, action='reconcile', expected_revision=None, view=None):
-        if action not in ('reconcile', 'snapshot'):
+    def enqueue(self, workspace_id, action='reconcile', expected_revision=None, view=None, adapter=None):
+        if action not in ('reconcile', 'snapshot', 'inspect'):
             raise ValueError('Unsupported operation.')
         with self.transaction():
             workspace = self._workspace(workspace_id)
+            if self.project_jobs(workspace_id, unresolved=True):
+                raise Conflict('Finish or review the pending project operation first.')
             if not workspace['target']:
                 raise ValueError('Choose an avatar target before synchronizing.')
             if action == 'reconcile' and expected_revision != workspace['desired']['revision']:
                 raise Conflict('The draft changed. Refresh before synchronizing.')
-            if self.db.execute("SELECT 1 FROM operations WHERE workspace=? AND state IN ('failed','needs-review') AND action='reconcile'", (workspace_id,)).fetchone():
+            if action != 'inspect' and self.db.execute("SELECT 1 FROM operations WHERE workspace=? AND state IN ('failed','needs-review') AND action='reconcile'", (workspace_id,)).fetchone():
                 raise Conflict('Review the failed change before synchronizing again.')
             operations = self._operations(workspace_id)
             if action == 'reconcile':
@@ -216,7 +255,7 @@ class Store:
                         self._save_operation(old)
                 workspace['view'] = view
             state = workspace['desired'] if action == 'reconcile' else workspace['confirmed']
-            predecessor = next((op['id'] for op in reversed(operations) if op['action'] == 'reconcile' and op['state'] in ACTIVE), None)
+            predecessor = None if action == 'inspect' else next((op['id'] for op in reversed(operations) if op['action'] == 'reconcile' and op['state'] in ACTIVE), None)
             operation = {
                 'id': identifier(), 'workspaceId': workspace_id, 'target': workspace['target'],
                 'action': action, 'state': 'queued', 'desiredRevision': state['revision'],
@@ -225,6 +264,8 @@ class Store:
                 'created': time.time(), 'updated': time.time(), 'error': None, 'phase': 'Waiting for Unity',
                 'priority': 'interactive', 'result': None,
             }
+            if adapter:
+                operation['adapter'] = dict(adapter)
             self.db.execute('INSERT INTO operations(id,workspace,action,state,data) VALUES (?,?,?,?,?)', (operation['id'], workspace_id, action, 'queued', canonical(operation)))
             if action == 'reconcile':
                 workspace['syncStatus'] = 'pending'
@@ -259,7 +300,7 @@ class Store:
                 if op['state'] in ('dispatching', 'running'):
                     return op
             if any(op['state'] in ('failed', 'needs-review') and op['action'] == 'reconcile' for op in operations):
-                return None
+                return next((op for op in operations if op['state'] == 'queued' and op['action'] == 'inspect'), None)
             return next((op for op in operations if op['state'] == 'queued'), None)
 
     def dispatch(self, operation_id, observed_revision):
@@ -274,6 +315,10 @@ class Store:
                     raise Conflict('The previous change must finish first.')
                 op['expectedRevision'] = previous['result']['revision']
             if op['expectedRevision'] is None:
+                op['expectedRevision'] = observed_revision
+            if op['action'] == 'inspect':
+                # Diagnostics may inspect an externally changed avatar while a
+                # mutation awaits review. They never confirm or rebase a recipe.
                 op['expectedRevision'] = observed_revision
             if not isinstance(observed_revision, str) or not observed_revision or op['expectedRevision'] != observed_revision:
                 op['state'], op['error'] = 'needs-review', 'Unity changed outside this draft. Review the avatar in Unity.'
@@ -313,7 +358,7 @@ class Store:
                         raise Conflict('Receipt belongs to a different avatar target.')
                     workspace['confirmed'] = {'revision': op['desiredRevision'], 'recipe': op['payload']['recipe'], 'unityRevision': revision}
                     workspace['syncStatus'] = 'synced' if workspace['desired']['revision'] == op['desiredRevision'] else 'draft'
-                elif (workspace['confirmed']['unityRevision'] is None and workspace['target'] == op['target']
+                elif (op['action'] == 'snapshot' and workspace['confirmed']['unityRevision'] is None and workspace['target'] == op['target']
                       and workspace['confirmed']['revision'] == op['desiredRevision']):
                     # A photograph establishes the observed base revision, without
                     # claiming that any of the desired edits have been applied.
@@ -352,6 +397,123 @@ class Store:
                 raise ValueError('Unknown review action.')
             self._save_operation(op)
             return op
+
+    def recovery_review(self, workspace_id, observation):
+        """Persist the exact observation and draft presented for human review."""
+        actual = validate_recipe(observation.get('recipe'))
+        revision = observation.get('revision')
+        if not isinstance(revision, str) or not revision or len(revision) > 256:
+            raise ValueError('Unity inspection requires a current revision.')
+        with self.transaction():
+            workspace = self._workspace(workspace_id)
+            target = observation.get('target', {})
+            if {k: target.get(k) for k in ('sceneGuid', 'objectId')} != workspace['target']:
+                raise Conflict('Unity inspection belongs to another target.')
+            if str(Path(observation.get('projectPath', '')).resolve()) != workspace['projectPath']:
+                raise Conflict('Unity inspection belongs to another project.')
+            operations = self._operations(workspace_id)
+            if any(op['state'] in ('dispatching', 'running') for op in operations):
+                raise Conflict('Recover the original running receipt before reviewing actual state.')
+            review = {'id': identifier(), 'workspaceId': workspace_id, 'target': workspace['target'],
+                      'unityRevision': revision, 'desiredRevision': workspace['desired']['revision'],
+                      'actualRecipe': actual, 'desiredRecipe': workspace['desired']['recipe'],
+                      'operations': [{'id': op['id'], 'action': op['action'], 'state': op['state'], 'updated': op['updated']}
+                                     for op in operations if op['state'] in ACTIVE + ('needs-review', 'failed')],
+                      'warnings': observation.get('warnings', []), 'created': time.time(), 'consumed': False}
+            self.db.execute('INSERT INTO reviews VALUES (?,?,?)', (review['id'], workspace_id, canonical(review)))
+            return review
+
+    def recover(self, workspace_id, review_id, decision, observation):
+        if decision not in ('keep-draft', 'use-unity'):
+            raise ValueError('Choose whether to keep the draft or use the observed Unity state.')
+        with self.transaction():
+            row = self.db.execute('SELECT data FROM reviews WHERE id=? AND workspace=?', (review_id, workspace_id)).fetchone()
+            if not row:
+                raise Conflict('Inspect the avatar again before resolving this change.')
+            review = json.loads(row[0])
+            workspace = self._workspace(workspace_id)
+            operations = self._operations(workspace_id)
+            pending = [{'id': op['id'], 'action': op['action'], 'state': op['state'], 'updated': op['updated']}
+                       for op in operations if op['state'] in ACTIVE + ('needs-review', 'failed')]
+            target = observation.get('target', {})
+            if (review['consumed'] or review['target'] != workspace['target']
+                    or review['desiredRevision'] != workspace['desired']['revision']
+                    or review['operations'] != pending
+                    or observation.get('revision') != review['unityRevision']
+                    or {k: target.get(k) for k in ('sceneGuid', 'objectId')} != review['target']
+                    or str(Path(observation.get('projectPath', '')).resolve()) != workspace['projectPath']
+                    or validate_recipe(observation.get('recipe')) != review['actualRecipe']):
+                raise Conflict('The draft, queue, or Unity avatar changed since review. Inspect again.')
+            actual = review['actualRecipe']
+            desired = workspace['desired']['recipe'] if decision == 'keep-draft' else actual
+            if desired != workspace['desired']['recipe']:
+                self.db.execute('INSERT INTO history(workspace,recipe) VALUES (?,?)', (workspace_id, canonical(workspace['desired']['recipe'])))
+            # Reserve a fresh baseline revision; old successful operation IDs may
+            # never deduplicate away the new intent after an external Unity edit.
+            baseline = workspace['desired']['revision'] + 1
+            workspace['confirmed'] = {'revision': baseline, 'recipe': actual, 'unityRevision': review['unityRevision']}
+            workspace['desired'] = {'revision': baseline + (desired != actual), 'recipe': desired}
+            workspace['syncStatus'] = 'synced' if desired == actual else 'draft'
+            for op in operations:
+                if op['state'] in ACTIVE + ('needs-review', 'failed'):
+                    op['state'] = 'cancelled' if op['state'] == 'queued' else 'resolved'
+                    op['phase'] = 'Resolved against inspected Unity state'
+                    op['resolution'] = {'reviewId': review_id, 'decision': decision}
+                    self._save_operation(op)
+            review.update(consumed=True, decision=decision, completed=time.time())
+            self.db.execute('UPDATE reviews SET data=? WHERE id=?', (canonical(review), review_id))
+            self._save(workspace)
+            self._event('workspace-recovered', workspace_id, reviewId=review_id, decision=decision)
+            return workspace
+
+    def project_jobs(self, workspace_id=None, unresolved=False):
+        with self.lock:
+            jobs = [json.loads(row[0]) for row in self.db.execute('SELECT data FROM project_jobs ORDER BY rowid DESC')]
+            return [job for job in jobs if (not workspace_id or job['workspaceId'] == workspace_id)
+                    and (not unresolved or job['state'] in ('running', 'needs-review'))]
+
+    def begin_project_job(self, workspace_id, kind, plan):
+        with self.transaction():
+            self._workspace(workspace_id)
+            if self.project_jobs(workspace_id, unresolved=True) or self._active(workspace_id):
+                raise Conflict('Finish or review pending project and avatar operations first.')
+            job = {'id': identifier(), 'workspaceId': workspace_id, 'kind': kind, 'plan': plan,
+                   'state': 'running', 'created': time.time(), 'result': None, 'error': None}
+            self.db.execute('INSERT INTO project_jobs VALUES (?,?,?,?)', (job['id'], workspace_id, job['state'], canonical(job)))
+            return job
+
+    def finish_project_job(self, job_id, result=None, error=None):
+        with self.transaction():
+            row = self.db.execute('SELECT data FROM project_jobs WHERE id=?', (job_id,)).fetchone()
+            if not row:
+                raise KeyError('Project operation not found.')
+            job = json.loads(row[0])
+            job.update(state='needs-review' if error else 'succeeded', result=result, error=str(error) if error else None, completed=time.time())
+            self.db.execute('UPDATE project_jobs SET state=?,data=? WHERE id=?', (job['state'], canonical(job), job_id))
+            return job
+
+    def acknowledge_project_job(self, workspace_id, job_id, manifest_sha):
+        with self.transaction():
+            row = self.db.execute('SELECT data FROM project_jobs WHERE id=? AND workspace=?', (job_id, workspace_id)).fetchone()
+            if not row:
+                raise KeyError('Project operation not found.')
+            job = json.loads(row[0])
+            if job['state'] != 'needs-review':
+                raise Conflict('Only an interrupted project operation needs review.')
+            job.update(state='reviewed', reviewed=time.time(), reviewedManifest=manifest_sha)
+            self.db.execute('UPDATE project_jobs SET state=?,data=? WHERE id=?', (job['state'], canonical(job), job_id))
+            workspace = self._workspace(workspace_id)
+            workspace['syncStatus'] = 'needs-review' if workspace['target'] else 'choose-target'
+            # External package/import changes invalidate the observed avatar base.
+            self._save(workspace)
+            return job
+
+    def refresh_packages(self, workspace_id, packages):
+        with self.transaction():
+            workspace = self._workspace(workspace_id)
+            workspace['packages'] = dict(packages)
+            self._save(workspace)
+            return workspace
 
     def add_artifact(self, operation_id, png, metadata):
         if not isinstance(png, bytes) or len(png) > 32 * 1024 * 1024 or not png.startswith(b'\x89PNG\r\n\x1a\n'):

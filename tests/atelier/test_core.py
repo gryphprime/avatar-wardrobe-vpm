@@ -23,15 +23,15 @@ class CoreStateTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_stale_desired_revision_is_rejected(self):
-        self.store.desired(self.wid, {"items": [], "appearance": {"tone": "warm"}}, 0)
+        self.store.desired(self.wid, {"items": [], "appearance": {"blendshapes": [{"rendererId": TARGET["objectId"], "index": 0, "value": 25}]}}, 0)
         with self.assertRaises(Conflict):
-            self.store.desired(self.wid, {"items": [], "appearance": {"tone": "cold"}}, 0)
+            self.store.desired(self.wid, {"items": [], "appearance": {"blendshapes": [{"rendererId": TARGET["objectId"], "index": 0, "value": 50}]}}, 0)
 
     def test_reconcile_is_durable_and_predecessor_ordered(self):
-        self.store.desired(self.wid, {"items": [], "appearance": {"tone": "warm"}}, 0)
+        self.store.desired(self.wid, {"items": [], "appearance": {"blendshapes": [{"rendererId": TARGET["objectId"], "index": 0, "value": 25}]}}, 0)
         first = self.store.enqueue(self.wid, expected_revision=1)
         # A later draft can be accepted while the first Unity operation is pending.
-        self.store.desired(self.wid, {"items": [], "appearance": {"tone": "cold"}}, 1)
+        self.store.desired(self.wid, {"items": [], "appearance": {"blendshapes": [{"rendererId": TARGET["objectId"], "index": 0, "value": 50}]}}, 1)
         second = self.store.enqueue(self.wid, expected_revision=2)
         self.assertEqual(second["afterOperationId"], first["id"])
         reopened = Store(self.tmp.name)
@@ -44,7 +44,7 @@ class CoreStateTests(unittest.TestCase):
             reopened.close()
 
     def test_receipt_only_recovery_retry_and_dismissal(self):
-        self.store.desired(self.wid, {"items": [], "appearance": {"tone": "warm"}}, 0)
+        self.store.desired(self.wid, {"items": [], "appearance": {"blendshapes": [{"rendererId": TARGET["objectId"], "index": 0, "value": 25}]}}, 0)
         op = self.store.enqueue(self.wid, expected_revision=1)
         self.store.dispatch(op["id"], "unity-0")
         self.store.receipt(op["id"], {"id": op["id"], "state": "failed", "error": "lost response"})
@@ -55,14 +55,14 @@ class CoreStateTests(unittest.TestCase):
         self.assertRaises(Conflict, self.store.review, op["id"], "dismiss")
 
     def test_stale_snapshot_artifact_cannot_replace_rendered_state(self):
-        self.store.desired(self.wid, {"items": [], "appearance": {"tone": "warm"}}, 0)
+        self.store.desired(self.wid, {"items": [], "appearance": {"blendshapes": [{"rendererId": TARGET["objectId"], "index": 0, "value": 25}]}}, 0)
         sync = self.store.enqueue(self.wid, expected_revision=1)
         self.store.dispatch(sync["id"], "unity-0")
         self.store.receipt(sync["id"], {"id": sync["id"], "state": "succeeded", "revision": "unity-1"})
         snap = self.store.enqueue(self.wid, "snapshot", view="front")
         self.store.dispatch(snap["id"], "unity-1")
         self.store.receipt(snap["id"], {"id": snap["id"], "state": "succeeded", "revision": "unity-1"})
-        self.store.desired(self.wid, {"items": [], "appearance": {"new": 1}}, 1)
+        self.store.desired(self.wid, {"items": [], "appearance": {"blendshapes": [{"rendererId": TARGET["objectId"], "index": 0, "value": 75}]}}, 1)
         sync2 = self.store.enqueue(self.wid, expected_revision=2)
         self.store.dispatch(sync2["id"], "unity-1")
         self.store.receipt(sync2["id"], {"id": sync2["id"], "state": "succeeded", "revision": "unity-2"})
@@ -104,7 +104,7 @@ class HostStepTests(unittest.TestCase):
             workspace = app.store.register({"projectPath": str(Path(tmp.name) / "Project"), "name": "P"})
             wid = workspace["id"]
             app.store.set_target(wid, TARGET)
-            app.store.desired(wid, {"items": [], "appearance": {"tone": "warm"}}, 0)
+            app.store.desired(wid, {"items": [], "appearance": {"blendshapes": [{"rendererId": TARGET["objectId"], "index": 0, "value": 25}]}}, 0)
             op = app.store.enqueue(wid, expected_revision=1)
             app.step(wid)  # submit returned only a queued receipt: operation remains running
             self.assertEqual(app.store.operation(op["id"])["state"], "running")

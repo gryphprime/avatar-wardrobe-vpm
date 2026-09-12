@@ -24,3 +24,15 @@ class BridgeTests(unittest.TestCase):
         with self.assertRaises(ValueError): BridgeClient('http://example.com:80', 'token')
         client = BridgeClient('http://127.0.0.1:1', 'token')
         with self.assertRaises(BridgeError): client.submit({'target': {}, 'payload': {'text': 'x' * (300 * 1024)}})
+
+    def test_inspect_encodes_exact_target_and_probe_checks_project(self):
+        client = BridgeClient('http://127.0.0.1:1234', 'secret')
+        response = Mock()
+        response.read.return_value = b'{"projectPath":"/tmp/project"}'
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        client._opener.open = Mock(return_value=response)
+        self.assertEqual('/tmp/project', client.inspect({'sceneGuid': 'a' * 32, 'objectId': 'obj'})['projectPath'])
+        request = client._opener.open.call_args.args[0]
+        self.assertIn('sceneGuid=' + ('a' * 32), request.full_url)
+        self.assertTrue(client.probe('/tmp/project'))

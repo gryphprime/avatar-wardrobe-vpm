@@ -1,0 +1,25 @@
+{
+  "protocol": 1,
+  "id": "atelier.modular-avatar",
+  "name": "Modular Avatar",
+  "description": "Install Modular Avatar in an existing VRChat Avatar SDK project for compatible, creator-prepared outfits. Inspect and photograph the saved avatar through Atelier. Processed NDMF previews and automatic armature fitting are not available yet.",
+  "version": "1.0.0",
+  "origin": "official",
+  "license": "MIT code; upstream artwork has separate redistribution terms",
+  "homepage": "https://modular-avatar.nadena.dev/",
+  "package": {"id": "nadena.dev.modular-avatar", "version": "1.18.7", "repository": "https://vpm.nadena.dev/vpm.json"},
+  "sdk": {"protocol": 1, "range": ">=1 <2"},
+  "targets": ["unity-project"],
+  "resources": [{"id": "avatar.inspection", "type": "report", "mutable": false}, {"id": "avatar.snapshot", "type": "snapshot", "mutable": false}],
+  "actions": [
+    {"id": "inspect", "name": "Inspect avatar", "class": "read", "inputs": {}, "outputs": ["avatar.inspection"], "changes": []},
+    {"id": "preview", "name": "Photograph saved avatar", "class": "preview", "inputs": {}, "outputs": ["avatar.snapshot"], "changes": []}
+  ],
+  "dependencies": [
+    {"id": "nadena.dev.ndmf", "version": ">=1.14.7 <2.0.0-a"},
+    {"id": "com.vrchat.base", "version": ">=3.10.5 <4", "preinstalled": true, "minimumVersion": "3.10.5"},
+    {"id": "com.vrchat.avatars", "version": ">=3.10.5 <4", "preinstalled": true, "minimumVersion": "3.10.5"}
+  ],
+  "ui": {"category": "Avatar assembly", "icon": "outfit", "forms": []},
+  "recovery": {"retry": true, "undo": false}
+}
