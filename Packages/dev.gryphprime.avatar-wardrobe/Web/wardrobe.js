@@ -246,9 +246,18 @@
       }
     });
     var ahead=lastVisible<0?[]:cards.slice(lastVisible+1,lastVisible+1+gridPreloadCount);
+    // Covers first, then visible families' variants, before speculative cards.
+    // Round-robin variants so a large family cannot monopolize the warm queue.
+    var priority=new Set(visible.map(function(card){return card._family.thumb;}).filter(Boolean));
+    var variants=visible.map(function(card){return card._family.variantGuids||[];});
+    var variantCount=variants.reduce(function(max,items){return Math.max(max,items.length);},0);
+    for(var i=0;i<variantCount&&priority.size<120;i++) variants.forEach(function(items){
+      if(items[i]&&priority.size<120) priority.add(items[i]);
+    });
+    var visibleGuids=Array.from(priority).slice(0,120);
+    ahead.forEach(function(card){if(card._family.thumb&&priority.size<120) priority.add(card._family.thumb);});
     return {visible:visible,ahead:ahead,remaining:lastVisible<0?gridPreloadCount:cards.length-lastVisible-1,
-      visibleGuids:visible.map(function(card){return card._family.thumb;}).filter(Boolean).join(","),
-      guids:Array.from(new Set(visible.concat(ahead).map(function(card){return card._family.thumb;}).filter(Boolean))).slice(0,120).join(",")};
+      visibleGuids:visibleGuids.join(","),guids:Array.from(priority).slice(0,120).join(",")};
   }
   var previewDemandTimer=0,lastPreviewDemand="",lastPreviewGrid=null;
   function schedulePreviewDemand(){
