@@ -15,7 +15,7 @@ namespace OutfitToggleGenerator
         [Serializable] private sealed class Identity { public string project; public int protocol; }
         [InitializeOnLoadMethod] private static void Initialize() { EditorApplication.update += Pump; }
         private static void Pump() { while (callbacks.TryDequeue(out var work)) work(); }
-        [MenuItem("Tools/Avatar Wardrobe Desktop Library")]
+        [MenuItem("Tools/Avatar Wardrobe Desktop")]
         internal static void Open()
         {
             if (launching) return;
@@ -72,7 +72,7 @@ namespace OutfitToggleGenerator
                 if (!process.Start()) throw new IOException("Python did not start.");
                 process.BeginOutputReadLine(); process.BeginErrorReadLine();
             }
-            catch (Exception error) { launching = false; UnityEngine.Debug.LogError("Could not open Wardrobe Library. Install Python 3.10 or newer on macOS/Linux, then retry. " + error.Message); }
+            catch (Exception error) { launching = false; UnityEngine.Debug.LogError("Could not open Avatar Wardrobe Desktop. Install Python 3.10 or newer on macOS/Linux, then retry. " + error.Message); }
         }
         private static string Quote(string value) => "\"" + value.Replace("\"", "\\\"") + "\"";
     }

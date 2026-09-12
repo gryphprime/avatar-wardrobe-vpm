@@ -1,23 +1,16 @@
-Make wardrobe editing clearer and more resilient.
+Disable Dressing Room and Library in the Avatar Wardrobe interface.
 
-Preset loading failures now keep the selected destination and offer Retry. Late
-responses cannot replace a newly created preset. Worn-item menu and part-toggle
-changes use explicit Apply settings and Cancel edits; applying both is one Unity
-transaction with rollback on failure.
+Desktop opens directly to Wardrobe. Dressing Room, Try on, photo history,
+Library navigation, and file-import entry points are disabled. No automatic
+Dressing Room captures or photo-history requests are started. Existing library
+files and photographs are preserved.
 
-Defaults and Avatar ID drafts are retained per project and avatar in the browser
-tab. Upload review lists the avatar, presets, platforms, and whether each upload
-creates or updates an avatar. It blocks pending writes and unapplied edits, with
-a direct return to the item that needs attention.
+Outfit browsing, Wear/Replace/Remove, presets, uploads, and high-resolution
+thumbnail loading remain available. Help and empty/offline states direct users
+to import packages or reconnect through Unity. The launcher now reads
+Avatar Wardrobe Desktop.
 
-Keyboard navigation now passes correctly through Technical details. Preset rows
-are compact, Defaults and Help explain the workflow, scrollbars and action labels
-are easier to see, and the Unity launcher opens Desktop Library directly. Preview
-activity shows actual loading and waiting requests instead of a misleading global
-cache percentage. Background high-resolution loading remains enabled.
-
-Validation: 30 focused Unity EditMode tests, 45 JavaScript tests reported by the
-Node runner, and 10 Python tests passed. English/Japanese browser fixture QA and
-package/archive validation passed. Real VRChat uploads were not performed.
+Validation: 45 JavaScript tests, C# assembly compilation, package preflight,
+and a desktop browser fixture check passed.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.

@@ -1942,15 +1942,15 @@
         },
         {
           "k": "detail.tryOnSetup",
-          "v": "For Try on, open Tools > Avatar Wardrobe Desktop Library in Unity."
+          "v": "For Try on, open Tools > Avatar Wardrobe Desktop in Unity."
         },
         {
           "k": "win.openDesktop",
-          "v": "Open Library and Dressing Room"
+          "v": "Open Avatar Wardrobe Desktop"
         },
         {
           "k": "help.desktopSetup",
-          "v": "For the desktop Dressing room, open Tools > Avatar Wardrobe Desktop Library in Unity."
+          "v": "For the desktop Dressing room, open Tools > Avatar Wardrobe Desktop in Unity."
         },
         {
           "k": "help.chooseTitle",
@@ -1966,7 +1966,7 @@
         },
         {
           "k": "help.previewBody",
-          "v": "Browse outfits and variants. In the desktop Dressing room, use Try on to preview the complete avatar before changing the scene."
+          "v": "Browse outfits and variants, then choose Wear to apply your selection."
         },
         {
           "k": "help.wearTitle",
@@ -2275,6 +2275,18 @@
         {
           "k": "upload.review.reviewItemEdits",
           "v": "Review item edits"
+        },
+        {
+          "k": "grid.importInUnityHint",
+          "v": "No outfits are available yet. Import your outfit packages in Unity, then refresh the wardrobe."
+        },
+        {
+          "k": "grid.connectUnityHint",
+          "v": "Unity is offline. Open this project in Unity to reconnect."
+        },
+        {
+          "k": "wear.chooseVariant",
+          "v": "Choose a variant, then use Wear."
         }
       ]
     },
@@ -4060,15 +4072,15 @@
         },
         {
           "k": "detail.tryOnSetup",
-          "v": "試着するには、Unity で Tools > Avatar Wardrobe Desktop Library を開いてください。"
+          "v": "試着するには、Unity で Tools > Avatar Wardrobe Desktop を開いてください。"
         },
         {
           "k": "win.openDesktop",
-          "v": "ライブラリとドレッシングルームを開く"
+          "v": "Avatar Wardrobe Desktop を開く"
         },
         {
           "k": "help.desktopSetup",
-          "v": "デスクトップのドレッシングルームを使うには、Unity で Tools > Avatar Wardrobe Desktop Library を開いてください。"
+          "v": "デスクトップのドレッシングルームを使うには、Unity で Tools > Avatar Wardrobe Desktop を開いてください。"
         },
         {
           "k": "help.chooseTitle",
@@ -4084,7 +4096,7 @@
         },
         {
           "k": "help.previewBody",
-          "v": "衣装とバリエーションを閲覧します。デスクトップのドレッシングルームでは「試着」でシーンを変更する前にアバター全体を確認できます。"
+          "v": "衣装とバリアントを探して、「着用」で選択した衣装を適用します。"
         },
         {
           "k": "help.wearTitle",
@@ -4393,6 +4405,18 @@
         {
           "k": "upload.review.reviewItemEdits",
           "v": "アイテムの編集を確認"
+        },
+        {
+          "k": "grid.importInUnityHint",
+          "v": "衣装がまだありません。Unity に衣装パッケージをインポートしてから、ワードローブを更新してください。"
+        },
+        {
+          "k": "grid.connectUnityHint",
+          "v": "Unity がオフラインです。Unity でこのプロジェクトを開いて再接続してください。"
+        },
+        {
+          "k": "wear.chooseVariant",
+          "v": "バリアントを選択してから「着用」を押してください。"
         }
       ]
     }

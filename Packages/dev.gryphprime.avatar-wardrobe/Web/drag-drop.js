@@ -17,7 +17,7 @@
     node.addEventListener('drop',function(event){
       node.classList.remove('drop-ready');event.preventDefault();event.stopPropagation();
       try{
-        if(event.dataTransfer.files.length){if(!options.files)throw new Error('Add purchased files in Library first.');return options.files(Array.from(event.dataTransfer.files));}
+        if(event.dataTransfer.files.length){if(!options.files)throw new Error('Import outfit packages in Unity, then refresh the wardrobe.');return options.files(Array.from(event.dataTransfer.files));}
         var text=event.dataTransfer.getData(mime);if(text.length>8192)throw new Error('Invalid drag payload.');var value=normalize(JSON.parse(text));
         if(!options.outfit)throw new Error('Choose a supported drop target.');options.outfit(value);
       }catch(error){if(options.error)options.error(error.message);}

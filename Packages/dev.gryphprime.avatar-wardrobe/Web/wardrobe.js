@@ -3,8 +3,10 @@
   "use strict";
   var R=window.WardrobeRuntime, $=function(id){return document.getElementById(id);};
   var esc=R.escape;
-  // Opt-in views: overrides stay in this browser origin, outside project/package data.
+  // Disabled surfaces stay unavailable; opt-in editor overrides are local to this browser.
   var viewFeatures={
+    library:false,
+    dressingRoom:false,
     appearanceEditor:R.stored("wardrobeFeatureAppearance","0")==="1",
     menuOrganizer:R.stored("wardrobeFeatureMenu","0")==="1"
   };
@@ -115,10 +117,10 @@
     if(!empty) return;
     var state=lastState||{},filtered=!!(search||shop||category||hideEmpty||filter!=="all");
     var mode=!connected&&state.desktop?"offline":(initialGridPending||indexing||listInflight||indexAction)?"loading":connected&&lastState&&!state.avatarInstanceId?"target":gridNotice==="error"?"error":state.desktop&&state.outfits===0?"files":filtered?"filters":"empty";
-    var message=mode==="loading"?T(indexing?(indexPhase==="discovery"?"index.discovery":indexPhase==="dependencies"?"index.dependencies":"banner.indexing"):"grid.loading",indexDone,indexTotal):T({target:"grid.chooseAvatarHint",error:"grid.error",offline:"grid.offlineHint",files:"grid.addFilesHint",filters:"grid.empty",empty:"grid.empty"}[mode]);
+    var message=mode==="loading"?T(indexing?(indexPhase==="discovery"?"index.discovery":indexPhase==="dependencies"?"index.dependencies":"banner.indexing"):"grid.loading",indexDone,indexTotal):T({target:"grid.chooseAvatarHint",error:"grid.error",offline:viewFeatures.library?"grid.offlineHint":"grid.connectUnityHint",files:viewFeatures.library?"grid.addFilesHint":"grid.importInUnityHint",filters:"grid.empty",empty:"grid.empty"}[mode]);
     if(message==="grid.loading")message="Loading wardrobe…";
-    var actions=mode==="target"?[["gridChooseAvatar","grid.chooseAvatar"]]:mode==="files"?[["gridAddFiles","library.add"]]:mode==="filters"?[["gridClearFilters","grid.clearFilters"]]:mode==="error"||mode==="offline"?[["gridRetry","grid.retry"]]:[];
-    if(state.desktop&&(mode==="offline"||mode==="error"))actions.push(["gridAddFiles","grid.openLibrary"]);
+    var actions=mode==="target"?[["gridChooseAvatar","grid.chooseAvatar"]]:mode==="files"?(viewFeatures.library?[["gridAddFiles","library.add"]]:[]):mode==="filters"?[["gridClearFilters","grid.clearFilters"]]:mode==="error"||mode==="offline"?[["gridRetry","grid.retry"]]:[];
+    if(viewFeatures.library&&state.desktop&&(mode==="offline"||mode==="error"))actions.push(["gridAddFiles","grid.openLibrary"]);
     var signature=JSON.stringify([mode,langCode,actions]);
     if(emptyGridState.dataset.mode!==signature){
       emptyGridState.dataset.mode=signature;
@@ -129,7 +131,7 @@
   function emptyGridAction(id){
     if(id==="gridRetry"){load();return;}
     if(id==="gridChooseAvatar"){$("wardrobeTarget").focus();return;}
-    if(id==="gridAddFiles"){setBatchView("library");$("libraryFiles").focus();return;}
+    if(id==="gridAddFiles"&&viewFeatures.library){setBatchView("library");$("libraryFiles").focus();return;}
     if(id==="gridClearFilters"){
       search=shop=category="";hideEmpty=0;$("search").value=$("shop").value=$("category").value="";
       R.store("wardrobeHideEmpty","0");paintHide();selectFilter("all");$("search").focus();
@@ -139,7 +141,7 @@
   var langCode="en", langTable={}, langList=[];
   function T(key){
     // Empty/loading states can render before the language request completes.
-    var gridFallback={"grid.empty":"No items match your filters.","grid.loading":"Loading wardrobe…","grid.error":"Could not load items.","grid.retry":"Try again","grid.chooseAvatar":"Choose avatar","grid.chooseAvatarHint":"Choose the scene avatar you want to dress.","grid.addFilesHint":"No outfits are available in this project yet. Add your purchased files to get started.","grid.offlineHint":"Unity is offline. Your local library is still available.","grid.clearFilters":"Clear filters","grid.openLibrary":"Open local library","library.add":"Add purchased files"};
+    var gridFallback={"grid.importInUnityHint":"No outfits are available yet. Import your outfit packages in Unity, then refresh the wardrobe.","grid.connectUnityHint":"Unity is offline. Open this project in Unity to reconnect.","grid.empty":"No items match your filters.","grid.loading":"Loading wardrobe…","grid.error":"Could not load items.","grid.retry":"Try again","grid.chooseAvatar":"Choose avatar","grid.chooseAvatarHint":"Choose the scene avatar you want to dress.","grid.addFilesHint":"No outfits are available in this project yet. Add your purchased files to get started.","grid.offlineHint":"Unity is offline. Your local library is still available.","grid.clearFilters":"Clear filters","grid.openLibrary":"Open local library","library.add":"Add purchased files"};
     var v=(langTable[key]!=null)?langTable[key]:(gridFallback[key]||key);
     for(var a=1;a<arguments.length;a++) v=v.split("{"+(a-1)+"}").join(arguments[a]==null?"":arguments[a]);
     return v;
@@ -383,7 +385,7 @@
   }
   function hud(){
     var s=lastState||{},pending=previewActivity.active+previewActivity.queued;
-    R.text($("hudLow"),T(!connected?(s.desktop?"library.offlineReady":"status.reconnecting"):indexing?"banner.indexing":pending?"status.rendering":"status.browseReady",indexDone,indexTotal));
+    R.text($("hudLow"),T(!connected?(s.desktop&&viewFeatures.library?"library.offlineReady":"status.reconnecting"):indexing?"banner.indexing":pending?"status.rendering":"status.browseReady",indexDone,indexTotal));
     R.text($("indexedCount"),s.outfits?T("status.indexed",s.outfits):"");
     R.text($("pendingCount"),s.dirty?"· "+T(s.dirty===1?"status.pending":"status.pending.other",s.dirty):"");
     R.text($("hudHi"),pending?T("preview.queue",previewActivity.active,previewActivity.queued):T("preview.idle"));
@@ -409,13 +411,13 @@
       var firstDesktopState=!lastState&&s.desktop,wasConnected=connected;
       connected=s.bridgeOnline!==false; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
       R.setContext(s.session, s.avatarInstanceId);
-      $("navLibrary").hidden=!s.desktop;
-      if(s.bridgeOnline===false&&(wasConnected||firstDesktopState)) toast(T("library.offlineHelp"),"info");
-      if(firstDesktopState)setBatchView("library");
+      $("navLibrary").hidden=!s.desktop||!viewFeatures.library;
+      if(s.bridgeOnline===false&&(wasConnected||firstDesktopState)) toast(T(viewFeatures.library?"library.offlineHelp":"grid.connectUnityHint"),"info");
+      if(firstDesktopState&&viewFeatures.library)setBatchView("library");
       window.WardrobeUpdates.refresh(s.wardrobeVersion, T);
       window.WardrobeReporting.setVersion(s.wardrobeVersion);
       operations.setHost(!!s.desktop);
-      $("dressing").hidden=!s.desktop;$("wearingDropHint").hidden=!s.desktop;document.body.classList.toggle("desktop-dressing",!!s.desktop);document.body.classList.toggle("automatic-base",!s.avatarBaseEditable);
+      $("dressing").hidden=!s.desktop||!viewFeatures.dressingRoom;$("wearingDropHint").hidden=!s.desktop;document.body.classList.toggle("desktop-dressing",!!s.desktop&&viewFeatures.dressingRoom);document.body.classList.toggle("automatic-base",!s.avatarBaseEditable);
       if(!baseSaving){
         var baseSelect=$("avatarBase"),choices=[{guid:"",name:T("avatar.base.auto"),path:""}].concat(s.baseAvatars||[]);
         R.reconcile(baseSelect,choices,function(c){return c.guid;},function(){return document.createElement("option");},function(option,c){option.value=c.guid;R.text(option,c.name);option.title=c.path||"";});
@@ -642,12 +644,12 @@
       var replaceSelect=document.getElementById('dReplaceCopy');
       function paintWearMode(){replaceSelect.hidden=document.getElementById('dWearMode').value!=='replace';replaceSelect.previousElementSibling.hidden=replaceSelect.hidden;}
       document.getElementById('dWearMode').onchange=paintWearMode;paintWearMode();
-      var action='<button id="dTryOn">Try on</button><button id="dRemove" class="danger" hidden>Remove</button>'+
+      var action='<button id="dTryOn" hidden>Try on</button><button id="dRemove" class="danger" hidden>Remove</button>'+
         '<button id="dAddPreset" class="primary">'+esc(T("wear.apply"))+'</button><button id="dCancelSettings" type="button" hidden>'+esc(T('detail.cancelSettings'))+'</button><button id="dApplySettings" type="button" class="primary" hidden>'+esc(T('detail.applySettings'))+'</button>';
       document.getElementById("dActs").innerHTML=action+
         (aiAvailable?'<button id="dAi">'+esc(T("detail.ai"))+"</button>":"");
       wireActions();
-      if($('dTryOn'))window.WardrobeDragDrop.source($('dTryOn'),function(){return {version:1,familyId:d.id,variantId:v.guid,targetKey:dragContextKey()};});
+      if(viewFeatures.dressingRoom&&$('dTryOn'))window.WardrobeDragDrop.source($('dTryOn'),function(){return {version:1,familyId:d.id,variantId:v.guid,targetKey:dragContextKey()};});
       var dtok=++detailToken;
       loadDetailThumb(v.guid,dtok);
     }
@@ -682,7 +684,7 @@
       var add=$('dAddPreset'),tryOn=$('dTryOn'),remove=$('dRemove');
       if(remove)remove.disabled=!ready||!detailInstanceId||installInFlight;
       if(add)add.disabled=!ready||installInFlight;
-      if(tryOn)tryOn.disabled=!ready||!operations.enabled()||installInFlight;
+      if(tryOn)tryOn.disabled=!viewFeatures.dressingRoom||!ready||!operations.enabled()||installInFlight;
     }
     function loadPresetSelect(sel){
       var token=++presetLoadToken,desired=sel.value&&sel.value!=='__new'?sel.value:instance?instance.target||'common':effectivePreset();
@@ -823,7 +825,7 @@
         var dirty=pending();
         if(dirty)cacheSet(detailSettingDrafts,draftKey,{identity:installedIdentity||contextKey,target:id,guid:guid,familyId:d.id,worn:!!membership,group:select.value,toggles:partBox.checked,mixed:partBox.indeterminate},64);else detailSettingDrafts.delete(draftKey);
         apply.hidden=!membership||!dirty;cancel.hidden=!dirty;
-        $('dAddPreset').hidden=$('dTryOn').hidden=!!membership&&dirty;
+        $('dAddPreset').hidden=!!membership&&dirty;$('dTryOn').hidden=!viewFeatures.dressingRoom||!!membership&&dirty;
         var remove=$('dRemove');if(remove)remove.hidden=!membership||dirty;
         apply.disabled=!settingsReady||installInFlight;cancel.disabled=installInFlight;
         R.text(status,dirty?T(membership?'detail.settingsPending':'detail.settingsForWear'):'');
@@ -943,7 +945,7 @@
         }
       };
       var tryOn=$('dTryOn');
-      if(tryOn){tryOn.disabled=true;tryOn.title=T(operations.enabled()?'detail.tryOnHint':'detail.tryOnSetup');if(!operations.enabled()){var setup=document.createElement('p');setup.className='subtle';setup.textContent=T('detail.tryOnSetup');$('dPresetWrap').appendChild(setup);}tryOn.onclick=function(){
+      if(tryOn&&viewFeatures.dressingRoom){tryOn.disabled=true;tryOn.title=T(operations.enabled()?'detail.tryOnHint':'detail.tryOnSetup');if(!operations.enabled()){var setup=document.createElement('p');setup.className='subtle';setup.textContent=T('detail.tryOnSetup');$('dPresetWrap').appendChild(setup);}tryOn.onclick=function(){
         if(!presetsReady||!settingsReady||!validPreset($('dPreset').value))return;
         var input={variantId:v.guid,assetVersion:v.assetVersion,scopeId:effectivePreset($('dPreset').value),label:d.name+' · '+v.variant,createToggles:!!($('dCreateToggles')&&$('dCreateToggles').checked)};
         if($('dWearMode').value==='replace')input.instanceId=$('dReplaceCopy').value;
@@ -986,20 +988,20 @@
       if(inspectorMode==='selected'&&selectedFamilyId){var selectedCopy=record.command.payload.variantId===detailVariantGuid&&record.result&&record.result.addedInstanceId||detailInstanceId;openDetail(selectedFamilyId,detailVariantGuid,{instanceId:selectedCopy});}
     }
   }});
-  var snapshots=window.WardrobeSnapshots.create({operations:operations,api:api,root:$('dressing'),scope:function(){return effectivePreset();}});
+  var snapshots=viewFeatures.dressingRoom?window.WardrobeSnapshots.create({operations:operations,api:api,root:$('dressing'),scope:function(){return effectivePreset();}}):null;
   function queueOutfit(type,input,label){try{var command=operations.build(type,input);operations.submit(command,label).catch(function(error){toast(error.message,'err');});}catch(error){toast(error.message,'err');}}
   function dragContextKey(){var context=operations.context();if(!context)throw new Error('Wait for the pinned avatar to connect.');return window.WardrobeOperations.targetKey(Object.assign({},context,{scopeId:effectivePreset()}));}
   async function dropOutfit(payload,intent,instance){
     try{
       if(payload.targetKey!==dragContextKey())throw new Error('The avatar or preset changed during the drag. Start again from the current target.');
-      if(!payload.variantId){openDetail(payload.familyId);toast('Choose a variant, then use Try on or Wear.');return;}
+      if(!payload.variantId){openDetail(payload.familyId);toast(T('wear.chooseVariant'));return;}
       if(instance&&instance.familyId!==payload.familyId)throw new Error('Replace accepts a variant of this same outfit family. Use Wear to add another outfit.');
       var expected=dragContextKey(),detail=await api('/api/family?id='+encodeURIComponent(payload.familyId)+'&target='+encodeURIComponent(effectivePreset()));
       if(expected!==dragContextKey())throw new Error('The target changed while resolving the outfit. Drag again.');
       var variant=detail.variants.find(function(v){return v.guid===payload.variantId;});if(!variant)throw new Error('The variant is no longer available.');
       var input={variantId:variant.guid,assetVersion:variant.assetVersion,scopeId:instance?instance.target||'common':effectivePreset(),addCopy:!instance,label:detail.name+' · '+variant.variant};
       if(instance)input.instanceId=String(instance.instanceId);
-      if(intent==='try-on')snapshots.begin(input);else queueOutfit(intent,input,input.label);
+      if(intent==='try-on'){if(snapshots)snapshots.begin(input);}else queueOutfit(intent,input,input.label);
     }catch(error){toast(error.message,'err');}
   }
   function paintOperations(records,context){
@@ -1052,9 +1054,9 @@
     $('sceneUpload').disabled=pending.length>0||!connected;
   }
   $('operationSummary').onclick=function(){setBatchView('activity');};
-  window.WardrobeDragDrop.target($('tryOnDrop'),{outfit:function(payload){dropOutfit(payload,'try-on');},error:function(message){toast(message,'err');}});
+  if(viewFeatures.dressingRoom)window.WardrobeDragDrop.target($('tryOnDrop'),{outfit:function(payload){dropOutfit(payload,'try-on');},error:function(message){toast(message,'err');}});
   window.WardrobeDragDrop.target($('side'),{outfit:function(payload){dropOutfit(payload,'wear-outfit');},error:function(message){toast(message,'err');}});
-  window.WardrobeDragDrop.target($('library'),{files:function(files){window.WardrobeLibrary.addFiles(files);},error:function(message){toast(message,'err');}});
+  if(viewFeatures.library)window.WardrobeDragDrop.target($('library'),{files:function(files){window.WardrobeLibrary.addFiles(files);},error:function(message){toast(message,'err');}});
 
   function unappliedItemEdits(){
     var identity=installedIdentity||contextKey;

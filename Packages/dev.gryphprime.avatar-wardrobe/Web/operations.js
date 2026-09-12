@@ -64,7 +64,7 @@
       command.precondition.afterOperationId=chain;return command;
     }
     async function submit(command,label){
-      if(!enabled)throw new Error('Open Library and Dressing Room from the Unity launcher to use queued changes.');
+      if(!enabled)throw new Error('Open Avatar Wardrobe Desktop from the Unity launcher to use queued changes.');
       if(context&&key(Object.assign({},context,{scopeId:command.target.scopeId}))!==key(command.target))throw new Error('The target changed. Review the outfit for the newly selected avatar.');
       var old=records.get(command.id);
       if(old&&JSON.stringify(old.command)!==JSON.stringify(command))throw new Error('This operation ID already belongs to another command.');
