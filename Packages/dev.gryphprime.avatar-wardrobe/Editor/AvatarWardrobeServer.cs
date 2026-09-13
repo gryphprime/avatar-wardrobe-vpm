@@ -66,6 +66,8 @@ namespace OutfitToggleGenerator
         internal static int Port { get; private set; }
         internal static string LastError { get; private set; }
         private static VRCAvatarDescriptor sceneAvatar;
+        private const string PinnedTargetInstanceKey = "Wardrobe.PinnedTarget";
+        private const string PinnedTargetGlobalIdKey = "Wardrobe.PinnedTargetGlobalId";
         private static int uploadTargetLocks;
         internal static bool UploadTargetLocked => uploadTargetLocks > 0;
         internal static bool IsStagingAvatar(VRCAvatarDescriptor avatar)
@@ -74,6 +76,15 @@ namespace OutfitToggleGenerator
             var path = avatar.gameObject.scene.path ?? "";
             return path.StartsWith("Assets/Generated/WardrobeUploads/", StringComparison.Ordinal) &&
                 !path.StartsWith("Assets/Generated/WardrobeUploads/SourceScenes/", StringComparison.Ordinal);
+        }
+        private static bool SameAvatar(VRCAvatarDescriptor first, VRCAvatarDescriptor second)
+        {
+            if (ReferenceEquals(first, second)) return true;
+            // A Unity wrapper that has been destroyed must not compare equal to
+            // the restored edit-mode object. For two live wrappers, instance ID
+            // avoids needless invalidation on every EditorWindow repaint.
+            if (first == null || second == null) return false;
+            return first.GetInstanceID() == second.GetInstanceID();
         }
         private sealed class UploadTargetLock : IDisposable
         {
@@ -87,8 +98,42 @@ namespace OutfitToggleGenerator
         }
         internal static VRCAvatarDescriptor SceneAvatar
         {
-            get { return sceneAvatar; }
-            set { if (uploadTargetLocks > 0 || IsStagingAvatar(value) || sceneAvatar == value) return; sceneAvatar = value; InvalidateInstalled(); WardrobeLog.Write("avatar", value == null ? "Selected none" : "Selected " + value.name + " instance=" + value.GetInstanceID()); }
+            get
+            {
+                // Play mode can leave the static Unity wrapper pointing at a
+                // destroyed clone even though the edit-mode scene object is
+                // back. Re-resolve lazily so any browser/state request repairs
+                // the context instead of reporting an empty Wearing panel.
+                if (sceneAvatar == null && !EditorApplication.isPlayingOrWillChangePlaymode)
+                {
+                    var restored = ResolvePinnedTarget();
+                    if (restored != null) sceneAvatar = restored;
+                }
+                return sceneAvatar;
+            }
+            set
+            {
+                // Unity overloads Object equality so a destroyed wrapper compares
+                // equal to null (and sometimes to another wrapper). Use managed
+                // identity here so a post-play-mode scene object can replace a
+                // stale wrapper reliably.
+                if (uploadTargetLocks > 0 || IsStagingAvatar(value) || SameAvatar(sceneAvatar, value))
+                {
+                    return;
+                }
+                if (value == null && !EditorApplication.isPlayingOrWillChangePlaymode)
+                {
+                    // A null assigned by the launcher is an explicit deselection.
+                    // Keep the stable pin only while Unity is transitioning into
+                    // or out of play mode, when scene wrappers are temporarily
+                    // reported as destroyed.
+                    SessionState.SetInt(PinnedTargetInstanceKey, 0);
+                    SessionState.SetString(PinnedTargetGlobalIdKey, string.Empty);
+                }
+                sceneAvatar = value;
+                InvalidateInstalled();
+                WardrobeLog.Write("avatar", value == null ? "Selected none" : "Selected " + value.name + " instance=" + value.GetInstanceID());
+            }
         }
         // Resolved on Start (main thread) so the listener thread can serve
         // cached bytes without ever touching Unity APIs.
@@ -182,17 +227,69 @@ namespace OutfitToggleGenerator
 
         [InitializeOnLoadMethod] private static void ResumeAfterReload()
         {
+            EditorApplication.playModeStateChanged -= HandlePlayModeStateChanged;
+            EditorApplication.playModeStateChanged += HandlePlayModeStateChanged;
             if (!SessionState.GetBool("Wardrobe.ServerRequested", false)) return;
             EditorApplication.delayCall += () =>
             {
-                SceneAvatar = EditorUtility.InstanceIDToObject(SessionState.GetInt("Wardrobe.PinnedTarget", 0)) as VRCAvatarDescriptor;
+                SceneAvatar = ResolvePinnedTarget();
                 Start();
             };
+        }
+
+        private static void HandlePlayModeStateChanged(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.ExitingEditMode || state == PlayModeStateChange.ExitingPlayMode)
+            {
+                RememberPinnedTarget();
+                return;
+            }
+            if (state != PlayModeStateChange.EnteredEditMode) return;
+            // Play mode can replace scene objects and their instance IDs without
+            // a domain reload. Resolve the pinned scene object after Unity has
+            // restored the edit-mode scene, then refresh the browser context.
+            EditorApplication.delayCall += () =>
+            {
+                var resolved = ResolvePinnedTarget();
+                if (resolved == null) return;
+                SceneAvatar = resolved;
+                AvatarWardrobeWindow.Instance?.SetTarget(resolved);
+            };
+        }
+
+        private static void RememberPinnedTarget()
+        {
+            var avatar = SceneAvatar;
+            // During play mode Unity temporarily makes the edit-mode object
+            // look destroyed. Do not erase the stable pin in that interval.
+            if (avatar == null) return;
+            SessionState.SetInt(PinnedTargetInstanceKey, avatar.GetInstanceID());
+            if (avatar == null || !avatar.gameObject.scene.IsValid())
+            {
+                SessionState.SetString(PinnedTargetGlobalIdKey, string.Empty);
+                return;
+            }
+            SessionState.SetString(PinnedTargetGlobalIdKey,
+                GlobalObjectId.GetGlobalObjectIdSlow(avatar.gameObject).ToString());
+        }
+
+        private static VRCAvatarDescriptor ResolvePinnedTarget()
+        {
+            var stable = SessionState.GetString(PinnedTargetGlobalIdKey, string.Empty);
+            if (!string.IsNullOrEmpty(stable) && GlobalObjectId.TryParse(stable, out var id))
+            {
+                var gameObject = GlobalObjectId.GlobalObjectIdentifierToObjectSlow(id) as GameObject;
+                var avatar = gameObject == null ? null : gameObject.GetComponent<VRCAvatarDescriptor>();
+                if (avatar != null && !IsStagingAvatar(avatar)) return avatar;
+            }
+            var instanceId = SessionState.GetInt(PinnedTargetInstanceKey, 0);
+            return instanceId == 0 ? null :
+                EditorUtility.InstanceIDToObject(instanceId) as VRCAvatarDescriptor;
         }
         private static void PauseForReload()
         {
             var requested = Running;
-            SessionState.SetInt("Wardrobe.PinnedTarget", SceneAvatar == null ? 0 : SceneAvatar.GetInstanceID());
+            RememberPinnedTarget();
             Stop();
             SessionState.SetBool("Wardrobe.ServerRequested", requested);
         }

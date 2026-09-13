@@ -33,8 +33,14 @@ namespace OutfitToggleGenerator
         private void OnEnable()
         {
             Instance = this;
+            var restored = AvatarWardrobeServer.SceneAvatar;
+            if (sceneAvatar == null && restored != null)
+            {
+                sceneAvatar = restored;
+                UseSceneAvatarRecord();
+            }
             FollowSelection();
-            AvatarWardrobeServer.SceneAvatar = sceneAvatar;
+            if (sceneAvatar != null) AvatarWardrobeServer.SceneAvatar = sceneAvatar;
         }
         private void OnDisable()
         {
@@ -46,6 +52,15 @@ namespace OutfitToggleGenerator
             GUILayout.Space(4);
             FollowSelection();
             if (AvatarWardrobeServer.UploadTargetLocked) sceneAvatar = AvatarWardrobeServer.SceneAvatar;
+            if (sceneAvatar == null)
+            {
+                var restored = AvatarWardrobeServer.SceneAvatar;
+                if (restored != null)
+                {
+                    sceneAvatar = restored;
+                    UseSceneAvatarRecord();
+                }
+            }
             EditorGUI.BeginChangeCheck();
             using (new EditorGUI.DisabledScope(AvatarWardrobeServer.UploadTargetLocked))
             sceneAvatar = (VRCAvatarDescriptor)EditorGUILayout.ObjectField(
