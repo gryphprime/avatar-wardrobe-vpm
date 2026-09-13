@@ -364,7 +364,16 @@ namespace OutfitToggleGenerator
             foreach (var r in changed)
             {
                 if (r == null || !IsAssetGuid(r.guid)) continue;
-                ResetThumb(r.guid); any = true;
+                // Import notifications also occur when Unity reopens or reimports
+                // unchanged assets. Keep the fingerprinted PNGs: the completed
+                // catalog scan selects a new path only when source content changes.
+                // Deleting here also lets a render overwrite the old fingerprint
+                // with new pixels before that scan has finished.
+                thumbDead.Remove("hi:" + r.guid);
+                thumbDead.Remove("lo:" + r.guid);
+                thumbSightings.Remove(r.guid);
+                thumbWarned.Remove(r.guid);
+                any = true;
             }
             if (any) { previewRevision++; hiCacheAt = DateTime.MinValue; }
         }

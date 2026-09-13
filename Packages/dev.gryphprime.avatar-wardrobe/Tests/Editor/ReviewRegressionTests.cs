@@ -139,6 +139,48 @@ namespace OutfitToggleGenerator
     public class PreviewSchedulingTests
     {
         [Test]
+        public void ImportNotificationPreservesFingerprintCachedImages()
+        {
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+            var lowField = typeof(AvatarWardrobeServer).GetField("thumbDir", flags);
+            var highField = typeof(AvatarWardrobeServer).GetField("hiDir", flags);
+            var oldLow = lowField.GetValue(null);
+            var oldHigh = highField.GetValue(null);
+            var directory = Path.Combine(Path.GetTempPath(), "wardrobe-preview-test-" + Guid.NewGuid().ToString("N"));
+            var guid = Guid.NewGuid().ToString("N");
+            var pathMethod = typeof(AvatarWardrobeServer).GetMethod("ThumbPath", flags, null,
+                new[] { typeof(string), typeof(bool) }, null);
+            try
+            {
+                lowField.SetValue(null, Path.Combine(directory, "thumbs"));
+                highField.SetValue(null, Path.Combine(directory, "thumbs512"));
+                var paths = new[] { (string)pathMethod.Invoke(null, new object[] { guid, false }),
+                    (string)pathMethod.Invoke(null, new object[] { guid, true }) };
+                foreach (var path in paths)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    File.WriteAllBytes(path, new byte[] { 1, 2, 3 });
+                }
+                AvatarWardrobeServer.InvalidatePreviews(new[] { new WardrobeAssetRecord { guid = guid } });
+                // The former invalidation queued asynchronous deletions; wait for
+                // those too so the regression cannot pass by racing the worker.
+                var encoding = (System.Collections.Concurrent.ConcurrentDictionary<string, Task<byte[]>>)
+                    typeof(AvatarWardrobeServer).GetField("previewEncoding", flags).GetValue(null);
+                foreach (var path in paths)
+                {
+                    if (encoding.TryGetValue(path, out var pending)) pending.GetAwaiter().GetResult();
+                    CollectionAssert.AreEqual(new byte[] { 1, 2, 3 }, File.ReadAllBytes(path));
+                }
+            }
+            finally
+            {
+                lowField.SetValue(null, oldLow);
+                highField.SetValue(null, oldHigh);
+                if (Directory.Exists(directory)) Directory.Delete(directory, true);
+            }
+        }
+
+        [Test]
         public void PriorityQueueContinuesWithRemainderWithoutDuplicates()
         {
             string a = new string('a', 32), b = new string('b', 32), c = new string('c', 32);
