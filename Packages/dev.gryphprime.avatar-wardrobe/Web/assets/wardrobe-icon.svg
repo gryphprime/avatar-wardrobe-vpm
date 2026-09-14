@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>Avatar Wardrobe</title>
+  <rect width="64" height="64" rx="14" fill="#0b1522"/>
+  <path d="M24 10 8 18l6 14 8-3v25h20V29l8 3 6-14-16-8a8 8 0 0 1-16 0Z" fill="#78b9ff" stroke="#dff1ff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M24 10a8 8 0 0 0 16 0" fill="none" stroke="#dff1ff" stroke-width="3" stroke-linecap="round"/>
+</svg>

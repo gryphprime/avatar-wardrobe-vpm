@@ -79,6 +79,8 @@ namespace OutfitToggleGenerator
                 case "/preset-appearance.js": uiFile = "preset-appearance.js"; uiMime = "application/javascript"; break;
                 case "/appearance-editor.js": uiFile = "appearance-editor.js"; uiMime = "application/javascript"; break;
                 case "/appearance-editor.css": uiFile = "appearance-editor.css"; uiMime = "text/css"; break;
+                case "/manifest.webmanifest": uiFile = "manifest.webmanifest"; uiMime = "application/manifest+json"; break;
+                case "/assets/wardrobe-icon.svg": uiFile = "assets/wardrobe-icon.svg"; uiMime = "image/svg+xml"; break;
                 case "/menu-organizer.js": uiFile = "menu-organizer.js"; uiMime = "application/javascript"; break;
                 case "/scene-editor.js": uiFile = "scene-editor.js"; uiMime = "application/javascript"; break;
                 case "/wardrobe.js": uiFile = "wardrobe.js"; uiMime = "application/javascript"; break;
@@ -109,6 +111,11 @@ namespace OutfitToggleGenerator
             if (path == "/api/state")
             {
                 WriteMainJson(context, GetState, requestCode);
+                return;
+            }
+            if (path == "/api/revision")
+            {
+                WriteMainJson(context, GetRevision, requestCode);
                 return;
             }
             if (path.StartsWith("/api/preset_appearance", StringComparison.Ordinal))

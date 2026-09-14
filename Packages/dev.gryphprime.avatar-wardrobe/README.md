@@ -18,7 +18,16 @@ Legacy Assets/OutfitToggleGenerator installations are migrated automatically.
 Open Tools > Avatar Wardrobe after Unity compiles.
 
 Windows includes a private Python runtime. macOS requires python3 on PATH;
-optional Apple Intelligence features require macOS 26 or later.
+optional Apple Intelligence features require macOS 26 or later. `Tools > Avatar
+Wardrobe Desktop` opens the existing localhost UI in the installed browser's
+application mode when available (Edge/Chrome on Windows, Chrome/Chromium on
+macOS/Linux), with the normal browser as a fallback. No AW-specific native
+runtime is bundled.
+
+The desktop host keeps its project-local endpoint under
+`Library/AvatarWardrobe/desktop.json`. Unity publishes its disposable bridge
+under `Library/AvatarWardrobe/bridge.json`, so an open Wardrobe window can stay
+connected while Unity recompiles, reloads, or restarts on another bridge port.
 
 The local release candidate passes Unity 2022.3.22f1 compilation and the
 Avatar Wardrobe EditMode suite (105 passed, three optional integrations skipped).

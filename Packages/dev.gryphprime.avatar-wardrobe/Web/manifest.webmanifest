@@ -1,0 +1,18 @@
+{
+  "name": "Avatar Wardrobe",
+  "short_name": "Avatar Wardrobe",
+  "description": "Manage avatar outfits and wardrobe presets.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1522",
+  "theme_color": "#0b1522",
+  "icons": [
+    {
+      "src": "/assets/wardrobe-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -4,8 +4,10 @@ python3 wardrobe_desktop.py --library ~/AvatarWardrobeLibrary --project /path/to
 """
 import argparse
 import base64
-import time
 import hashlib
+import os
+import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import sqlite3
@@ -18,6 +20,8 @@ import urllib.parse
 import urllib.request
 import uuid
 from wardrobe_library import Library, MAX_BYTES
+from wardrobe_bridge import (BRIDGE_PROTOCOL, BridgeLocator, BridgeUnavailable,
+                              UNITY_PORT_MAX, UNITY_PORT_MIN, _NoRedirect, canonical_project)
 from wardrobe_shadow_host import ShadowSnapshotService
 from wardrobe_operations import OperationQueue, OperationDriver, MAX_COMMAND_BYTES
 
@@ -27,22 +31,123 @@ STATIC = {'/': 'wardrobe.html', '/wardrobe.html': 'wardrobe.html', '/lang.json':
           '/upload.js': 'upload.js', '/previews.js': 'previews.js', '/library.js': 'library.js', '/reporting.js': 'reporting.js',
           '/scene-editor.js': 'scene-editor.js', '/operations.js': 'operations.js',
           '/snapshots.js': 'snapshots.js', '/photo-history.js': 'photo-history.js', '/photo-history.css': 'photo-history.css', '/drag-drop.js': 'drag-drop.js', '/menu-organizer.js': 'menu-organizer.js', '/preset-appearance.js': 'preset-appearance.js', '/appearance-editor.js': 'appearance-editor.js', '/appearance-editor.css': 'appearance-editor.css'}
+STATIC.update({'/manifest.webmanifest': 'manifest.webmanifest', '/assets/wardrobe-icon.svg': 'assets/wardrobe-icon.svg'})
+UI_FILES = tuple(dict.fromkeys(STATIC.values()))
+HOST_FILES = ('wardrobe_desktop.py', 'wardrobe_bridge.py', 'wardrobe_library.py',
+              'wardrobe_operations.py', 'wardrobe_shadow.py', 'wardrobe_shadow_host.py',
+              'wardrobe_snapshot_cache.py')
 READ_CACHE = {'/api/state', '/api/families', '/api/family', '/api/installed', '/api/thumb', '/api/snapshot'}
 LEASE_RENEW_SECONDS = 30
 BUILD_ROUTES = {'/api/scene_upload_review', '/api/scene_upload', '/api/upload', '/api/batch_upload_one',
                 '/api/batch_upload_scene', '/api/batch_upload_presets', '/api/batch_dryrun'}
 
 
+def _hash_files(root, names):
+    """Hash a fixed list of served/host files, tolerating replacement races."""
+    digest = hashlib.sha256()
+    for name in names:
+        path = root / name
+        digest.update(name.encode('utf-8'))
+        try:
+            with path.open('rb') as source:
+                while True:
+                    chunk = source.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+        except OSError as error:
+            digest.update(('missing:' + type(error).__name__).encode('ascii'))
+    return digest.hexdigest()
+
+
+def compute_ui_build():
+    return _hash_files(WEB, UI_FILES)
+
+
+def compute_host_build():
+    return _hash_files(Path(__file__).resolve().parent, HOST_FILES)
+
+
+def _desktop_state_path(project):
+    return Path(canonical_project(project)) / 'Library' / 'AvatarWardrobe' / 'desktop.json'
+
+
+def _read_json(path):
+    try:
+        return json.loads(Path(path).read_text(encoding='utf-8'))
+    except (OSError, ValueError, TypeError, UnicodeError):
+        return None
+
+
+def _write_json_atomic(path, value):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
+    try:
+        with temporary.open('w', encoding='utf-8') as output:
+            json.dump(value, output, sort_keys=True, separators=(',', ':'))
+            output.flush()
+            os.fsync(output.fileno())
+        temporary.replace(path)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+class ExistingDesktopHost(Exception):
+    def __init__(self, port):
+        super().__init__(port)
+        self.port = port
+
+
+def _probe_desktop_identity(port, project, timeout=0.5):
+    if not 8930 <= port <= 8959:
+        return False
+    request = urllib.request.Request('http://localhost:%d/api/desktop_identity' % port, method='GET')
+    # A desktop identity is local state, so redirects must never turn this
+    # probe into a request to an unrelated endpoint.  Keep it proxy-free too.
+    opener = urllib.request.build_opener(_NoRedirect, urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            value = json.loads(response.read(1024 * 1024))
+        return (isinstance(value, dict) and type(value.get('protocol')) is int and value.get('protocol') == BRIDGE_PROTOCOL and
+                value.get('project') == canonical_project(project) and value.get('port') == port)
+    except (OSError, ValueError, TypeError, urllib.error.URLError):
+        return False
+
+
+def desktop_port_candidates(project, requested=0):
+    """Return a deterministic, project-friendly desktop port order."""
+    if requested:
+        if not 1 <= requested <= 65535:
+            raise ValueError('Desktop port is out of range.')
+        return (requested,)
+    saved = _read_json(_desktop_state_path(project))
+    result = []
+    if isinstance(saved, dict) and type(saved.get('port')) is int and 8930 <= saved['port'] <= 8959:
+        result.append(saved['port'])
+    result.extend(port for port in range(8930, 8960) if port not in result)
+    return tuple(result)
+
+
 class UnityOperationBridge:
-    """Fixed loopback transport; operation reads never depend on the main thread."""
-    def __init__(self, base_url, project, timeout=8):
-        self.base_url, self.project, self.timeout = base_url, project, timeout
+    """Dynamic loopback transport; operation reads never depend on the main thread."""
+    def __init__(self, locator, project, timeout=8):
+        if isinstance(locator, str):
+            class _StaticLocator:
+                def __init__(self, value): self.value = value.rstrip('/')
+                def endpoint(self): return self.value
+            locator = _StaticLocator(locator)
+        self.locator, self.project, self.timeout = locator, project, timeout
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, req, fp, code, msg, headers, newurl):
                 raise urllib.error.HTTPError(req.full_url, code, 'Bridge redirects are not allowed.', headers, fp)
         self.opener = urllib.request.build_opener(NoRedirect, urllib.request.ProxyHandler({}))
 
     def _request(self, path, payload=None, command=None, post=False):
+        base_url = self.locator.endpoint()
         headers = {'X-Wardrobe-Project': urllib.parse.quote(self.project, safe='')}
         if post:
             headers['X-Wardrobe-Request'] = '1'
@@ -52,7 +157,7 @@ class UnityOperationBridge:
         data = json.dumps(payload, allow_nan=False).encode() if payload is not None else None
         if data is not None:
             headers['Content-Type'] = 'application/json'
-        request = urllib.request.Request(self.base_url + path, data=data, headers=headers, method='POST' if post else 'GET')
+        request = urllib.request.Request(base_url + path, data=data, headers=headers, method='POST' if post else 'GET')
         with self.opener.open(request, timeout=self.timeout) as response:
             raw = response.read(2 * 1024 * 1024 + 1)
             if len(raw) > 2 * 1024 * 1024:
@@ -85,15 +190,28 @@ class UnityOperationBridge:
 
 class Host(ThreadingHTTPServer):
     daemon_threads = True
+    allow_reuse_address = True
     def __init__(self, port, library, project, bridge, unity=""):
-        parsed = urllib.parse.urlparse(bridge)
-        if (parsed.scheme != 'http' or parsed.hostname != 'localhost' or parsed.username or parsed.password or
-                parsed.path not in ('', '/') or parsed.query or parsed.fragment or not (8909 <= (parsed.port or 0) <= 8929)):
-            raise ValueError('The Unity bridge must use http://localhost:8909 through :8929.')
-        super().__init__(('127.0.0.1', port), Handler)
+        self.project = canonical_project(project)
+        self.bridge_locator = BridgeLocator(self.project, fallback=bridge)
+        self._requested_port = port
+        self._desktop_state = _desktop_state_path(self.project) if self.project else None
+        if not port and self.project:
+            for candidate in desktop_port_candidates(self.project, 0):
+                if _probe_desktop_identity(candidate, self.project):
+                    raise ExistingDesktopHost(candidate)
+        self._bound_port = None
+        last_error = None
+        for candidate in desktop_port_candidates(self.project, port) if not port or port >= 8930 else (port,):
+            try:
+                super().__init__(('127.0.0.1', candidate), Handler)
+                self._bound_port = self.server_port
+                break
+            except OSError as error:
+                last_error = error
+        if self._bound_port is None:
+            raise last_error or OSError('No desktop host port is available.')
         self.library = library
-        self.project = str(Path(project).resolve()) if project else ''
-        self.bridge = bridge.rstrip('/')
         self.cache = library.root / 'preview-cache'
         self.cache.mkdir(exist_ok=True)
         self.plans = {}
@@ -109,12 +227,58 @@ class Host(ThreadingHTTPServer):
         self.snapshot_lock = threading.Lock()
         self.operations = OperationQueue(library.root / 'operations.sqlite3', self.project)
         self._operation_queue = self.operations
-        self.operation_bridge = UnityOperationBridge(self.bridge, self.project)
+        self.operation_bridge = UnityOperationBridge(self.bridge_locator, self.project)
         self.operation_driver = OperationDriver(self.operations, self.operation_bridge)
         self.operation_health = None
         self._operation_stop = threading.Event()
         self._operation_thread = threading.Thread(target=self._drive_operations, name='wardrobe-operations', daemon=True)
         self._operation_thread.start()
+        self.ui_build = compute_ui_build()
+        self.host_build = compute_host_build()
+        self.restart_requested = threading.Event()
+        self._watch_stop = threading.Event()
+        self._watch_thread = None
+        if self._desktop_state:
+            _write_json_atomic(self._desktop_state, self.desktop_identity())
+
+    def desktop_identity(self):
+        return {'ok': 1, 'protocol': BRIDGE_PROTOCOL, 'project': self.project,
+                'port': self.server_port, 'pid': os.getpid(), 'session': self.session,
+                'hostBuild': self.host_build, 'uiBuild': self.refresh_ui_build(), 'unity': self.unity}
+
+    def refresh_ui_build(self):
+        current = compute_ui_build()
+        if current != self.ui_build:
+            self.ui_build = current
+        return self.ui_build
+
+    def start_build_watcher(self):
+        if self._watch_thread is not None:
+            return
+        self._watch_thread = threading.Thread(target=self._watch_builds, name='WardrobeBuildWatcher', daemon=True)
+        self._watch_thread.start()
+
+    def _watch_builds(self):
+        pending = None
+        stable_count = 0
+        while not self._watch_stop.wait(2.0):
+            current = compute_host_build()
+            if current == self.host_build:
+                pending = None
+                stable_count = 0
+                continue
+            if current != pending:
+                pending, stable_count = current, 1
+                continue
+            stable_count += 1
+            if stable_count < 2:
+                continue
+            self.restart_requested.set()
+            try:
+                self.shutdown()
+            except Exception:
+                pass
+            return
 
     def _drive_operations(self):
         warning_at = 0
@@ -140,6 +304,12 @@ class Host(ThreadingHTTPServer):
     def server_close(self):
         # TCPServer calls this override when binding fails, before queue fields exist.
         try:
+            stop_watch = getattr(self, '_watch_stop', None)
+            watch = getattr(self, '_watch_thread', None)
+            if stop_watch is not None:
+                stop_watch.set()
+            if watch is not None and watch.ident is not None and watch is not threading.current_thread():
+                watch.join(timeout=2)
             stop = getattr(self, '_operation_stop', None)
             thread = getattr(self, '_operation_thread', None)
             queue = getattr(self, '_operation_queue', None)
@@ -212,7 +382,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if route in STATIC and self.command == 'GET':
                 file = WEB / STATIC[route]
-                mime = {'.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json'}.get(file.suffix)
+                mime = {'.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.css': 'text/css',
+                        '.json': 'application/json', '.webmanifest': 'application/manifest+json',
+                        '.svg': 'image/svg+xml'}.get(file.suffix)
                 if mime == 'application/json':
                     return self.send(200, json.loads(file.read_text()))
                 return self.send(200, file.read_bytes(), mime)
@@ -221,7 +393,9 @@ class Handler(BaseHTTPRequestHandler):
                 if name in ('header-portrait.webp', 'rail-landscape.webp', 'avatar-placeholder.webp'):
                     return self.send(200, (WEB / 'assets' / name).read_bytes(), 'image/webp')
             if route == '/api/desktop_identity' and self.command == 'GET':
-                return self.send(200, {'ok': 1, 'protocol': 3, 'project': self.server.project, 'session': self.server.session, 'unity': self.server.unity})
+                return self.send(200, self.server.desktop_identity())
+            if route == '/api/revision' and self.command == 'GET':
+                return self.revision()
             if route in ('/api/operations', '/api/operations/cancel'):
                 return self.operation_route(route, query)
             if route == '/api/library' and self.command == 'GET':
@@ -419,7 +593,7 @@ class Handler(BaseHTTPRequestHandler):
         lease = None
         headers = {'X-Wardrobe-Request': '1', 'X-Wardrobe-Project': urllib.parse.quote(self.server.project, safe='')}
         try:
-            request = urllib.request.Request(self.server.bridge + '/api/library_import_begin', method='POST', headers=headers)
+            request = urllib.request.Request(self.server.bridge_locator.endpoint() + '/api/library_import_begin', method='POST', headers=headers)
             with self._bridge_request(request, timeout=8) as response:
                 raw = response.read(1024 * 1024 + 1)
                 if len(raw) > 1024 * 1024: raise ValueError('Unity lease response is too large.')
@@ -428,7 +602,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError(lease.get('message', 'Unity cannot import right now.') if isinstance(lease, dict) else 'Unity cannot import right now.')
         except urllib.error.HTTPError as error:
             raise ValueError('Open the selected project in Unity and finish its active operation before importing.') from error
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+        except (urllib.error.URLError, BridgeUnavailable, TimeoutError, ConnectionError) as error:
             # A closed Unity project is a supported offline import target. If
             # Unity is open, however, a failed lease means its refresh lock is
             # unknown and copying would make a retry unsafe.
@@ -443,7 +617,7 @@ class Handler(BaseHTTPRequestHandler):
         def renew():
             while not stopped.wait(LEASE_RENEW_SECONDS):
                 try:
-                    request = urllib.request.Request(self.server.bridge + '/api/library_import_renew?token=' + urllib.parse.quote(lease['id'], safe=''), method='POST', headers=headers)
+                    request = urllib.request.Request(self.server.bridge_locator.endpoint() + '/api/library_import_renew?token=' + urllib.parse.quote(lease['id'], safe=''), method='POST', headers=headers)
                     with self._bridge_request(request, timeout=8) as response:
                         raw = response.read(1024 * 1024 + 1)
                         if len(raw) > 1024 * 1024:
@@ -451,7 +625,7 @@ class Handler(BaseHTTPRequestHandler):
                         renewed = json.loads(raw)
                         if not isinstance(renewed, dict) or renewed.get('ok') != 1:
                             raise ValueError('Unity import protection expired.')
-                except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError):
+                except (urllib.error.URLError, BridgeUnavailable, TimeoutError, ConnectionError, ValueError):
                     lost.set()
                     return
         if lease:
@@ -467,15 +641,15 @@ class Handler(BaseHTTPRequestHandler):
             if heartbeat:
                 heartbeat.join(timeout=10)
             if lease:
-                request = urllib.request.Request(self.server.bridge + '/api/library_import_end?token=' + urllib.parse.quote(lease['id'], safe=''), method='POST', headers=headers)
                 try:
+                    request = urllib.request.Request(self.server.bridge_locator.endpoint() + '/api/library_import_end?token=' + urllib.parse.quote(lease['id'], safe=''), method='POST', headers=headers)
                     with self._bridge_request(request, timeout=15) as response:
                         raw = response.read(1024 * 1024 + 1)
                         if len(raw) > 1024 * 1024: raise ValueError('Unity lease response is too large.')
                         ended = json.loads(raw)
                         if not isinstance(ended, dict) or ended.get('ok') != 1:
                             raise ValueError(ended.get('message', 'Import lease expired.') if isinstance(ended, dict) else 'Invalid Unity import confirmation.')
-                except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError):
+                except (urllib.error.URLError, BridgeUnavailable, TimeoutError, ConnectionError, ValueError):
                     # Files may already be present: do not report a safe-to-retry failure.
                     self.send_import_attention = True
         if result is not None and getattr(self, 'send_import_attention', False):
@@ -490,12 +664,12 @@ class Handler(BaseHTTPRequestHandler):
         opener = urllib.request.build_opener(NoRedirect, urllib.request.ProxyHandler({}))
         return opener.open(request, timeout=timeout)
 
-    def _verify_bridge_project(self):
+    def _verify_bridge_project(self, base_url):
         if not self.server.project:
             return
         # Verify each request: a bridge port can be reused by another project.
         headers = {'X-Wardrobe-Project': urllib.parse.quote(self.server.project, safe='')}
-        request = urllib.request.Request(self.server.bridge + '/api/operation_context', method='GET', headers=headers)
+        request = urllib.request.Request(base_url + '/api/operation_context', method='GET', headers=headers)
         with self._bridge_request(request, 8) as response:
             raw = response.read(4 * 1024 * 1024 + 1)
             if len(raw) > 4 * 1024 * 1024: raise ValueError('Unity identity response is too large.')
@@ -509,6 +683,7 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError('The Unity bridge belongs to another project. Open the project selected for this library host.')
 
     def proxy(self, route):
+        self.server.refresh_ui_build()
         if (route in BUILD_ROUTES and (self.command == 'POST' or route == '/api/scene_upload_review') and
                 self.server.operations.has_pending_mutations()):
             return self.send(409, {'ok': 0, 'message': 'Wait for pending wardrobe changes to finish or cancel them before reviewing, building or uploading this project.'})
@@ -516,10 +691,12 @@ class Handler(BaseHTTPRequestHandler):
             if route == '/api/state' and self.command == 'GET':
                 return self.send(200, {'desktop': True, 'bridgeOnline': False, 'libraryProject': '', 'session': 'offline',
                     'avatarInstanceId': 0, 'sceneTargets': [], 'sdkUploadReady': False, 'workflowPresets': [],
-                    'baseAvatars': [], 'families': 0, 'outfits': 0, 'avatars': 0, 'epoch': '', 'indexing': 0})
+                    'baseAvatars': [], 'families': 0, 'outfits': 0, 'avatars': 0, 'epoch': '', 'indexing': 0,
+                    'uiBuild': self.server.ui_build, 'hostBuild': self.server.host_build})
             return self.send(409, {'ok': 0, 'message': 'Start the desktop host with --project before connecting to Unity. Your library remains available.'})
-        # The fixed bridge host prevents arbitrary URL forwarding. Mutations retain
-        # the browser's reviewed Unity session and avatar identity, never a new one.
+        # The locator only accepts the project-local bridge record and verifies
+        # its live identity. Mutations retain the browser's reviewed Unity
+        # session and avatar identity, never a new one.
         body = None
         length = int(self.headers.get('Content-Length', '0'))
         if length:
@@ -532,14 +709,15 @@ class Handler(BaseHTTPRequestHandler):
             for name in ('X-Wardrobe-Request', 'X-Wardrobe-Session', 'X-Wardrobe-Avatar', 'X-Wardrobe-Queue', 'X-Wardrobe-Write-Id', 'Content-Type'):
                 if self.headers.get(name):
                     headers[name] = self.headers[name]
-        request = urllib.request.Request(self.server.bridge + self.path, data=body, method=self.command, headers=headers)
         key = hashlib.sha256((self.server.project + '|' + self.path).encode()).hexdigest()
         cached = self.server.cache / (key + '.json')
         try:
+            base_url = self.server.bridge_locator.endpoint()
+            request = urllib.request.Request(base_url + self.path, data=body, method=self.command, headers=headers)
             if route == '/api/snapshot':
                 self.server.operations.reconcile_session(self.server.operation_bridge.context())
             elif route not in ('/api/state', '/api/operation_context'):
-                self._verify_bridge_project()
+                self._verify_bridge_project(base_url)
             with self._bridge_request(request, 8 if self.command == 'GET' else 50) as response:
                 data = response.read(32 * 1024 * 1024 + 1)
                 if len(data) > 32 * 1024 * 1024:
@@ -587,14 +765,16 @@ class Handler(BaseHTTPRequestHandler):
                     except OSError: pass
             if route == '/api/state':
                 value = json.loads(data)
-                value.update(desktop=True, bridgeOnline=True, libraryProject=self.server.project, operationDriverError=self.server.operation_health)
+                value.update(desktop=True, bridgeOnline=True, libraryProject=self.server.project,
+                             operationDriverError=self.server.operation_health,
+                             uiBuild=self.server.ui_build, hostBuild=self.server.host_build)
                 return self.send(status, value)
             return self.send(status, json.loads(data) if mime == 'application/json' else data, mime)
         except urllib.error.HTTPError as error:
             if 300 <= error.code < 400:
                 return self.send(502, {'ok': 0, 'message': 'The Unity bridge returned a redirect, which is not allowed.'})
             return self.send(error.code, {'ok': 0, 'message': error.read(8000).decode(errors='replace')[:2000]})
-        except (urllib.error.URLError, TimeoutError, socket.timeout, ConnectionError):
+        except (urllib.error.URLError, BridgeUnavailable, TimeoutError, socket.timeout, ConnectionError):
             if self.command != 'GET':
                 return self.send(503, {'ok': 0, 'message': 'Unity is unavailable. Open this project and Tools > Avatar Wardrobe, then review the edit again.'})
             value = None
@@ -624,9 +804,46 @@ class Handler(BaseHTTPRequestHandler):
                     value = data
             if route == '/api/state':
                 value = value or {'workflowPresets': [], 'baseAvatars': [], 'families': 0, 'outfits': 0, 'avatars': 0, 'epoch': '', 'indexing': 0}
-                value.update(desktop=True, bridgeOnline=False, libraryProject=self.server.project, session='offline', avatarInstanceId=0, sceneTargets=[], sdkUploadReady=False)
+                value.update(desktop=True, bridgeOnline=False, libraryProject=self.server.project, session='offline', avatarInstanceId=0, sceneTargets=[], sdkUploadReady=False,
+                             uiBuild=self.server.ui_build, hostBuild=self.server.host_build)
                 return self.send(200, value)
             return self.send(503, {'ok': 0, 'message': 'No cached result yet. Your Library remains available while Unity is closed.'})
+
+    def revision(self):
+        """Return a cheap desktop/Unity identity response for fast reconciliation."""
+        self.server.refresh_ui_build()
+        if not self.server.project:
+            return self.send(200, {'ok': 1, 'desktop': True, 'bridgeOnline': False,
+                                   'libraryProject': '', 'session': 'offline', 'unityRevision': 0,
+                                   'wardrobeVersion': '', 'uiBuild': self.server.ui_build,
+                                   'hostBuild': self.server.host_build})
+        try:
+            base_url = self.server.bridge_locator.endpoint()
+            headers = {'X-Wardrobe-Project': urllib.parse.quote(self.server.project, safe='')}
+            request = urllib.request.Request(base_url + '/api/revision', method='GET', headers=headers)
+            with self._bridge_request(request, timeout=8) as response:
+                data = response.read(1024 * 1024 + 1)
+                if len(data) > 1024 * 1024:
+                    raise ValueError('Unity revision response is too large.')
+                value = json.loads(data)
+                status = response.status
+            if not isinstance(value, dict):
+                raise ValueError('Unity revision response is invalid.')
+            value.update(desktop=True, bridgeOnline=True, libraryProject=self.server.project,
+                         uiBuild=self.server.ui_build, hostBuild=self.server.host_build,
+                         operationDriverError=self.server.operation_health)
+            return self.send(status, value)
+        except urllib.error.HTTPError as error:
+            if 300 <= error.code < 400:
+                return self.send(502, {'ok': 0, 'message': 'The Unity bridge returned a redirect, which is not allowed.'})
+            if error.code == 409:
+                return self.send(409, {'ok': 0, 'message': error.read(8000).decode(errors='replace')[:2000]})
+            return self.send(error.code, {'ok': 0, 'message': 'Unity is unavailable.'})
+        except (urllib.error.URLError, BridgeUnavailable, TimeoutError, socket.timeout, ConnectionError, ValueError):
+            return self.send(200, {'ok': 1, 'desktop': True, 'bridgeOnline': False,
+                                   'libraryProject': self.server.project, 'session': 'offline',
+                                   'unityRevision': 0, 'wardrobeVersion': '',
+                                   'uiBuild': self.server.ui_build, 'hostBuild': self.server.host_build})
 
 
 def main():
@@ -634,7 +851,8 @@ def main():
     parser.add_argument('--library', default=str(Path.home() / 'AvatarWardrobeLibrary'))
     parser.add_argument('--project', default='')
     parser.add_argument('--bridge', default='http://localhost:8909')
-    parser.add_argument('--port', type=int, default=8930)
+    parser.add_argument('--port', type=int, default=0,
+                        help='Desktop HTTP port; 0 reuses Library/AvatarWardrobe/desktop.json or selects 8930-8959.')
     parser.add_argument('--unity', default='', help='Unity 2022.3.22f1 executable for the isolated photograph worker')
     parser.add_argument('--add', type=Path, help='Add a local purchased archive, then exit')
     args = parser.parse_args()
@@ -642,7 +860,19 @@ def main():
     if args.add:
         print(json.dumps(library.add(args.add)))
         return
-    server = Host(args.port, library, args.project, args.bridge, unity=args.unity)
+    # If Unity launches AW again while the previous host is still alive, attach
+    # to that project-owned endpoint instead of creating a duplicate server.
+    if args.port == 0 and args.project:
+        for candidate in desktop_port_candidates(args.project, 0):
+            if _probe_desktop_identity(candidate, args.project):
+                print(f'Avatar Wardrobe: http://localhost:{candidate}', flush=True)
+                return
+    try:
+        server = Host(args.port, library, args.project, args.bridge, unity=args.unity)
+    except ExistingDesktopHost as existing:
+        print(f'Avatar Wardrobe: http://localhost:{existing.port}', flush=True)
+        return
+    server.start_build_watcher()
     print(f'Avatar Wardrobe: http://localhost:{server.server_port}', flush=True)
     try:
         server.serve_forever()
@@ -651,6 +881,8 @@ def main():
     finally:
         server.close_shadow()
         server.server_close()
+    if server.restart_requested.is_set():
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 if __name__ == '__main__':

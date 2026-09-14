@@ -29,6 +29,7 @@
   var side=$("side"),sideContent=$("sideContent"),modal=$("modal"),modalContent=$("modalContent"),modalTitle=$("modalTitle"),modalMode=$("modalMode");
   var sideBackdrop=$("sideBackdrop"),hideBtn=$("hideEmpty"),avatarModeChip=$("workflowMulti");
   var lastState=null,catalogEpoch="",contextKey="",previewContext="",connected=false,currentView="wardrobe";
+  var revisionFlight=null,revisionTimer=null,lastRevisionKey="",bootUiBuild="",uiReloading=false;
   var listCache=new Map(),detailCache=new Map(),cardCache=new Map(),listItems=[];
   var listToken=0,listInflight=false,listController=null,gridNotice="",installedFlight=null,stateFlight=null;
   var previewActivity={active:0,queued:0},activityEntries=[],pollTimer=null;
@@ -441,8 +442,13 @@
     var expectedWorkflow=workflowRevision;
     stateFlight=api("/api/state",{method:"GET",timeout:30000}).then(function(s){
       if(!s||s.pending||s.ok===0) throw new Error("No state");
+      if(s.uiBuild){
+        if(bootUiBuild&&bootUiBuild!==s.uiBuild&&!uiReloading){uiReloading=true;location.reload();return s;}
+        if(!bootUiBuild)bootUiBuild=s.uiBuild;
+      }
       var firstDesktopState=!lastState&&s.desktop,wasConnected=connected;
       connected=s.bridgeOnline!==false; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
+      lastRevisionKey=[s.session||"",s.unityRevision||0].join("|");
       R.setContext(s.session, s.avatarInstanceId);
       $("navLibrary").hidden=!s.desktop||!viewFeatures.library;
       if(s.bridgeOnline===false&&(wasConnected||firstDesktopState)) toast(T(viewFeatures.library?"library.offlineHelp":"grid.connectUnityHint"),"info");
@@ -514,6 +520,34 @@
     return stateFlight;
   }
   var nextAutoIndexAt=0;
+  function refreshRevision(){
+    if(revisionFlight)return revisionFlight;
+    revisionFlight=api("/api/revision",{method:"GET",timeout:8000}).then(function(r){
+      if(!r||r.ok===0)return r;
+      if(r.uiBuild){
+        if(bootUiBuild&&bootUiBuild!==r.uiBuild&&!uiReloading){uiReloading=true;location.reload();return r;}
+        if(!bootUiBuild)bootUiBuild=r.uiBuild;
+      }
+      var key=[r.session||"",r.unityRevision||0].join("|");
+      var changed=!!lastRevisionKey&&key!==lastRevisionKey;
+      lastRevisionKey=key;
+      if(r.bridgeOnline===false){
+        if(connected){connected=false;hud();paintActivity();}
+        return r;
+      }
+      if(!lastState||r.session!==lastState.session||changed||!connected)return refreshState();
+      return r;
+    }).catch(function(){
+      if(connected){connected=false;hud();paintActivity();}
+      return null;
+    }).finally(function(){revisionFlight=null;});
+    return revisionFlight;
+  }
+  function scheduleRevisionPoll(){
+    clearTimeout(revisionTimer);
+    if(previewPageClosed)return;
+    revisionTimer=setTimeout(function(){refreshRevision().finally(scheduleRevisionPoll);},document.hidden?15000:1000);
+  }
   function closeModal(force){
     if(detailBusy()&&force!==true) return;
     detailLoadToken++;detailToken++;modal.classList.remove("on");sideBackdrop.classList.remove("on");
@@ -1292,14 +1326,14 @@
     if(document.hidden) tick();
     else {renderGrid();previews.resume();tick();}
   });
-  window.addEventListener("focus",function(){pingActive(true).then(function(){renderGrid();previews.resume();loadInstalled();});});
+  window.addEventListener("focus",function(){pingActive(true).then(function(){return refreshState();}).then(function(){renderGrid();previews.resume();loadInstalled();});});
   window.addEventListener("blur",function(){pingActive(true);});
-  window.addEventListener("pagehide",function(){previewPageClosed=true;pingActive(false);clearTimeout(pollTimer);if(listController) listController.abort();});
-  window.addEventListener("pageshow",function(event){if(event.persisted){previewPageClosed=false;tick();}});
+  window.addEventListener("pagehide",function(){previewPageClosed=true;pingActive(false);clearTimeout(pollTimer);clearTimeout(revisionTimer);if(listController) listController.abort();});
+  window.addEventListener("pageshow",function(event){if(event.persisted){previewPageClosed=false;tick();scheduleRevisionPoll();}});
   loadLangs().then(function(){
     applyStrings();paintHide();paintAvatarMode();setBatchView("wardrobe");
     document.querySelectorAll("#chips button").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.f===filter));});
-    tick();
+    tick();scheduleRevisionPoll();
   });
   // Direct scene-avatar upload, independent of preset records and folders.
   var sceneUploadButton=$("sceneUpload"),sceneDialog=$("sceneUploadDialog"),sceneReview=null,sceneJob=null,scenePoll=null;

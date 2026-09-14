@@ -186,6 +186,8 @@ namespace OutfitToggleGenerator
                 }
             }
             if (!Running) return false;
+            WriteBridgeRecord(true);
+            StartChangeTracking();
             // Browser requests must be able to reach the main thread before
             // an upload has started and acquired its own update lease.
             serverUpdateLease = ShiroTools.OutfitBatchUploader.UploadUpdatePump.Begin();
@@ -298,6 +300,7 @@ namespace OutfitToggleGenerator
         }
         internal static void Stop()
         {
+            WriteBridgeRecord(false);
             serverUpdateLease?.Dispose();
             serverUpdateLease = null;
             SessionState.SetBool("Wardrobe.ServerRequested", false);
@@ -308,6 +311,7 @@ namespace OutfitToggleGenerator
             Undo.undoRedoPerformed -= InvalidateInstalled;
             AssemblyReloadEvents.beforeAssemblyReload -= PauseForReload;
             EditorApplication.quitting -= Stop;
+            StopChangeTracking();
             if (dispatcher != null) dispatcher.Close();
             InvalidateContext();
             try
@@ -330,6 +334,7 @@ namespace OutfitToggleGenerator
 
         private static void Pump()
         {
+            ApplyPendingUnityRevision();
             if (operationLedger == null && operationInitialization != null && operationInitialization.IsCompleted && !operationInitialization.IsFaulted)
                 operationLedger = operationInitialization.Result;
             PumpPreviewEncoding();

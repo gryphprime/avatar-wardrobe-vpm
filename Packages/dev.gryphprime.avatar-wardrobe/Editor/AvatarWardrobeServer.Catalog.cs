@@ -131,6 +131,7 @@ namespace OutfitToggleGenerator
             public string session = string.Empty;
             public int previewEpoch;
             public string epoch = string.Empty;
+            public long unityRevision;
         }
 
         [Serializable]
@@ -241,6 +242,7 @@ namespace OutfitToggleGenerator
 
         private static StateDto GetState()
         {
+            ApplyPendingUnityRevision();
             // Discover legacy presets before the sidebar and modal request their assignments.
             // Reuse discovery until the avatar hierarchy changes; polling never generates icons.
             if (SceneAvatar != null && !EditorApplication.isPlayingOrWillChangePlaymode)
@@ -290,6 +292,7 @@ namespace OutfitToggleGenerator
             detail.hiTotal = hiTotalCache;
             detail.session = serverSession;
             detail.previewEpoch = previewRevision;
+            detail.unityRevision = CurrentUnityRevision;
             try { detail.ai = WardrobeMetadataProvider.Current.IsAvailable ? 1 : 0; }
             catch (Exception) { detail.ai = 0; }
             // Catalog identity for client caches: any reindex, correction, or

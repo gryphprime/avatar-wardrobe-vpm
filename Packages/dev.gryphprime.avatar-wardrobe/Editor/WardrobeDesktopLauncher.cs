@@ -39,7 +39,7 @@ namespace OutfitToggleGenerator
                     launching = false;
                     Identity parsed = null;
                     try { if (identity != null) parsed = JsonUtility.FromJson<Identity>(identity); } catch (ArgumentException) { }
-                    if (parsed != null && parsed.project == project && parsed.protocol == 3) { AvatarWardrobeServer.Start(); Application.OpenURL(previous); }
+                    if (parsed != null && parsed.project == project && parsed.protocol == AvatarWardrobeServer.DesktopProtocol) { AvatarWardrobeServer.Start(); OpenDesktopWindow(previous); }
                     else StartNew();
                 });
             });
@@ -64,7 +64,7 @@ namespace OutfitToggleGenerator
                     const string prefix = "Avatar Wardrobe: ";
                     if (args.Data != null && args.Data.StartsWith(prefix, StringComparison.Ordinal)) {
                         var url = args.Data.Substring(prefix.Length);
-                        callbacks.Enqueue(() => { launching = false; SessionState.SetString("Wardrobe.DesktopUrl", url); Application.OpenURL(url); });
+                        callbacks.Enqueue(() => { launching = false; SessionState.SetString("Wardrobe.DesktopUrl", url); OpenDesktopWindow(url); });
                     }
                 };
                 process.ErrorDataReceived += (_, args) => { if (!string.IsNullOrWhiteSpace(args.Data)) callbacks.Enqueue(() => UnityEngine.Debug.LogWarning("Wardrobe desktop: " + args.Data)); };
@@ -73,6 +73,70 @@ namespace OutfitToggleGenerator
                 process.BeginOutputReadLine(); process.BeginErrorReadLine();
             }
             catch (Exception error) { launching = false; UnityEngine.Debug.LogError("Could not open Avatar Wardrobe Desktop. Install Python 3.10 or newer on macOS/Linux, then retry. " + error.Message); }
+        }
+        private static void OpenDesktopWindow(string url)
+        {
+            // The UI remains the existing localhost web app.  Application mode
+            // removes browser chrome without adding a bundled Chromium runtime.
+            // Every fallback leaves the normal browser path available.
+            if (string.IsNullOrEmpty(url)) return;
+            try
+            {
+                if (Application.platform == RuntimePlatform.WindowsEditor)
+                {
+                    if (TryStart("msedge.exe", "--app=" + Quote(url))) return;
+                    if (TryStart("chrome.exe", "--app=" + Quote(url))) return;
+                }
+                else if (Application.platform == RuntimePlatform.OSXEditor)
+                {
+                    if (TryStart("open", "-a \"Google Chrome\" --args --app=" + Quote(url))) return;
+                    if (TryStart("open", "-a \"Chromium\" --args --app=" + Quote(url))) return;
+                }
+                else if (Application.platform == RuntimePlatform.LinuxEditor)
+                {
+                    if (TryStart("google-chrome", "--app=" + Quote(url))) return;
+                    if (TryStart("chromium", "--app=" + Quote(url))) return;
+                    if (TryStart("chromium-browser", "--app=" + Quote(url))) return;
+                }
+            }
+            catch (Exception error)
+            {
+                UnityEngine.Debug.LogWarning("Could not open Avatar Wardrobe application mode. Falling back to the default browser. " + error.Message);
+            }
+            Application.OpenURL(url);
+        }
+        private static bool TryStart(string fileName, string arguments)
+        {
+            try
+            {
+                using (var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = fileName,
+                        Arguments = arguments,
+                        UseShellExecute = true,
+                        CreateNoWindow = true
+                    }
+                })
+                {
+                    if (!process.Start()) return false;
+                    // `/usr/bin/open` itself is always present on macOS, but
+                    // exits non-zero when the requested browser is absent. A
+                    // short wait lets the Chromium fallback (or normal browser
+                    // fallback) run instead of treating that command as a
+                    // successful launch.
+                    if (string.Equals(fileName, "open", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!process.WaitForExit(3000)) return true;
+                        return process.ExitCode == 0;
+                    }
+                    return true;
+                }
+            }
+            catch (System.ComponentModel.Win32Exception) { return false; }
+            catch (FileNotFoundException) { return false; }
+            catch (InvalidOperationException) { return false; }
         }
         private static string Quote(string value) => "\"" + value.Replace("\"", "\\\"") + "\"";
     }
