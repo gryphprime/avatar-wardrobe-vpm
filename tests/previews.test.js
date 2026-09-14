@@ -125,7 +125,7 @@ test('successful shared retry repaints a visible failed consumer without a secon
 
 function previewNode() {
   const node = {isConnected:true, dataset:{}, image:null, button:null,
-    classList:{add(){},remove(){}}, setAttribute(){},removeAttribute(){},
+    classList:{add(){},remove(){}}, setAttribute(){},removeAttribute(){}, closest(){return null;},
     querySelector(selector){return selector === 'img' ? this.image : selector === 'button' ? this.button : null;},
     replaceChildren(image){this.image=image;},
     getBoundingClientRect(){return {width:100,height:100,top:0,left:0,bottom:100,right:100};}};

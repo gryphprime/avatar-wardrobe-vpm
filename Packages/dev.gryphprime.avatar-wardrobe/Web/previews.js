@@ -6,6 +6,7 @@
     var runtime = global.WardrobeRuntime;
     var cache = new Map(), jobs = new Map(), unavailable = new Set();
     var queue = [], bindings = new WeakMap(), observers = new Map(), observed = new Map();
+    var prefetched = new Set();
     var epoch = "", serial = 0, active = 0, bytes = 0, stopped = false;
     var maxBytes = 32 * 1024 * 1024, maxEntries = 256;
     var activeCached = 0, activeRender = 0, maxCached = 4, maxRender = 3;
@@ -96,8 +97,8 @@
       }
       // Grid cards need pixels promptly; only the selected item must wait for
       // the 512px upgrade. Background warming supplies later cached upgrades.
-      if (low && job.priority > 0) return low;
-      if (job.priority === 0 || job.loDead || job.attempt >= 2) {
+      if (low && job.priority > 0 && !job.requireHi) return low;
+      if (job.requireHi || job.priority === 0 || job.loDead || job.attempt >= 2) {
         hi = await fetchImage(job, true, false, false);
         if (hi.blob) return hi;
         if (hi.dead) return low || {dead: !!job.loDead, pending: !job.loDead};
@@ -148,7 +149,7 @@
         })(job, cachedLane);
       }
     }
-    function get(guid, priority, retry, onProgress, cachedOnly) {
+    function get(guid, priority, retry, onProgress, cachedOnly, requireHi) {
       if (!guid || stopped) return Promise.resolve({dead: true});
       var id = key(guid);
       if (retry) {
@@ -160,13 +161,13 @@
           finish(prior, null);
         }
       }
-      if (!retry && cache.has(id) && (cache.get(id).hi || (priority > 0 && !cachedOnly))) {
+      if (!retry && cache.has(id) && (cache.get(id).hi || (priority > 0 && !cachedOnly && !requireHi))) {
         var entry = cache.get(id); cache.delete(id); cache.set(id, entry);
         return Promise.resolve(entry);
       }
       if (!retry && unavailable.has(id)) return Promise.resolve({dead: true});
       if (jobs.has(id)) {
-        var current = jobs.get(id); current.cachedOnly = current.cachedOnly && !!cachedOnly; current.priority = Math.min(current.priority, priority || 0);
+        var current = jobs.get(id); current.requireHi = current.requireHi || !!requireHi; current.cachedOnly = current.cachedOnly && !!cachedOnly; current.priority = Math.min(current.priority, priority || 0);
         if (onProgress) { current.progress.push(onProgress); if (current.partial) onProgress(current.partial); }
         if (current.priority === 0 && current.timer) {
           clearTimeout(current.timer); current.timer = null; queue.push(current);
@@ -174,9 +175,18 @@
         pump(); return current.promise;
       }
       var job = {key: id, guid: guid, epoch: epoch, priority: priority || 0, order: serial++, retry: !!retry, forceReload: !!retry,
-        cachedOnly: !!cachedOnly, phase: "cache", attempt: 0, timer: null, loDead: false, controller: new AbortController(), progress: onProgress ? [onProgress] : []};
+        requireHi: !!requireHi, cachedOnly: !!cachedOnly, phase: "cache", attempt: 0, timer: null, loDead: false, controller: new AbortController(), progress: onProgress ? [onProgress] : []};
       job.promise = new Promise(function (resolve) { job.resolve = resolve; });
       jobs.set(id, job); queue.push(job); pump(); return job.promise;
+    }
+    // Warm every unique item through the bounded scheduler. Visible consumers
+    // promote the same job; background work never uses the reserved render slot.
+    function prefetch(guids) {
+      (guids || []).forEach(function (guid) {
+        if (!guid || prefetched.has(guid) || stopped) return;
+        prefetched.add(guid);
+        get(guid, 4, false, null, false, true);
+      });
     }
     function label(id) { return options.text ? options.text(id) : id; }
     function fallback(node, guid, result) {
@@ -197,10 +207,10 @@
       config = config || {};
       if (!node || !guid) { if (node) queueMicrotask(function () { fallback(node, null, {dead: true}); }); return; }
       var previous = bindings.get(node);
-      if (previous && previous.guid === guid && previous.epoch === epoch && !config.retry && !config.upgrade && (previous.loading || previous.ready)) {
+      if (previous && previous.guid === guid && previous.epoch === epoch && !config.retry && !config.upgrade && (previous.loading || (previous.ready && (!config.requireHi || previous.hi)))) {
         // A prefetched card may become visible while still queued: promote that same job.
         var pending = jobs.get(key(guid));
-        if (pending) { pending.priority = Math.min(pending.priority, config.priority || 0); pump(); }
+        if (pending) { pending.requireHi = pending.requireHi || !!config.requireHi; pending.priority = Math.min(pending.priority, config.priority || 0); pump(); }
         return;
       }
       var binding = {guid: guid, epoch: epoch, loading: true, ready: false, hi: false, blob: config.upgrade && previous ? previous.blob : null, checkedAt: Date.now()};
@@ -225,6 +235,7 @@
           var image = await decode(result.blob);
           if (version !== paintVersion || bindings.get(node) !== binding) return;
           if (!node.isConnected) { binding.loading = false; binding.ready = false; return; }
+          if(node.closest("#grid .card"))image.draggable=false;
           image.className = config.detail ? "big instant" : "instant";
           if (config.detail) image.id = "dImg";
           node.replaceChildren(image);
@@ -235,7 +246,7 @@
           if (!node.querySelector("img")) fallback(node, guid, {error: true});
         }
       }
-      get(guid, config.priority, config.retry, function (result) { paint(result, true); }, config.upgrade).then(function (result) { paint(result, false); });
+      get(guid, config.priority, config.retry, function (result) { paint(result, true); }, config.upgrade, config.requireHi).then(function (result) { paint(result, false); });
     }
     // Low-res is useful immediately, but is not a terminal quality level.
     // Probe only visible consumers, through the same bounded request scheduler.
@@ -287,7 +298,7 @@
     }
     function reset(nextEpoch) {
       if (String(nextEpoch) === epoch) return;
-      epoch = String(nextEpoch); cancelJobs(); cache.clear(); bytes = 0; unavailable.clear(); notify();
+      epoch = String(nextEpoch); prefetched.clear(); cancelJobs(); cache.clear(); bytes = 0; unavailable.clear(); notify();
     }
     function resume() {
       sweep();
@@ -303,7 +314,7 @@
     global.addEventListener("pageshow", function (event) {
       if (event.persisted) { stopped = false; upgradeTimer = setInterval(refresh, 750); bindings = new WeakMap(); resume(); pump(); }
     });
-    return {get: get, bind: bind, observe: observe, resume: resume, reset: reset, decode: decode, fallback: fallback, sweep: sweep,
+    return {get: get, prefetch: prefetch, bind: bind, observe: observe, resume: resume, reset: reset, decode: decode, fallback: fallback, sweep: sweep,
       isUnavailable: function (guid) { return unavailable.has(key(guid)); },
       refresh: refresh,
       stats: function () { return {active: active, queued: Math.max(0, jobs.size - active), cached: cache.size, bytes: bytes}; }};

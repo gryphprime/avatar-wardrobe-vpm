@@ -218,6 +218,14 @@ namespace OutfitToggleGenerator
             lookupEventsRegistered = true;
             EditorApplication.hierarchyChanged += InvalidateHierarchyLookups;
             Undo.undoRedoPerformed += InvalidateHierarchyLookups;
+            EditorApplication.playModeStateChanged += InvalidatePlayModeLookups;
+        }
+        internal static void InvalidatePlayModeLookups(PlayModeStateChange state)
+        {
+            // Prefab instances can keep their managed wrapper, instance ID and scene
+            // path while Unity changes their GlobalObjectId for Play Mode.
+            scopeLookups.Clear();
+            InvalidateHierarchyLookups();
         }
         private static void InvalidateHierarchyLookups()
         {
@@ -231,6 +239,9 @@ namespace OutfitToggleGenerator
             var avatar = AvatarWardrobeServer.SceneAvatar;
             baseName = avatar == null ? string.Empty : avatar.gameObject.name;
             if (avatar == null) { baseKey = "none"; return; }
+            // Read requests also run during Play Mode. Never cache a runtime ID or
+            // expose it as an owner that could later be persisted by a migration.
+            if (EditorApplication.isPlayingOrWillChangePlaymode) { baseKey = "none"; return; }
             ScopeLookup lookup;
             if (!scopeLookups.TryGetValue(avatar, out lookup)) scopeLookups[avatar] = lookup = new ScopeLookup();
             var scenePath = avatar.gameObject.scene.path;
@@ -245,6 +256,7 @@ namespace OutfitToggleGenerator
 
         internal static void MigrateCurrentOwner()
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
             CurrentBase(out var baseKey, out var baseName);
             var avatar = AvatarWardrobeServer.SceneAvatar;
             if (avatar == null) return;

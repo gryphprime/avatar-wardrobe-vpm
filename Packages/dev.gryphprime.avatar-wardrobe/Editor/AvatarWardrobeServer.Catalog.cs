@@ -428,16 +428,55 @@ namespace OutfitToggleGenerator
             return fresh;
         }
 
-        // Recency for newest-first sorting: the indexer's sourceModified is
-        // the prefab file's mtime (ns), so a fresh import sorts first. A
-        // re-saved prefab also resurfaces; true first-seen tracking would
-        // need a new catalog field + migration, skipped until asked for.
-        // Unparseable/missing stamps count as oldest.
+        [Serializable] private sealed class CatalogDateEntry { public string guid; public long ticks; }
+        [Serializable] private sealed class CatalogDates { public List<CatalogDateEntry> entries = new List<CatalogDateEntry>(); }
+        [Serializable] private sealed class RecentFamilyIds { public string[] ids; }
+        private static Dictionary<string, long> catalogAddedDates;
+        private const string CatalogDatesPath = "UserSettings/AvatarWardrobeCatalogDates.json";
+
+        private static void EnsureCatalogAddedDates(IEnumerable<WardrobeFamily> families)
+        {
+            var seedExisting = false;
+            if (catalogAddedDates == null)
+            {
+                catalogAddedDates = new Dictionary<string, long>(StringComparer.Ordinal);
+                seedExisting = !File.Exists(CatalogDatesPath);
+                try
+                {
+                    if (!seedExisting)
+                        foreach (var entry in JsonUtility.FromJson<CatalogDates>(File.ReadAllText(CatalogDatesPath)).entries)
+                            if (!string.IsNullOrEmpty(entry.guid)) catalogAddedDates[entry.guid] = entry.ticks;
+                }
+                catch (Exception error) { Debug.LogWarning("Avatar Wardrobe could not read added dates: " + error.Message); }
+            }
+            var changed = false;
+            var now = DateTime.UtcNow.Ticks;
+            foreach (var record in families.SelectMany(f => f.variants))
+            {
+                if (string.IsNullOrEmpty(record.guid) || catalogAddedDates.ContainsKey(record.guid)) continue;
+                var stamp = now;
+                // Existing catalogs have no historical import dates. Seed once
+                // from creation time; subsequent prefab edits never change it.
+                if (seedExisting)
+                {
+                    stamp = 0;
+                    try { if (File.Exists(record.assetPath)) stamp = File.GetCreationTimeUtc(record.assetPath).Ticks; }
+                    catch (Exception) { }
+                }
+                catalogAddedDates[record.guid] = stamp; changed = true;
+            }
+            if (!changed) return;
+            try
+            {
+                Directory.CreateDirectory("UserSettings");
+                File.WriteAllText(CatalogDatesPath, JsonUtility.ToJson(new CatalogDates { entries = catalogAddedDates.Select(pair => new CatalogDateEntry { guid = pair.Key, ticks = pair.Value }).ToList() }));
+            }
+            catch (Exception error) { Debug.LogWarning("Avatar Wardrobe could not save added dates: " + error.Message); }
+        }
+
         private static long RecordRecency(WardrobeAssetRecord record)
         {
-            if (record == null || string.IsNullOrEmpty(record.sourceModified)) return 0L;
-            long stamp;
-            return long.TryParse(record.sourceModified, out stamp) ? stamp : 0L;
+            return record != null && record.guid != null && catalogAddedDates != null && catalogAddedDates.TryGetValue(record.guid, out var ticks) ? ticks : 0L;
         }
 
         private static long FamilyRecency(WardrobeFamily family)
@@ -493,9 +532,19 @@ namespace OutfitToggleGenerator
             string sort;
             query.TryGetValue("sort", out sort);
             sort = (sort ?? string.Empty).Trim().ToLowerInvariant();
-            // Newest first = family recency (newest variant's import mtime).
-            // Anything else keeps the long-standing name order.
-            var recentFirst = sort == "recent" || sort == "new" || sort == "newest";
+            // Sort the whole result before pagination, including recently used families.
+            var recentFirst = string.IsNullOrEmpty(sort) || sort == "added" || sort == "recent" || sort == "new" || sort == "newest";
+            var recentlyUsed = sort == "used";
+            string usedJson; query.TryGetValue("used", out usedJson);
+            var usedRanks = new Dictionary<string, int>(StringComparer.Ordinal);
+            if (recentlyUsed && !string.IsNullOrEmpty(usedJson) && usedJson.Length <= 32768)
+                try
+                {
+                    var ids = JsonUtility.FromJson<RecentFamilyIds>(usedJson).ids ?? new string[0];
+                    foreach (var id in ids.Take(200)) if (!string.IsNullOrEmpty(id) && !usedRanks.ContainsKey(id)) usedRanks[id] = usedRanks.Count;
+                }
+                catch (Exception) { }
+            EnsureCatalogAddedDates(CachedFamilies().Concat(CachedCandidates()));
             string pageText;
             query.TryGetValue("page", out pageText);
             string sizeText;
@@ -516,7 +565,7 @@ namespace OutfitToggleGenerator
             // One full-catalog scan per distinct query: pages and prefetch
             // crawls reuse it. Compatibility itself stays cached per family;
             // the key mirrors that scope plus anything else the scan reads.
-            var matchKey = target + "|" + string.Join(",", installed.OrderBy(g => g)) + "|" + filter + "|" + search + "|" + shop + "|" + category + "|" + hideEmpty + "|" + sort + "|" +
+            var matchKey = target + "|" + string.Join(",", installed.OrderBy(g => g)) + "|" + filter + "|" + search + "|" + shop + "|" + category + "|" + hideEmpty + "|" + sort + "|" + (recentlyUsed ? usedJson : "") + "|" +
                              avatarGuid + "|" + AvatarWardrobeCatalog.CatalogEpoch + "|" +
                              AvatarWardrobeCatalog.OverridesVersion + "|" + AvatarWardrobeCatalog.BaseAvatarStamp + "|" +
                              installedCacheVersion + "|" + thumbDead.Count;
@@ -553,9 +602,15 @@ namespace OutfitToggleGenerator
                     if (needThumb && !FamilyHasThumb(family)) continue;
                     found.Add(family);
                 }
-                if (recentFirst && found.Count > 1)
+                if ((recentFirst || recentlyUsed) && found.Count > 1)
                     found.Sort((a, b) =>
                     {
+                        if (recentlyUsed)
+                        {
+                            var aRank = usedRanks.TryGetValue(a.id, out var ar) ? ar : int.MaxValue;
+                            var bRank = usedRanks.TryGetValue(b.id, out var br) ? br : int.MaxValue;
+                            if (aRank != bRank) return aRank.CompareTo(bRank);
+                        }
                         var recency = FamilyRecency(b).CompareTo(FamilyRecency(a));
                         return recency != 0
                             ? recency

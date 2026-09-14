@@ -259,6 +259,9 @@ namespace OutfitToggleGenerator
 
         private static void RememberPinnedTarget()
         {
+            // ExitingPlayMode and assembly reloads can still see the runtime
+            // prefab ID. Keep the pin captured before entering Play Mode.
+            if (EditorApplication.isPlaying) return;
             var avatar = SceneAvatar;
             // During play mode Unity temporarily makes the edit-mode object
             // look destroyed. Do not erase the stable pin in that interval.
