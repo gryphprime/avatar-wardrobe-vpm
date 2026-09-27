@@ -44,7 +44,7 @@
     var endpoint=path.split('?')[0].split('/').pop(),query=path.split('?')[1]||'';
     var opMatch=query.match(/(?:^|&)op=([^&]*)/),op=opMatch?decodeURIComponent(opMatch[1]):'';
     var mutation=op&&op!=='get';
-    if(['batch_defaults_set','batch_config_set','batch_preset_config','preset_include','preset_save','preset_delete','preset_remove_item','preset_show','batch_preset_from_scene','batch_import'].includes(endpoint))return true;
+    if(['batch_defaults_set','batch_config_set','batch_preset_config','preset_include','preset_save','preset_delete','preset_remove_item','preset_show','batch_preset_from_scene','batch_import','preset_copy'].includes(endpoint))return true;
     if(endpoint==='batch_preset_blends')return !!mutation||/(?:^|&)(bs|weight|pinned)=/.test(query);
     if(endpoint==='batch_preset_items')return !!mutation||/(?:^|&)(item|include)=/.test(query);
     if(['menu_groups','batch_preset_faceemo','batch_item'].includes(endpoint))return !!mutation;
@@ -188,7 +188,7 @@
       button.disabled=!sdkReady;button.title=sdkReady?'':message;
     });
   }
-  var BS=null, upTab="presets", upJobTimer=null, upJobPolling=false, upStateFlight=null, upJobToken=0,upRunning=false;
+  var BS=null, upCopySources=[], upTab="presets", upJobTimer=null, upJobPolling=false, upStateFlight=null, upJobToken=0,upRunning=false;
   var R=global.WardrobeRuntime, defaultsDirty=false, defaultsSignature="", unassignedToken=0;
   var upEl=function(id){ return document.getElementById(id); };
   var draftStorage;try{draftStorage=global.sessionStorage;}catch(error){}
@@ -233,8 +233,10 @@
     upReconnectJob();
     if(upStateFlight) return upStateFlight;
     var revision=contextRevision;
-    upStateFlight=Promise.all([api("/api/batch_state"),api("/api/installed")]).then(function(results){
+    upStateFlight=Promise.all([api("/api/batch_state"),api("/api/installed"),api("/api/preset_copy_sources").catch(function(){return {sources:[]};})]).then(function(results){
+      if(revision!==contextRevision)return null;
       var d=results[0],installed=results[1];
+      upCopySources=(results[2]&&results[2].sources)||[];
       if(!d||!d.ok){ toast((d&&d.message)||T("upload.failed"),"err"); return null; }
       loadDraftScope(installed||{});
       d.common={id:'common',name:T('preset.common'),members:((installed&&installed.items)||[]).filter(function(item){return !item.target||item.target==='common';}).map(function(item){return Object.assign({},item,{path:item.path||'',name:item.family+(item.variant&&item.variant!=='Default'?' — '+item.variant:'')});})};
@@ -256,6 +258,7 @@
   }
   function upShowJob(label,canCancel){
     upRunning=true;
+    renderPresetCopy();
     upEl("upJob").hidden=false;
     upEl("upJobLabel").textContent=label;
     upEl("upJobBar").style.width="0%";
@@ -268,6 +271,7 @@
   function upStopPoll(){ if(upJobTimer){ clearInterval(upJobTimer); upJobTimer=null; } }
   function upEndJob(ok,msg){
     upRunning=false;
+    renderPresetCopy();
     if(upEl("upPresetProgress"))upEl("upPresetProgress").hidden=true;
     upEl("upJobSpin").innerHTML="";
     upEl("upJobLabel").textContent=T(ok?"upload.complete":"upload.finishedErrors");
@@ -383,11 +387,27 @@
     for(var i=0;i<BS.presets.length;i++) if(BS.presets[i].id===id) return BS.presets[i];
     return null;
   }
+  function renderPresetCopy(){
+    var box=upEl("upPresetCopy"),select=upEl("upPresetCopySource"),button=upEl("upPresetCopyButton");
+    var visible=separateUploads&&upCopySources.length>0;
+    box.hidden=!visible;
+    if(!visible)return;
+    var previous=select.value;
+    select.innerHTML=upCopySources.map(function(source){
+      return '<option value="'+esc(source.id)+'">'+esc(source.name)+' · '+esc(U('preset.copyCount',source.presets))+'</option>';
+    }).join('');
+    if(upCopySources.some(function(source){return source.id===previous;}))select.value=previous;
+    R.text(upEl("upPresetCopyLabel"),U("preset.copySource"));
+    R.text(button,U("preset.copyButton"));
+    R.text(upEl("upPresetCopyHint"),U("preset.copyHint"));
+    button.disabled=upRunning||!select.value;
+  }
   function restorePresetActions(){
     var actions=document.querySelector('#upPresets .up-actions');
     if(actions)document.querySelector('#upPresets .up-head').appendChild(actions);
   }
   function renderPresets(){
+    renderPresetCopy();
     if(!separateUploads||!BS)restorePresetActions();
     paintPresetSidebarMode();
     var list=upEl("upList"), st=upEl("upStatus");
@@ -768,6 +788,24 @@
     });
   }
   upEl("upRefresh").onclick=function(){ upGroups={};presetSidebar._signature=null;upRefreshState(); };
+  upEl("upPresetCopyButton").onclick=async function(){
+    var source=upCopySources.find(function(candidate){return candidate.id===upEl("upPresetCopySource").value;});
+    if(!source)return;
+    if(!confirm(U("preset.copyConfirm",source.presets,source.name)))return;
+    var button=upEl("upPresetCopyButton");button.disabled=true;
+    try{
+      var result=await api("/api/preset_copy?sourceId="+encodeURIComponent(source.id));
+      if(!result||!result.ok)throw new Error(result&&result.message||T("upload.failed"));
+      await upRefreshState();
+      var message=U("preset.copyDone",result.copied||0);
+      if(result.skippedPresets||result.skippedAssignments||result.skippedGroups)
+        message+=" "+U("preset.copySkipped",result.skippedPresets||0,result.skippedAssignments||0,result.skippedGroups||0);
+      if(result.skippedAppearances)message+=" "+U("preset.copyAppearance",result.skippedAppearances);
+      toast(message,"ok");
+      if(options.onChange)options.onChange();
+    }catch(error){toast(error.message||T("upload.failed"),"err");}
+    finally{button.disabled=false;renderPresetCopy();}
+  };
   upEl("upNew").onclick=function(){
     var name=prompt(T("upload.newSetName"));
     if(!name) return;
@@ -974,6 +1012,7 @@
       saveDraft();
       avatarContext=key;contextRevision++;unassignedToken++;
       BS=null;upStateFlight=null;
+      upCopySources=[];
       upExpanded={};upPanelOpen={};upBlueprintDrafts={};upSearch="";upDetailTab="outfit";
       upBlendCache={};upItemCache={};upBsSearch={};upGroups={};upGroupFlights={};
       defaultsDirty=false;defaultsSignature="";

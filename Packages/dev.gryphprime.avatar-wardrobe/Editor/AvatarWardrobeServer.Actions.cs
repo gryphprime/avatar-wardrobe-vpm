@@ -418,6 +418,29 @@ namespace OutfitToggleGenerator
             });
         }
 
+        private static AvatarWardrobePresets.PresetCopySources GetPresetCopySources()
+        {
+            return AvatarWardrobePresets.FindCopySources(SceneAvatar, SceneTargets());
+        }
+
+        private static AvatarWardrobePresets.PresetCopyResult CopyPresetsFrom(string sourceInstanceId)
+        {
+            var source = SceneTargets().FirstOrDefault(avatar =>
+                avatar.GetInstanceID().ToString() == sourceInstanceId);
+            if (source == null)
+                return new AvatarWardrobePresets.PresetCopyResult { message = "The source avatar is no longer available. Refresh and try again." };
+
+            AvatarWardrobePresets.PresetCopyResult copied = null;
+            var edit = EditAvatar("Copy wardrobe presets", () =>
+            {
+                copied = AvatarWardrobePresets.CopyPresets(SceneAvatar, source);
+                return new ResultDto { ok = copied.ok, message = copied.message };
+            }, trackUploadSettingsInUndo: true);
+            if (edit.ok != 1)
+                return new AvatarWardrobePresets.PresetCopyResult { message = edit.message };
+            return copied ?? new AvatarWardrobePresets.PresetCopyResult { message = "Preset copy did not return a result." };
+        }
+
         private static ResultDto AssignPreset(string guid, string target)
         {
             if (SceneAvatar == null)
@@ -632,7 +655,8 @@ namespace OutfitToggleGenerator
             finally { ShiroTools.OutfitBatchUploader.WebRequestId = null; }
         }
 
-        internal static ResultDto EditAvatar(string label, Func<ResultDto> edit, bool migratePresets = true)
+        internal static ResultDto EditAvatar(string label, Func<ResultDto> edit, bool migratePresets = true,
+            bool trackUploadSettingsInUndo = false)
         {
             if (UploadTargetLocked || ShiroTools.OutfitBatchUploader.BatchActiveNow)
                 return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.finish.the.upload.or.batch.before.editing.the.avatar") };
@@ -646,7 +670,7 @@ namespace OutfitToggleGenerator
             Undo.SetCurrentGroupName(label);
             try
             {
-                WardrobeEditHistory.Begin(label);
+                WardrobeEditHistory.Begin(label, trackUploadSettingsInUndo);
                 if (migratePresets) AvatarWardrobePresets.MigrateCurrentOwner();
                 var result = edit();
                 if (result.ok != 1)
@@ -662,9 +686,9 @@ namespace OutfitToggleGenerator
                             finally { ShiroTools.OutfitProjectData.RestoreSettings(uploadSettings); }
                         }
                     }
-                    WardrobeEditHistory.Capture();
+                    WardrobeEditHistory.Capture(trackUploadSettingsInUndo);
                 }
-                else { WardrobeEditHistory.Capture(); Undo.CollapseUndoOperations(group); }
+                else { WardrobeEditHistory.Capture(trackUploadSettingsInUndo); Undo.CollapseUndoOperations(group); }
                 return result;
             }
             catch (Exception error)
@@ -677,7 +701,7 @@ namespace OutfitToggleGenerator
                 catch (Exception rollback) { Debug.LogError("Wardrobe upload settings rollback failed: " + rollback); }
                 try { AvatarWardrobeCatalog.RestoreOverrides(overrides); }
                 catch (Exception rollback) { Debug.LogError("Wardrobe compatibility rollback failed: " + rollback); }
-                WardrobeEditHistory.Capture();
+                WardrobeEditHistory.Capture(trackUploadSettingsInUndo);
                 Debug.LogException(error);
                 return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.avatar.edit.failed.and.rollback.was.attempted") + error.Message };
             }

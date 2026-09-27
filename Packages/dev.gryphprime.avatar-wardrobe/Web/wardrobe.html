@@ -74,6 +74,11 @@
       <div class="up-actions"><button id="upRefresh" data-i18n="upload.refresh">Refresh</button><button id="upNew" data-i18n="upload.newSet">New Set</button><button id="upAll" data-i18n="upload.uploadAll">Upload All Included</button></div>
     </div>
     <p id="upPresetHint" class="up-hint" data-i18n="upload.presetsHint">Each preset uploads as its own avatar.</p>
+    <div id="upPresetCopy" class="up-preset-copy" hidden>
+      <label for="upPresetCopySource"><span id="upPresetCopyLabel"></span><select id="upPresetCopySource"></select></label>
+      <button id="upPresetCopyButton" type="button"></button>
+      <p id="upPresetCopyHint" class="up-hint"></p>
+    </div>
     <div id="upStatus" role="status"></div>
     <div id="upList"></div>
     <h3 id="upUnassignedHeading" data-i18n="upload.unassigned">Not in any set</h3>

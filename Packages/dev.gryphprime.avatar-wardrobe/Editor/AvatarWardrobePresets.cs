@@ -46,6 +46,33 @@ namespace OutfitToggleGenerator
             public List<string> paths = new List<string>();
         }
 
+        [Serializable]
+        internal sealed class PresetCopySource
+        {
+            public string id = "";
+            public string name = "";
+            public int presets;
+        }
+
+        [Serializable]
+        internal sealed class PresetCopySources
+        {
+            public int ok = 1;
+            public List<PresetCopySource> sources = new List<PresetCopySource>();
+        }
+
+        [Serializable]
+        internal sealed class PresetCopyResult
+        {
+            public int ok;
+            public string message = "";
+            public int copied;
+            public int skippedPresets;
+            public int skippedAssignments;
+            public int skippedGroups;
+            public int skippedAppearances;
+        }
+
         internal static List<MenuGroup> MenuGroups(string id)
         {
             CurrentBase(out var key, out var unused);
@@ -248,10 +275,257 @@ namespace OutfitToggleGenerator
             if (lookup.key == null || lookup.scenePath != scenePath)
             {
                 lookup.scenePath = scenePath;
-                lookup.key = string.IsNullOrEmpty(scenePath) ? "scene-session:" + avatar.GetInstanceID()
-                    : "scene-object:" + GlobalObjectId.GetGlobalObjectIdSlow(avatar.gameObject);
+                lookup.key = BaseKeyForAvatar(avatar);
             }
             baseKey = lookup.key;
+        }
+
+        private static string BaseKeyForAvatar(VRCAvatarDescriptor avatar)
+        {
+            if (avatar == null || EditorApplication.isPlayingOrWillChangePlaymode) return "none";
+            return string.IsNullOrEmpty(avatar.gameObject.scene.path)
+                ? "scene-session:" + avatar.GetInstanceID()
+                : "scene-object:" + GlobalObjectId.GetGlobalObjectIdSlow(avatar.gameObject);
+        }
+
+        private static bool HasNamedPresets(PresetFile file, string key)
+        {
+            return file.presets.Any(p => p != null && p.baseKey == key);
+        }
+
+        internal static PresetCopySources FindCopySources(VRCAvatarDescriptor destination,
+            IEnumerable<VRCAvatarDescriptor> candidates)
+        {
+            var result = new PresetCopySources();
+            if (destination == null || EditorApplication.isPlayingOrWillChangePlaymode) return result;
+            var file = LoadFile();
+            var destinationKey = BaseKeyForAvatar(destination);
+            var sourceGuid = AvatarWardrobeCatalog.AvatarSourceGuid(destination);
+            if (destinationKey == "none" || HasNamedPresets(file, destinationKey) || string.IsNullOrEmpty(sourceGuid)) return result;
+            foreach (var avatar in candidates ?? Enumerable.Empty<VRCAvatarDescriptor>())
+            {
+                if (avatar == null || avatar == destination || avatar.gameObject.scene != destination.gameObject.scene ||
+                    AvatarWardrobeCatalog.AvatarSourceGuid(avatar) != sourceGuid) continue;
+                var key = BaseKeyForAvatar(avatar);
+                var count = file.presets.Count(p => p != null && p.baseKey == key);
+                if (count == 0) continue;
+                result.sources.Add(new PresetCopySource
+                {
+                    id = avatar.GetInstanceID().ToString(),
+                    name = avatar.gameObject.name,
+                    presets = count,
+                });
+            }
+            result.sources = result.sources.OrderBy(s => s.name, StringComparer.OrdinalIgnoreCase).ToList();
+            return result;
+        }
+
+        internal static PresetCopyResult CopyPresets(VRCAvatarDescriptor destination, VRCAvatarDescriptor source)
+        {
+            if (destination == null || source == null || destination == source)
+                return new PresetCopyResult { message = "Choose another avatar as the preset source." };
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+                return new PresetCopyResult { message = "Leave Play Mode before copying presets." };
+            if (destination.gameObject.scene != source.gameObject.scene)
+                return new PresetCopyResult { message = "Choose a source avatar from the same scene." };
+            var destinationGuid = AvatarWardrobeCatalog.AvatarSourceGuid(destination);
+            if (string.IsNullOrEmpty(destinationGuid) || destinationGuid != AvatarWardrobeCatalog.AvatarSourceGuid(source))
+                return new PresetCopyResult { message = "Presets can only be copied between instances of the same avatar prefab." };
+
+            var destinationKey = BaseKeyForAvatar(destination);
+            var sourceKey = BaseKeyForAvatar(source);
+            var file = CloneFile(LoadFile());
+            if (HasNamedPresets(file, destinationKey))
+                return new PresetCopyResult { message = "The selected avatar already has named presets. Copy was cancelled to avoid overwriting them." };
+            var sourcePresets = file.presets.Where(p => p != null && p.baseKey == sourceKey).ToList();
+            if (sourcePresets.Count == 0)
+                return new PresetCopyResult { message = "The source avatar has no named presets to copy." };
+            if (sourcePresets.Any(p => string.IsNullOrEmpty(p.id)) || sourcePresets.GroupBy(p => p.id).Any(g => g.Count() > 1))
+                return new PresetCopyResult { message = "The source preset data has duplicate or missing identities. Repair it before copying." };
+            var missingFolder = sourcePresets.FirstOrDefault(p => !string.IsNullOrEmpty(p.legacyPath) &&
+                destination.transform.Find(p.legacyPath) == null);
+            if (missingFolder != null)
+                return new PresetCopyResult { message = "Preset folder '" + missingFolder.name + "' is missing on the selected avatar. Align the copied hierarchy before copying presets." };
+
+            var sourceIds = new HashSet<string>(sourcePresets.Select(p => p.id));
+            var generatedHosts = destination.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true)
+                .Where(m => m != null && m.generatedKind == "menu-groups" && m.transform.parent != null).ToArray();
+            if (generatedHosts.Any(m => m.ownerId != CommonTarget && !sourceIds.Contains(m.ownerId)))
+                return new PresetCopyResult { message = "The copied avatar has a generated menu whose preset owner cannot be matched. Regenerate or repair that menu before copying." };
+
+            var result = new PresetCopyResult();
+            var presetIds = new Dictionary<string, string>(StringComparer.Ordinal);
+            var copiedPresets = new List<WardrobePreset>();
+            var destinationName = destination.gameObject.name;
+            foreach (var original in sourcePresets)
+            {
+                var copy = JsonUtility.FromJson<WardrobePreset>(JsonUtility.ToJson(original));
+                if (string.IsNullOrEmpty(copy.legacyPath))
+                {
+                    copy.legacyScene = "";
+                    copy.legacyObjectId = "";
+                }
+                else
+                {
+                    var holder = destination.transform.Find(copy.legacyPath);
+                    copy.legacyScene = destination.gameObject.scene.path;
+                    copy.legacyObjectId = GlobalObjectId.GetGlobalObjectIdSlow(holder.gameObject).ToString();
+                }
+                copy.id = UniqueId(file);
+                copy.baseKey = destinationKey;
+                copy.baseName = destinationName;
+                copy.name = UniqueName(file, destinationKey, copy.name ?? "Preset", null);
+                copy.avatarRootName = AvatarWardrobeUpload.Safe(destinationName) + "_Wardrobe_" + copy.id;
+                copy.scenePath = "Assets/Generated/WardrobeUploads/" + AvatarWardrobeUpload.Safe(destinationName) + "_" + copy.id + "/Upload.unity";
+                copy.updated = "";
+                if (copy.appearance != null) result.skippedAppearances++;
+                copy.appearance = null;
+                copy.menuGroups = CopyMenuGroups(original.menuGroups, destination, copy.legacyPath, result);
+                presetIds.Add(original.id, copy.id);
+                file.presets.Add(copy);
+                copiedPresets.Add(copy);
+            }
+            if (copiedPresets.Count == 0)
+                return new PresetCopyResult { message = "None of the source preset folders exist on the selected avatar." };
+
+            var sourceCommon = file.commonPresets.FirstOrDefault(p => p != null && p.baseKey == sourceKey)
+                ?? new WardrobePreset { id = CommonTarget, name = "Common Preset", baseKey = sourceKey };
+            var common = file.commonPresets.FirstOrDefault(p => p != null && p.baseKey == destinationKey);
+            if (common == null)
+            {
+                common = JsonUtility.FromJson<WardrobePreset>(JsonUtility.ToJson(sourceCommon));
+                common.id = CommonTarget;
+                common.baseKey = destinationKey;
+                common.baseName = destinationName;
+                common.avatarRootName = "";
+                common.outfitName = "";
+                common.scenePath = "";
+                common.updated = "";
+                if (common.appearance != null) result.skippedAppearances++;
+                common.appearance = null;
+                common.menuGroups = CopyMenuGroups(sourceCommon.menuGroups, destination, "", result);
+                file.commonPresets.Add(common);
+            }
+            else
+            {
+                // A copied avatar may already have local common/shared items. Keep
+                // that destination-specific setup and only inherit source groups
+                // when the destination has none of its own.
+                common.id = CommonTarget;
+                common.baseName = destinationName;
+                if (common.menuGroups == null) common.menuGroups = new List<MenuGroup>();
+                if (common.menuGroups.Count == 0)
+                    common.menuGroups = CopyMenuGroups(sourceCommon.menuGroups, destination, "", result);
+                else
+                    result.skippedGroups += sourceCommon.menuGroups?.Count ?? 0;
+            }
+
+            foreach (var assignment in file.assignments.Where(a => a != null && a.baseKey == sourceKey).ToList())
+            {
+                var mappedTarget = assignment.target == CommonTarget ? CommonTarget
+                    : (assignment.target != null && presetIds.TryGetValue(assignment.target, out var mapped) ? mapped : null);
+                if (mappedTarget == null)
+                {
+                    result.skippedAssignments++;
+                    continue;
+                }
+                if (PrefabInstances(destination, assignment.guid).Count == 0)
+                {
+                    result.skippedAssignments++;
+                    continue;
+                }
+                if (file.assignments.Any(existing => existing != null && existing.baseKey == destinationKey && existing.guid == assignment.guid))
+                {
+                    result.skippedAssignments++;
+                    continue;
+                }
+                file.assignments.Add(new WardrobePresetAssignment
+                {
+                    baseKey = destinationKey,
+                    guid = assignment.guid,
+                    target = mappedTarget,
+                });
+            }
+            foreach (var preset in copiedPresets) CopyUploadProfile(sourcePresets.First(p => presetIds[p.id] == preset.id), preset, destinationName);
+            ShiroTools.OutfitProjectData.Save();
+
+            foreach (var marker in generatedHosts)
+            {
+                string newOwner;
+                if (marker.ownerId == CommonTarget) newOwner = CommonTarget;
+                else if (!presetIds.TryGetValue(marker.ownerId, out newOwner)) continue;
+                Undo.RecordObject(marker, "Copy wardrobe preset menu ownership");
+                marker.ownerId = newOwner;
+                EditorUtility.SetDirty(marker);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(marker);
+            }
+            SaveFile(file);
+            OutfitToggleGenerator.RegeneratePresetToggles(destination);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(destination.gameObject.scene);
+            result.ok = 1;
+            result.copied = copiedPresets.Count;
+            return result;
+        }
+
+        private static List<MenuGroup> CopyMenuGroups(List<MenuGroup> groups, VRCAvatarDescriptor destination,
+            string presetPath, PresetCopyResult result)
+        {
+            var copies = new List<MenuGroup>();
+            foreach (var group in groups ?? new List<MenuGroup>())
+            {
+                var paths = group?.paths ?? new List<string>();
+                if (paths.Count == 0 || paths.Any(path =>
+                {
+                    var target = string.IsNullOrEmpty(path) ? null : destination.transform.Find(path);
+                    return target == null || target == destination.transform ||
+                        (!string.IsNullOrEmpty(presetPath) && target != destination.transform.Find(presetPath) &&
+                            !target.IsChildOf(destination.transform.Find(presetPath)));
+                }))
+                {
+                    result.skippedGroups++;
+                    continue;
+                }
+                copies.Add(new MenuGroup
+                {
+                    id = Guid.NewGuid().ToString("N"),
+                    name = group.name,
+                    paths = new List<string>(paths),
+                });
+            }
+            return copies;
+        }
+
+        private static void CopyUploadProfile(WardrobePreset source, WardrobePreset destination, string destinationName)
+        {
+            string sourceDataJson;
+            List<string> itemDefaults = null;
+            List<string> itemDefaultsDecided = null;
+            using (ShiroTools.OutfitProjectData.ReadOnly())
+            {
+                sourceDataJson = JsonUtility.ToJson(ShiroTools.OutfitProjectData.GetOutfit(source.avatarRootName, source.outfitName));
+                var sourceAvatar = ShiroTools.OutfitProjectData.FindAvatar(source.avatarRootName);
+                if (sourceAvatar != null)
+                {
+                    itemDefaults = new List<string>(sourceAvatar.itemDefaults ?? new List<string>());
+                    itemDefaultsDecided = new List<string>(sourceAvatar.itemDefaultsDecided ?? new List<string>());
+                }
+            }
+            var targetData = ShiroTools.OutfitProjectData.GetOutfit(destination.avatarRootName, destination.outfitName);
+            JsonUtility.FromJsonOverwrite(sourceDataJson, targetData);
+            targetData.name = destination.outfitName;
+            targetData.displayName = destination.outfitName;
+            targetData.sceneIdentity = "";
+            targetData.blueprintId = "";
+            targetData.lastUploadWindows = "";
+            targetData.lastUploadAndroid = "";
+            targetData.lastUploadIOS = "";
+
+            if (itemDefaults == null) return;
+            var targetAvatar = ShiroTools.OutfitProjectData.GetAvatar(destination.avatarRootName);
+            targetAvatar.displayName = destinationName;
+            targetAvatar.sceneIdentity = "";
+            targetAvatar.itemDefaults = itemDefaults;
+            targetAvatar.itemDefaultsDecided = itemDefaultsDecided;
         }
 
         internal static void MigrateCurrentOwner()

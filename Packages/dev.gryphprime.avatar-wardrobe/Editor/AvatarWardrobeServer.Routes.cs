@@ -836,6 +836,11 @@ namespace OutfitToggleGenerator
                 WriteMainJson(context, GetPresets, requestCode);
                 return;
             }
+            if (path == "/api/preset_copy_sources")
+            {
+                WriteMainJson(context, GetPresetCopySources, requestCode);
+                return;
+            }
             if (path == "/api/workflow")
             {
                 var query = Query(request.Url.Query);
@@ -858,6 +863,14 @@ namespace OutfitToggleGenerator
                 string name;
                 query.TryGetValue("name", out name);
                 WriteMainJson(context, () => EditAvatar("Save wardrobe preset", () => SavePreset(id, name)), requestCode);
+                return;
+            }
+            if (path == "/api/preset_copy")
+            {
+                var query = Query(request.Url.Query);
+                string sourceId;
+                query.TryGetValue("sourceId", out sourceId);
+                WriteMainJson(context, () => CopyPresetsFrom(sourceId), requestCode);
                 return;
             }
             if (path == "/api/preset_delete")
