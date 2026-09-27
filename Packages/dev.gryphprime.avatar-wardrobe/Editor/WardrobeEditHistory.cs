@@ -12,6 +12,7 @@ namespace OutfitToggleGenerator
         [SerializeField] private bool presetsExist, overridesExist;
         private static WardrobeEditHistory current;
         private static string appliedPresets, appliedOverrides;
+        private static string appliedHistory;
         private static WardrobeEditHistory Current
         {
             get
@@ -27,6 +28,8 @@ namespace OutfitToggleGenerator
             Undo.undoRedoPerformed += Restore;
             appliedPresets = AvatarWardrobePresets.CaptureSettings();
             appliedOverrides = AvatarWardrobeCatalog.CaptureOverrides();
+            current = Resources.FindObjectsOfTypeAll<WardrobeEditHistory>().FirstOrDefault();
+            appliedHistory = current == null ? null : JsonUtility.ToJson(current);
         }
         internal static void Begin(string label)
         {
@@ -41,11 +44,15 @@ namespace OutfitToggleGenerator
             state.presetsExist = appliedPresets != null; state.presets = appliedPresets ?? "";
             state.overridesExist = appliedOverrides != null; state.overrides = appliedOverrides ?? "";
             EditorUtility.SetDirty(state);
+            appliedHistory = JsonUtility.ToJson(state);
         }
         private static void Restore()
         {
             if (current == null) current = Resources.FindObjectsOfTypeAll<WardrobeEditHistory>().FirstOrDefault();
             if (current == null) return;
+            // Ignore unrelated Undo events when the serialized history has not changed.
+            var nextHistory = JsonUtility.ToJson(current);
+            if (nextHistory == appliedHistory) return;
             try
             {
                 var nextPresets = current.presetsExist ? current.presets : null;
@@ -62,6 +69,7 @@ namespace OutfitToggleGenerator
                         throw new InvalidOperationException("Compatibility settings changed outside this operation. Scene Undo completed; review settings before continuing.");
                     AvatarWardrobeCatalog.RestoreOverrides(nextOverrides); appliedOverrides = nextOverrides;
                 }
+                appliedHistory = nextHistory;
             }
             catch (Exception error) { Debug.LogError("Wardrobe Undo needs attention: " + error.Message); }
         }

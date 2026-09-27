@@ -7,6 +7,21 @@ using UnityEngine.SceneManagement;
 
 namespace OutfitToggleGenerator
 {
+    // These integration tests replace project-wide settings and can cross domain
+    // reloads. A saved user scene is not an isolated test environment.
+    [NUnit.Framework.SetUpFixture]
+    public sealed class WardrobeTestProjectGuard
+    {
+        [NUnit.Framework.OneTimeSetUp]
+        public void RequireDisposableProject()
+        {
+            var project = Directory.GetParent(Application.dataPath).FullName;
+            var marker = Path.Combine(project, WardrobeTestSceneFixture.MarkerName);
+            if (!File.Exists(marker) || File.ReadAllText(marker).Trim() != WardrobeTestSceneFixture.MarkerValue)
+                throw new InvalidOperationException("Run Avatar Wardrobe tests in an explicitly marked disposable fixture. The suite replaces project settings and must not run in a user's avatar project.");
+        }
+    }
+
     internal static class WardrobeTestSceneFixture
     {
         internal const string MarkerName = ".wardrobe-test-fixture";

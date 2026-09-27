@@ -130,26 +130,8 @@ namespace ShiroTools
         private static string _durable;
         private static void Load()
         {
-            Root loaded;
-            if (!File.Exists(FilePath)) loaded = new Root();
-            else
-            {
-                try { loaded = ParseRoot(File.ReadAllText(FilePath)); }
-                catch (Exception primary)
-                {
-                    try
-                    {
-                        loaded = ParseRoot(File.ReadAllText(FilePath + ".bak"));
-                        // Preserve evidence before permitting any replacement of the primary.
-                        File.Copy(FilePath, FilePath + ".corrupt-" + Guid.NewGuid().ToString("N"));
-                    }
-                    catch (Exception backup)
-                    {
-                        throw new IOException("Upload settings could not be recovered. Writes are blocked; restore " + FilePath,
-                            new AggregateException(primary, backup));
-                    }
-                }
-            }
+            var json = CaptureSettings();
+            var loaded = json == null ? new Root() : ParseRoot(json);
             _root = loaded;
             _durable = JsonUtility.ToJson(loaded, true);
             ClearCaches();
@@ -183,7 +165,7 @@ namespace ShiroTools
         {
             if (readDepth > 0) throw new InvalidOperationException("A settings read attempted to save upload configuration.");
             var json = JsonUtility.ToJson(Data, true);
-            try { WriteAtomically(FilePath, json); }
+            try { global::OutfitToggleGenerator.WardrobeAtomicFile.RestoreText(FilePath, json, text => ParseRoot(text)); }
             catch
             {
                 _root = _durable == null ? null : ParseRoot(_durable);
@@ -194,11 +176,10 @@ namespace ShiroTools
             ClearCaches();
         }
 
-        internal static string CaptureSettings() => File.Exists(FilePath) ? File.ReadAllText(FilePath) : null;
+        internal static string CaptureSettings() => global::OutfitToggleGenerator.WardrobeAtomicFile.ReadRecoverableText(FilePath, json => ParseRoot(json));
         internal static void RestoreSettings(string json)
         {
-            if (json == null) { if (File.Exists(FilePath)) File.Delete(FilePath); }
-            else { ParseRoot(json); WriteAtomically(FilePath, json); }
+            global::OutfitToggleGenerator.WardrobeAtomicFile.RestoreText(FilePath, json, text => ParseRoot(text));
             _root = null; _durable = null; ClearCaches();
         }
 
