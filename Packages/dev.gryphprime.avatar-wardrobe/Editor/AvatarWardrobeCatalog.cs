@@ -960,11 +960,10 @@ namespace OutfitToggleGenerator
                 : record == null ? WardrobeAssetKind.Ignored : record.kind;
         }
 
-        internal static string CaptureOverrides() => File.Exists(OverridesPath) ? File.ReadAllText(OverridesPath) : null;
+        internal static string CaptureOverrides() => WardrobeAtomicFile.ReadRecoverableText(OverridesPath, text => ParseOverrides(text));
         internal static void RestoreOverrides(string text)
         {
-            if (text == null) { if (File.Exists(OverridesPath)) File.Delete(OverridesPath); }
-            else WardrobeAtomicFile.WriteText(OverridesPath, text);
+            WardrobeAtomicFile.RestoreText(OverridesPath, text, json => ParseOverrides(json));
             overrides = null;
             overridesLoaded = false;
             overridesVersion++;
@@ -1737,9 +1736,8 @@ namespace OutfitToggleGenerator
             if (overridesLoaded) return;
             try
             {
-                overrides = File.Exists(OverridesPath)
-                    ? JsonUtility.FromJson<WardrobeOverridesFile>(File.ReadAllText(OverridesPath))
-                    : null;
+                var json = CaptureOverrides();
+                overrides = json == null ? null : ParseOverrides(json);
             }
             catch (Exception exception)
             {
@@ -1754,10 +1752,18 @@ namespace OutfitToggleGenerator
             overridesLoaded = true;
         }
 
+        private static WardrobeOverridesFile ParseOverrides(string json)
+        {
+            if (Newtonsoft.Json.Linq.JObject.Parse(json)["entries"]?.Type != Newtonsoft.Json.Linq.JTokenType.Array)
+                throw new InvalidDataException("Missing wardrobe overrides collection.");
+            return JsonUtility.FromJson<WardrobeOverridesFile>(json)
+                ?? throw new InvalidDataException("Invalid wardrobe overrides.");
+        }
+
         private static void SaveOverrides()
         {
             Directory.CreateDirectory(Path.GetDirectoryName(OverridesPath));
-            WardrobeAtomicFile.WriteText(OverridesPath, JsonUtility.ToJson(overrides, true), true);
+            WardrobeAtomicFile.RestoreText(OverridesPath, JsonUtility.ToJson(overrides, true), text => ParseOverrides(text));
         }
     }
 

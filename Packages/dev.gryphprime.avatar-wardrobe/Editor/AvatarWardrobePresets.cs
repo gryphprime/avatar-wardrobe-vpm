@@ -763,24 +763,40 @@ namespace OutfitToggleGenerator
             // Called per variant when building the list. Stat at most once per second,
             // and never reparse unchanged settings thousands of times per query.
             if (cachedFile != null && EditorApplication.timeSinceStartup < nextStat) return cachedFile;
-            nextStat = EditorApplication.timeSinceStartup + 1;
             var info = new FileInfo(PresetFilePath);
             if (cachedFile != null && (info.Exists ? info.LastWriteTimeUtc : DateTime.MinValue) == cachedStamp &&
-                (info.Exists ? info.Length : 0) == cachedLength) return cachedFile;
-            var parsed = info.Exists ? JsonUtility.FromJson<PresetFile>(File.ReadAllText(info.FullName)) : new PresetFile();
+                (info.Exists ? info.Length : 0) == cachedLength && (info.Exists || !File.Exists(PresetFilePath + ".bak")))
+            { nextStat = EditorApplication.timeSinceStartup + 1; return cachedFile; }
+            var json = WardrobeAtomicFile.ReadRecoverableText(PresetFilePath, text => ParseFile(text));
+            var parsed = json == null ? new PresetFile() : ParseFile(json);
+            info.Refresh();
+            cachedFile = parsed;
+            cachedStamp = info.Exists ? info.LastWriteTimeUtc : DateTime.MinValue;
+            cachedLength = info.Exists ? info.Length : 0;
+            nextStat = EditorApplication.timeSinceStartup + 1;
+            return cachedFile;
+        }
+
+        private static PresetFile ParseFile(string json)
+        {
+            if (Newtonsoft.Json.Linq.JObject.Parse(json)["presets"]?.Type != Newtonsoft.Json.Linq.JTokenType.Array)
+                throw new InvalidDataException("Missing wardrobe presets collection.");
+            var parsed = JsonUtility.FromJson<PresetFile>(json);
             if (parsed == null) throw new InvalidDataException("Could not read wardrobe presets. Restore the file before editing it.");
             if (parsed.presets == null) parsed.presets = new List<WardrobePreset>();
             if (parsed.commonPresets == null) parsed.commonPresets = new List<WardrobePreset>();
             if (parsed.assignments == null) parsed.assignments = new List<WardrobePresetAssignment>();
-            cachedFile = parsed;
-            cachedStamp = info.Exists ? info.LastWriteTimeUtc : DateTime.MinValue;
-            cachedLength = info.Exists ? info.Length : 0;
-            return cachedFile;
+            if (parsed.presets.Any(p => p == null || string.IsNullOrEmpty(p.id) || string.IsNullOrEmpty(p.baseKey)) ||
+                parsed.commonPresets.Any(p => p == null) || parsed.assignments.Any(a => a == null))
+                throw new InvalidDataException("Invalid wardrobe preset records.");
+            return parsed;
         }
 
         private static void SaveFile(PresetFile file)
         {
-            WardrobeAtomicFile.WriteText(PresetFilePath, JsonUtility.ToJson(file, true));
+            var json = JsonUtility.ToJson(file, true);
+            ParseFile(json);
+            WardrobeAtomicFile.RestoreText(PresetFilePath, json, text => ParseFile(text));
             cachedFile = file;
             var info = new FileInfo(PresetFilePath);
             cachedStamp = info.LastWriteTimeUtc;
@@ -790,13 +806,12 @@ namespace OutfitToggleGenerator
 
         internal static string CaptureSettings()
         {
-            return File.Exists(PresetFilePath) ? File.ReadAllText(PresetFilePath) : null;
+            return WardrobeAtomicFile.ReadRecoverableText(PresetFilePath, text => ParseFile(text));
         }
 
         internal static void RestoreSettings(string snapshot)
         {
-            if (snapshot == null) { if (File.Exists(PresetFilePath)) File.Delete(PresetFilePath); }
-            else WardrobeAtomicFile.WriteText(PresetFilePath, snapshot);
+            WardrobeAtomicFile.RestoreText(PresetFilePath, snapshot, text => ParseFile(text));
             cachedFile = null;
             nextStat = 0;
         }
