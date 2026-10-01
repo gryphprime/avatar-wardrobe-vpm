@@ -22,6 +22,8 @@ import uuid
 from wardrobe_shadow import ShadowWorker, atomic_json, load_manifest, sha256
 from wardrobe_snapshot_cache import CaptureRetention
 
+ACTIVE = ('queued', 'waiting-for-worker', 'rendering', 'cancelling')
+
 
 class ShadowSnapshotService:
     def __init__(self, cache, unity, project, *, timeout=180, history_bytes=256 * 1024 * 1024, max_active=16, max_completed=128):
@@ -44,7 +46,7 @@ class ShadowSnapshotService:
         for path in (self.cache / 'receipts').glob('*.json'):
             try:
                 receipt = json.loads(path.read_text())
-                if receipt.get('state') in ('queued', 'waiting-for-worker', 'rendering', 'cancelling'):
+                if receipt.get('state') in ACTIVE:
                     receipt.update(state='needs-review', message='The desktop host restarted before this snapshot completed.')
                     atomic_json(path, receipt)
                     try: self.retention.release(receipt.get('captureManifestPath', ''), receipt.get('id', ''))
@@ -65,16 +67,17 @@ class ShadowSnapshotService:
                          'renderSpecification': manifest.get('renderSpecification', ''), 'view': view, 'before': bool(before), 'zoom': float(zoom)}
         image_specification = dict(specification, sourceRevision=specification['visualRevision'])
         key = hashlib.sha256(json.dumps(image_specification, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        target = dict(target or {'projectId': self.project, 'avatarInstanceId': manifest.get('avatarId')})
+        source_input = dict(source_input or {})
         with self.lock:
             if self.closed:
                 raise RuntimeError('The snapshot service is closed.')
-            active = [r for r in self.requests.values() if r['receipt']['state'] in ('queued', 'waiting-for-worker', 'rendering', 'cancelling')]
+            active = [r for r in self.requests.values() if r['receipt']['state'] in ACTIVE]
             for request in active:
                 receipt = request['receipt']
                 if (not request['cancel'].is_set() and receipt['snapshotKey'] == key and
                         receipt['captureId'] == manifest['captureId'] and receipt['confirmedRevision'] == confirmed_revision and
-                        receipt['target'] == dict(target or {'projectId': self.project, 'avatarInstanceId': manifest.get('avatarId')}) and
-                        receipt['operationId'] == operation_id and receipt['input'] == dict(source_input or {})):
+                        receipt['target'] == target and receipt['operationId'] == operation_id and receipt['input'] == source_input):
                     return dict(receipt)
             if len(active) >= self.max_active:
                 raise OverflowError('Snapshot queue is full. Wait for a photograph to finish.')
@@ -83,8 +86,7 @@ class ShadowSnapshotService:
             self.retention.acquire(path, identifier, max(3600, self.timeout * 3))
             receipt = {'id': identifier, 'state': 'queued', 'snapshotKey': key, 'captureId': manifest['captureId'],
                        'created': time.time(), 'captureManifestPath': str(path), 'confirmedRevision': confirmed_revision,
-                       'target': dict(target or {'projectId': self.project, 'avatarInstanceId': manifest.get('avatarId')}),
-                       'operationId': operation_id, 'input': dict(source_input or {}), **specification}
+                       'target': target, 'operationId': operation_id, 'input': source_input, **specification}
             cancellation = threading.Event()
             self.requests[identifier] = {'receipt': receipt, 'cancel': cancellation}
             try:
@@ -381,10 +383,9 @@ class ShadowSnapshotService:
             slot = (value.get('avatarId'), value.get('view'), value.get('before'))
             if slot not in latest or value.get('completed', 0) > latest[slot].get('completed', 0): latest[slot] = value
         protected = {value.get('snapshotKey') for value in latest.values()} | {keep}
-        total = sum(entry[3] for entry in entries)
+        total, count = sum(entry[3] for entry in entries), len(entries)
         for value, path, image, size in sorted(entries, key=lambda entry: entry[0].get('completed', 0)):
-            if total <= self.history_bytes and len(entries) <= 1000: break
+            if total <= self.history_bytes and count <= 1000: break
             if value.get('pinned') or value.get('snapshotKey') == keep: continue
-            if len(entries) <= 1000 and value.get('snapshotKey') in protected: continue
-            image.unlink(missing_ok=True); path.unlink(missing_ok=True); total -= size
-            entries.remove((value, path, image, size))
+            if count <= 1000 and value.get('snapshotKey') in protected: continue
+            image.unlink(missing_ok=True); path.unlink(missing_ok=True); total -= size; count -= 1

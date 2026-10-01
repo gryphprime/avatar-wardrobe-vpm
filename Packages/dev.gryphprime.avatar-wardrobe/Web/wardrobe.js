@@ -35,10 +35,8 @@
   var detailSettingDrafts=new Map(),installedIdentity=null;
   function cacheSet(map,key,value,cap){ map.delete(key); map.set(key,value); while(map.size>cap) map.delete(map.keys().next().value); }
   function dropCaches(){ listCache.clear(); detailCache.clear(); }
-  function api(path,options){
-    if(path.indexOf("/api/")===0) path+=(path.indexOf("?")>=0?"&":"?")+"lang="+encodeURIComponent(langCode||"en");
-    return R.request(path,options);
-  }
+  // WardrobeRuntime.request adds the active language (set via R.setLanguage) to /api/ calls.
+  function api(path,options){ return R.request(path,options); }
   function spinner(size){ return '<svg class="spin" width="'+(size||20)+'" height="'+(size||20)+'" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'; }
   function toast(message,type){
     if(!message) return;

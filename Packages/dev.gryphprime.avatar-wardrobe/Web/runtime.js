@@ -39,6 +39,10 @@
   }
   var queuedWrites = new Set(["cache_clear", "install", "remove", "preset_remove_item", "part_toggles", "item_settings", "menu_groups", "menu_execute", "scene_execute", "appearance_apply", "appearance_tool", "appearance_optimizer_apply", "regenerate_toggles", "migrate_avatar", "preset_save", "preset_delete", "preset_assign", "preset_show", "preset_include", "avatar_base", "workflow", "preset_appearance_save", "preset_appearance_apply", "batch_preset_config", "batch_preset_blends", "batch_preset_items", "batch_preset_faceemo", "batch_preset_from_scene", "batch_outfit_set", "batch_import", "batch_config_set", "batch_defaults_set", "batch_blendshape", "batch_item", "batch_faceemo"]);
   var language="en", translate=function(key){return key;};
+  var readEndpoints = new Set(["state", "families", "family", "installed", "nameResult", "shops", "diag", "thumb",
+    "write_result", "operation_context", "operation_result", "snapshot", "preset_appearance", "preset_appearance_export", "appearance_snapshot", "appearance_textures", "appearance_tools", "menu_snapshot", "scene_snapshot", "scene_upload_review", "upload_result", "upload_status", "batch_state", "batch_job", "batch_export", "presets", "batch_thumb_img", "batch_unassigned"]);
+  // These endpoints read with no op (or op=get) and write with any other op.
+  var batchOpEndpoints = new Set(["batch_blendshape", "batch_item", "batch_faceemo"]);
   async function request(path, options) {
     options = options || {};
     var controller = new AbortController(), upstream = options.signal;
@@ -51,10 +55,8 @@
     var init = Object.assign({}, options, {signal:controller.signal, cache:options.cache || "no-store"});
     delete init.timeout; delete init.binary;
     var url = new URL(path, location.href);
-    var reads = new Set(["state", "families", "family", "installed", "nameResult", "shops", "diag", "thumb",
-      "write_result", "operation_context", "operation_result", "snapshot", "preset_appearance", "preset_appearance_export", "appearance_snapshot", "appearance_textures", "appearance_tools", "menu_snapshot", "scene_snapshot", "scene_upload_review", "upload_result", "upload_status", "batch_state", "batch_job", "batch_export", "presets", "batch_thumb_img", "batch_unassigned"]);
     var endpoint = url.pathname.split("/").pop(), op = url.searchParams.get("op");
-    var read = reads.has(endpoint) || (["batch_blendshape", "batch_item", "batch_faceemo"].includes(endpoint) && (!op || op === "get"));
+    var read = readEndpoints.has(endpoint) || (batchOpEndpoints.has(endpoint) && (!op || op === "get"));
     if (endpoint === "thumb" && url.searchParams.get("retry") === "1") read = false;
     if (url.origin === location.origin && url.pathname.startsWith("/api/")) {
       if(!url.searchParams.has("lang"))url.searchParams.set("lang",language);

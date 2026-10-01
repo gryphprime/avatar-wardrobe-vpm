@@ -468,8 +468,7 @@ namespace OutfitToggleGenerator
             if (!changed) return;
             try
             {
-                Directory.CreateDirectory("UserSettings");
-                File.WriteAllText(CatalogDatesPath, JsonUtility.ToJson(new CatalogDates { entries = catalogAddedDates.Select(pair => new CatalogDateEntry { guid = pair.Key, ticks = pair.Value }).ToList() }));
+                WardrobeAtomicFile.WriteText(CatalogDatesPath, JsonUtility.ToJson(new CatalogDates { entries = catalogAddedDates.Select(pair => new CatalogDateEntry { guid = pair.Key, ticks = pair.Value }).ToList() }));
             }
             catch (Exception error) { Debug.LogWarning("Avatar Wardrobe could not save added dates: " + error.Message); }
         }

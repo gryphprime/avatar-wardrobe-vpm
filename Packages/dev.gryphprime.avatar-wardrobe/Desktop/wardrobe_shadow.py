@@ -79,14 +79,18 @@ def copy_checked(root, entry, destination):
         raise ValueError('Capture checksum metadata is invalid.')
     source = root / relative
     no_links(source, root)
-    if source.stat().st_size != size or sha256(source) != expected:
+    if source.stat().st_size != size:
         raise ValueError('Capture input changed or failed its checksum: ' + str(relative))
     target = destination / relative
     target.parent.mkdir(parents=True, exist_ok=True)
+    # Hash exactly the bytes written: one read of the source instead of three.
+    digest = hashlib.sha256()
     with source.open('rb') as incoming, target.open('xb') as outgoing:
-        shutil.copyfileobj(incoming, outgoing, 1024 * 1024)
-    if target.stat().st_size != size or sha256(target) != expected or sha256(source) != expected:
-        raise ValueError('Capture input changed while copying: ' + str(relative))
+        for block in iter(lambda: incoming.read(1024 * 1024), b''):
+            digest.update(block)
+            outgoing.write(block)
+    if target.stat().st_size != size or digest.hexdigest() != expected:
+        raise ValueError('Capture input changed or failed its checksum: ' + str(relative))
 
 
 def load_manifest(path):

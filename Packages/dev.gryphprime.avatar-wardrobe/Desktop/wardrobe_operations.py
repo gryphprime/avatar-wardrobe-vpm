@@ -19,6 +19,9 @@ TYPES = {'wear-outfit', 'replace-outfit', 'remove-outfit', 'prepare-preview', 'c
 STATES = {'queued', 'running', 'succeeded', 'failed', 'cancelled', 'superseded', 'needs-review'}
 TERMINAL = STATES - {'queued', 'running'}
 PREVIEWS = {'prepare-preview', 'capture-source', 'render-snapshot'}
+MUTATIONS = {'wear-outfit', 'replace-outfit', 'remove-outfit', 'undo-operation'}
+_PREVIEWS_SQL = '(' + ','.join(repr(name) for name in sorted(PREVIEWS)) + ')'
+_MUTATIONS_SQL = '(' + ','.join(repr(name) for name in sorted(MUTATIONS)) + ')'
 MAX_COMMAND_BYTES = 65536
 _UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z')
 _GUID = re.compile(r'[0-9a-fA-F]{32}\Z')
@@ -195,7 +198,7 @@ class OperationQueue:
                     ancestor = self._lookup(ancestor_id)
                     ancestor_command = self._receipt(ancestor).get('command') if ancestor else None
                     ancestor_id = ancestor_command['precondition']['afterOperationId'] if ancestor_command else ''
-                candidates = self.db.execute("SELECT id FROM operations WHERE project=? AND state='queued' AND dispatched=0 AND target_key=? AND type IN ('prepare-preview','capture-source','render-snapshot')", (self.project_id, target_key)).fetchall()
+                candidates = self.db.execute("SELECT id FROM operations WHERE project=? AND state='queued' AND dispatched=0 AND target_key=? AND type IN " + _PREVIEWS_SQL, (self.project_id, target_key)).fetchall()
                 for candidate in candidates:
                     if candidate['id'] not in protected:
                         self._update(candidate['id'], state='superseded', waiting_reason='')
@@ -241,7 +244,7 @@ class OperationQueue:
 
     def has_pending_mutations(self):
         with self.lock:
-            return self.db.execute("SELECT 1 FROM operations WHERE project=? AND state IN ('queued','running') AND type IN ('wear-outfit','replace-outfit','remove-outfit','undo-operation') LIMIT 1", (self.project_id,)).fetchone() is not None
+            return self.db.execute("SELECT 1 FROM operations WHERE project=? AND state IN ('queued','running') AND type IN " + _MUTATIONS_SQL + " LIMIT 1", (self.project_id,)).fetchone() is not None
 
     def cancel(self, identifier):
         _string(identifier, 'receipt id', 256)
@@ -267,7 +270,7 @@ class OperationQueue:
                 return 0
             changed = 0
             error = 'Unity restarted after this unsaved edit. Review the scene to confirm whether it survived; this operation will not be replayed.'
-            rows = self.db.execute("SELECT * FROM operations WHERE project=? AND state='succeeded' AND type IN ('wear-outfit','replace-outfit','remove-outfit','undo-operation')", (self.project_id,)).fetchall()
+            rows = self.db.execute("SELECT * FROM operations WHERE project=? AND state='succeeded' AND type IN " + _MUTATIONS_SQL, (self.project_id,)).fetchall()
             for row in rows:
                 result = json.loads(row['result']) if row['result'] else {}
                 if result.get('unsaved') is True and json.loads(row['target_key']).get('session') != session:
@@ -277,7 +280,7 @@ class OperationQueue:
             rows = self.db.execute('SELECT * FROM operation_tombstones WHERE project=?', (self.project_id,)).fetchall()
             for row in rows:
                 receipt = json.loads(row['receipt'])
-                if (receipt['state'] == 'succeeded' and receipt['type'] in {'wear-outfit', 'replace-outfit', 'remove-outfit', 'undo-operation'} and
+                if (receipt['state'] == 'succeeded' and receipt['type'] in MUTATIONS and
                         (receipt.get('result') or {}).get('unsaved') is True and json.loads(row['target_key']).get('session') != session):
                     receipt.update(state='needs-review', error=error, waitingReason='', updatedAt=self.clock())
                     self.db.execute('UPDATE operation_tombstones SET receipt=? WHERE id=? AND project=?', (_json(receipt), row['id'], self.project_id))
