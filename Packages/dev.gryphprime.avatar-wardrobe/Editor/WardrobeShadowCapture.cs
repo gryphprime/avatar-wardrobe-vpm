@@ -441,14 +441,7 @@ namespace OutfitToggleGenerator
         internal static string HashFile(string path) { using (var stream = File.OpenRead(path)) using (var hash = SHA256.Create()) return Hex(hash.ComputeHash(stream)); }
         internal static string HashText(string value) { using (var hash = SHA256.Create()) return Hex(hash.ComputeHash(Encoding.UTF8.GetBytes(value))); }
         private static string Hex(byte[] value) => BitConverter.ToString(value).Replace("-", "").ToLowerInvariant();
-        internal static void WriteJson(string path, object value)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path));
-            var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            File.WriteAllText(temporary, JsonUtility.ToJson(value, true), new UTF8Encoding(false));
-            if (File.Exists(path)) File.Replace(temporary, path, null);
-            else File.Move(temporary, path);
-        }
+        internal static void WriteJson(string path, object value) => WardrobeAtomicFile.WriteText(path, JsonUtility.ToJson(value, true));
     }
 
     // Persistent, graphics-enabled shadow-editor entry point. The desktop process owns the project
@@ -516,7 +509,7 @@ namespace OutfitToggleGenerator
                         var bytes = WardrobeTryOnWorker.RenderView(prepared.token, command.view, command.zoom, command.before);
                         result.image = Path.Combine("images", command.id + ".png").Replace('\\', '/');
                         var destination = Path.Combine(config.runtimePath, result.image);
-                        File.WriteAllBytes(destination + ".tmp", bytes); File.Move(destination + ".tmp", destination);
+                        WardrobeAtomicFile.WriteBytes(destination, bytes);
                         result.imageSha256 = WardrobeShadowCapture.HashFile(destination);
                         result.preview = prepared; result.status = "succeeded";
                     }

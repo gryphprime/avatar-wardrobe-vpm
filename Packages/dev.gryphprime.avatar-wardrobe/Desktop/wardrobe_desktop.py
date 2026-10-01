@@ -22,25 +22,40 @@ from wardrobe_shadow_host import ShadowSnapshotService
 from wardrobe_operations import OperationQueue, OperationDriver, MAX_COMMAND_BYTES
 
 WEB = Path(__file__).resolve().parents[1] / 'Web'
-STATIC = {'/': 'wardrobe.html', '/wardrobe.html': 'wardrobe.html', '/lang.json': 'lang.json',
-          '/wardrobe.css': 'wardrobe.css', '/wardrobe.js': 'wardrobe.js', '/runtime.js': 'runtime.js',
-          '/upload.js': 'upload.js', '/previews.js': 'previews.js', '/library.js': 'library.js', '/reporting.js': 'reporting.js',
-          '/scene-editor.js': 'scene-editor.js', '/operations.js': 'operations.js',
-          '/snapshots.js': 'snapshots.js', '/photo-history.js': 'photo-history.js', '/photo-history.css': 'photo-history.css', '/drag-drop.js': 'drag-drop.js', '/menu-organizer.js': 'menu-organizer.js', '/preset-appearance.js': 'preset-appearance.js', '/appearance-editor.js': 'appearance-editor.js', '/appearance-editor.css': 'appearance-editor.css'}
+STATIC = {'/' + name: name for name in (
+    'wardrobe.html', 'lang.json', 'wardrobe.css', 'wardrobe.js', 'runtime.js', 'upload.js', 'previews.js',
+    'library.js', 'reporting.js', 'scene-editor.js', 'operations.js', 'snapshots.js', 'photo-history.js',
+    'photo-history.css', 'drag-drop.js', 'menu-organizer.js', 'preset-appearance.js', 'appearance-editor.js',
+    'appearance-editor.css')}
+STATIC['/'] = 'wardrobe.html'
+MIME = {'.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json'}
 READ_CACHE = {'/api/state', '/api/families', '/api/family', '/api/installed', '/api/thumb', '/api/snapshot'}
 LEASE_RENEW_SECONDS = 30
 BUILD_ROUTES = {'/api/scene_upload_review', '/api/scene_upload', '/api/upload', '/api/batch_upload_one',
                 '/api/batch_upload_scene', '/api/batch_upload_presets', '/api/batch_dryrun'}
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, 'Bridge redirects are not allowed.', headers, fp)
+
+
+# Bridge requests never follow redirects or system proxies. The opener is stateless and thread-safe.
+BRIDGE_OPENER = urllib.request.build_opener(_NoRedirect, urllib.request.ProxyHandler({}))
+
+
+def read_json(response, limit, message):
+    """Read a bounded bridge response body and parse it as JSON."""
+    raw = response.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError(message)
+    return json.loads(raw)
+
+
 class UnityOperationBridge:
     """Fixed loopback transport; operation reads never depend on the main thread."""
     def __init__(self, base_url, project, timeout=8):
         self.base_url, self.project, self.timeout = base_url, project, timeout
-        class NoRedirect(urllib.request.HTTPRedirectHandler):
-            def redirect_request(self, req, fp, code, msg, headers, newurl):
-                raise urllib.error.HTTPError(req.full_url, code, 'Bridge redirects are not allowed.', headers, fp)
-        self.opener = urllib.request.build_opener(NoRedirect, urllib.request.ProxyHandler({}))
 
     def _request(self, path, payload=None, command=None, post=False):
         headers = {'X-Wardrobe-Project': urllib.parse.quote(self.project, safe='')}
@@ -53,14 +68,11 @@ class UnityOperationBridge:
         if data is not None:
             headers['Content-Type'] = 'application/json'
         request = urllib.request.Request(self.base_url + path, data=data, headers=headers, method='POST' if post else 'GET')
-        with self.opener.open(request, timeout=self.timeout) as response:
-            raw = response.read(2 * 1024 * 1024 + 1)
-            if len(raw) > 2 * 1024 * 1024:
-                raise ValueError('Unity operation response is too large.')
-            value = json.loads(raw)
-            if not isinstance(value, dict):
-                raise ValueError('Invalid Unity operation response.')
-            return value
+        with BRIDGE_OPENER.open(request, timeout=self.timeout) as response:
+            value = read_json(response, 2 * 1024 * 1024, 'Unity operation response is too large.')
+        if not isinstance(value, dict):
+            raise ValueError('Invalid Unity operation response.')
+        return value
 
     def context(self):
         value = self._request('/api/operation_context')
@@ -212,7 +224,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if route in STATIC and self.command == 'GET':
                 file = WEB / STATIC[route]
-                mime = {'.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json'}.get(file.suffix)
+                mime = MIME.get(file.suffix)
                 if mime == 'application/json':
                     return self.send(200, json.loads(file.read_text()))
                 return self.send(200, file.read_bytes(), mime)
@@ -225,7 +237,8 @@ class Handler(BaseHTTPRequestHandler):
             if route in ('/api/operations', '/api/operations/cancel'):
                 return self.operation_route(route, query)
             if route == '/api/library' and self.command == 'GET':
-                return self.send(200, {'ok': 1, 'project': self.server.project, 'items': self.server.library.list(offset=int(query.get('offset', '0'))), 'offset': int(query.get('offset', '0'))})
+                offset = int(query.get('offset', '0'))
+                return self.send(200, {'ok': 1, 'project': self.server.project, 'items': self.server.library.list(offset=offset), 'offset': offset})
             if route == '/api/library/add' and self.command == 'POST':
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= MAX_BYTES:
@@ -253,8 +266,9 @@ class Handler(BaseHTTPRequestHandler):
                 plan = self.server.library.import_plan(query.get('hash', ''), self.server.project)
                 token = uuid.uuid4().hex
                 with self.server.plan_lock:
-                    if len(self.server.plans) >= 20:
-                        self.server.plans.clear()
+                    # Expire only the oldest review so concurrent reviews stay valid.
+                    while len(self.server.plans) >= 20:
+                        self.server.plans.pop(next(iter(self.server.plans)))
                     self.server.plans[token] = plan
                 return self.send(200, dict(plan, ok=1, token=token))
             if route == '/api/library/import_apply' and self.command == 'POST':
@@ -415,15 +429,18 @@ class Handler(BaseHTTPRequestHandler):
             value['imageUrl'] = '/api/shadow/image?key=' + value['snapshotKey']
         return value
 
+    def _lease_call(self, action, lease_id='', timeout=8):
+        """POST a library import lease action to Unity and return its JSON reply."""
+        path = '/api/library_import_' + action + ('?token=' + urllib.parse.quote(lease_id, safe='') if lease_id else '')
+        headers = {'X-Wardrobe-Request': '1', 'X-Wardrobe-Project': urllib.parse.quote(self.server.project, safe='')}
+        request = urllib.request.Request(self.server.bridge + path, method='POST', headers=headers)
+        with self._bridge_request(request, timeout=timeout) as response:
+            return read_json(response, 1024 * 1024, 'Unity lease response is too large.')
+
     def apply_import(self, plan):
         lease = None
-        headers = {'X-Wardrobe-Request': '1', 'X-Wardrobe-Project': urllib.parse.quote(self.server.project, safe='')}
         try:
-            request = urllib.request.Request(self.server.bridge + '/api/library_import_begin', method='POST', headers=headers)
-            with self._bridge_request(request, timeout=8) as response:
-                raw = response.read(1024 * 1024 + 1)
-                if len(raw) > 1024 * 1024: raise ValueError('Unity lease response is too large.')
-                lease = json.loads(raw)
+            lease = self._lease_call('begin')
             if not isinstance(lease, dict) or lease.get('ok') != 1 or not isinstance(lease.get('id'), str) or not lease['id']:
                 raise ValueError(lease.get('message', 'Unity cannot import right now.') if isinstance(lease, dict) else 'Unity cannot import right now.')
         except urllib.error.HTTPError as error:
@@ -434,61 +451,44 @@ class Handler(BaseHTTPRequestHandler):
             # unknown and copying would make a retry unsafe.
             if (Path(self.server.project) / 'Temp/UnityLockfile').exists():
                 raise ValueError('Unity is open but its Wardrobe bridge is unavailable. Open Tools > Avatar Wardrobe before importing.') from error
-        result = None
+        if not lease:
+            return self.server.library.apply_import(plan['hash'], self.server.project, plan)
         stopped, lost = threading.Event(), threading.Event()
-        heartbeat = None
         def check_lease():
             if lost.is_set():
                 raise ValueError('Unity import protection was lost. New files were rolled back; wait for Unity to finish refreshing, then review the project before trying again.')
         def renew():
             while not stopped.wait(LEASE_RENEW_SECONDS):
                 try:
-                    request = urllib.request.Request(self.server.bridge + '/api/library_import_renew?token=' + urllib.parse.quote(lease['id'], safe=''), method='POST', headers=headers)
-                    with self._bridge_request(request, timeout=8) as response:
-                        raw = response.read(1024 * 1024 + 1)
-                        if len(raw) > 1024 * 1024:
-                            raise ValueError('Unity renewal response is too large.')
-                        renewed = json.loads(raw)
-                        if not isinstance(renewed, dict) or renewed.get('ok') != 1:
-                            raise ValueError('Unity import protection expired.')
+                    renewed = self._lease_call('renew', lease['id'])
+                    if not isinstance(renewed, dict) or renewed.get('ok') != 1:
+                        raise ValueError('Unity import protection expired.')
                 except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError):
                     lost.set()
                     return
-        if lease:
-            heartbeat = threading.Thread(target=renew, daemon=True)
-            heartbeat.start()
+        heartbeat = threading.Thread(target=renew, daemon=True)
+        heartbeat.start()
+        confirmed = False
         try:
-            if lease:
-                result = self.server.library.apply_import(plan['hash'], self.server.project, plan, cancel_check=check_lease)
-            else:
-                result = self.server.library.apply_import(plan['hash'], self.server.project, plan)
+            result = self.server.library.apply_import(plan['hash'], self.server.project, plan, cancel_check=check_lease)
         finally:
             stopped.set()
-            if heartbeat:
-                heartbeat.join(timeout=10)
-            if lease:
-                request = urllib.request.Request(self.server.bridge + '/api/library_import_end?token=' + urllib.parse.quote(lease['id'], safe=''), method='POST', headers=headers)
-                try:
-                    with self._bridge_request(request, timeout=15) as response:
-                        raw = response.read(1024 * 1024 + 1)
-                        if len(raw) > 1024 * 1024: raise ValueError('Unity lease response is too large.')
-                        ended = json.loads(raw)
-                        if not isinstance(ended, dict) or ended.get('ok') != 1:
-                            raise ValueError(ended.get('message', 'Import lease expired.') if isinstance(ended, dict) else 'Invalid Unity import confirmation.')
-                except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError):
-                    # Files may already be present: do not report a safe-to-retry failure.
-                    self.send_import_attention = True
-        if result is not None and getattr(self, 'send_import_attention', False):
+            heartbeat.join(timeout=10)
+            try:
+                ended = self._lease_call('end', lease['id'], timeout=15)
+                if not isinstance(ended, dict) or ended.get('ok') != 1:
+                    raise ValueError(ended.get('message', 'Import lease expired.') if isinstance(ended, dict) else 'Invalid Unity import confirmation.')
+                confirmed = True
+            except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError):
+                pass  # Files may already be present: do not report a safe-to-retry failure.
+        if not confirmed:
             result['message'] = 'Files were copied, but Unity did not confirm its refresh. Wait for import to finish or reopen Unity, then refresh Wardrobe. Do not repeat the import.'
         return result
 
-    def _bridge_request(self, request, timeout):
+    @staticmethod
+    def _bridge_request(request, timeout):
         """Open a bridge request without following redirects."""
-        class NoRedirect(urllib.request.HTTPRedirectHandler):
-            def redirect_request(self, req, fp, code, msg, headers, newurl):
-                raise urllib.error.HTTPError(req.full_url, code, 'Bridge redirects are not allowed.', headers, fp)
-        opener = urllib.request.build_opener(NoRedirect, urllib.request.ProxyHandler({}))
-        return opener.open(request, timeout=timeout)
+        return BRIDGE_OPENER.open(request, timeout=timeout)
 
     def _verify_bridge_project(self):
         if not self.server.project:
@@ -497,10 +497,8 @@ class Handler(BaseHTTPRequestHandler):
         headers = {'X-Wardrobe-Project': urllib.parse.quote(self.server.project, safe='')}
         request = urllib.request.Request(self.server.bridge + '/api/operation_context', method='GET', headers=headers)
         with self._bridge_request(request, 8) as response:
-            raw = response.read(4 * 1024 * 1024 + 1)
-            if len(raw) > 4 * 1024 * 1024: raise ValueError('Unity identity response is too large.')
-            state = json.loads(raw)
-            if not isinstance(state, dict): raise ValueError('Unity identity response is invalid.')
+            state = read_json(response, 4 * 1024 * 1024, 'Unity identity response is too large.')
+        if not isinstance(state, dict): raise ValueError('Unity identity response is invalid.')
         reported = state.get('projectId', '')
         if not isinstance(reported, str):
             raise ValueError('Unity identity response is invalid.')
@@ -551,6 +549,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(context, dict) or context.get('projectId') != self.server.project:
                     return self.send(409, {'ok': 0, 'message': 'The Unity bridge belongs to another project.'})
                 self.server.operations.reconcile_session(context)
+            state = None
             if route == '/api/state':
                 state = json.loads(data)
                 if not isinstance(state, dict) or not isinstance(state.get('projectPath', ''), str):
@@ -572,12 +571,7 @@ class Handler(BaseHTTPRequestHandler):
                         temp.replace(cached)
                         if time.monotonic() - self.server.cache_pruned_at >= 60:
                             self.server.cache_pruned_at = time.monotonic()
-                            entries = sorted(self.server.cache.glob('*.json'), key=lambda file: file.stat().st_mtime, reverse=True)
-                            total = 0
-                            for index, file in enumerate(entries):
-                                total += file.stat().st_size
-                                if index >= 4096 or total > 512 * 1024 * 1024:
-                                    file.unlink(missing_ok=True)
+                            self.prune_cache()
                 except OSError as error:
                     if time.monotonic() - self.server.cache_warning_at >= 60:
                         self.server.cache_warning_at = time.monotonic()
@@ -585,10 +579,9 @@ class Handler(BaseHTTPRequestHandler):
                 finally:
                     try: temp.unlink(missing_ok=True)
                     except OSError: pass
-            if route == '/api/state':
-                value = json.loads(data)
-                value.update(desktop=True, bridgeOnline=True, libraryProject=self.server.project, operationDriverError=self.server.operation_health)
-                return self.send(status, value)
+            if state is not None:
+                state.update(desktop=True, bridgeOnline=True, libraryProject=self.server.project, operationDriverError=self.server.operation_health)
+                return self.send(status, state)
             return self.send(status, json.loads(data) if mime == 'application/json' else data, mime)
         except urllib.error.HTTPError as error:
             if 300 <= error.code < 400:
@@ -627,6 +620,22 @@ class Handler(BaseHTTPRequestHandler):
                 value.update(desktop=True, bridgeOnline=False, libraryProject=self.server.project, session='offline', avatarInstanceId=0, sceneTargets=[], sdkUploadReady=False)
                 return self.send(200, value)
             return self.send(503, {'ok': 0, 'message': 'No cached result yet. Your Library remains available while Unity is closed.'})
+
+    def prune_cache(self):
+        """Keep the newest 4096 cached responses within 512 MiB. Caller holds cache_lock."""
+        entries = []
+        for file in self.server.cache.glob('*.json'):
+            try:
+                info = file.stat()
+            except FileNotFoundError:
+                continue
+            entries.append((info.st_mtime, info.st_size, file))
+        entries.sort(key=lambda entry: entry[0], reverse=True)
+        total = 0
+        for index, (_, size, file) in enumerate(entries):
+            total += size
+            if index >= 4096 or total > 512 * 1024 * 1024:
+                file.unlink(missing_ok=True)
 
 
 def main():

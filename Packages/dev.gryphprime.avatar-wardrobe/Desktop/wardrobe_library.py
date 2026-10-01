@@ -1,4 +1,5 @@
 """Local, content-addressed purchase library. Originals are never edited in place."""
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -230,10 +231,19 @@ class Library:
         db.execute('INSERT OR REPLACE INTO product_index VALUES(?)', (sha,))
         db.execute('DELETE FROM usage_observations')
 
+    @contextmanager
     def connect(self):
+        """One transaction on a connection that is always closed, not left to garbage collection."""
         connection = sqlite3.connect(self.db, timeout=30)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
+    def source(self, sha, path):
+        return self.root / 'versions' / sha / 'files' / path
 
     @staticmethod
     def metadata(creator, product, source_url):
@@ -371,8 +381,7 @@ class Library:
             state = 'new' if not target.exists() else ('unchanged' if target.is_file() and digest(target) == entry['sha256'] else 'conflict')
             folder = False
             if relative.suffix == '.meta':
-                source = self.root / 'versions' / sha / 'files' / entry['path']
-                with source.open('rb') as stream:
+                with self.source(sha, entry['path']).open('rb') as stream:
                     folder = bool(re.search(rb'^folderAsset:\s*yes\s*$', stream.read(16384), re.MULTILINE))
                 if folder:
                     folder_target = target.with_suffix('')
@@ -395,8 +404,7 @@ class Library:
         missing, incomplete, allowance = {}, [], MAX_REFERENCE_BYTES
         for entry in result:
             check()
-            source = self.root / 'versions' / sha / 'files' / entry['path']
-            found, consumed, partial = references(source, allowance, check)
+            found, consumed, partial = references(self.source(sha, entry['path']), allowance, check)
             allowance -= consumed
             if partial:
                 incomplete.append(entry['destination'])
@@ -429,7 +437,7 @@ class Library:
         check = cancel_check or (lambda: None)
         check()
         project = Path(project).resolve()
-        current = self.import_plan(sha, project, cancel_check)
+        current = self._import_plan(sha, project, check)
         check()
         if current != expected_plan:
             raise ValueError('The project changed since review. Review the import again.')
@@ -443,11 +451,10 @@ class Library:
             pending = [entry for entry in current['files'] if entry['state'] == 'new']
             for index, entry in enumerate(pending):
                 check()
-                source = self.root / 'versions' / sha / 'files' / entry['path']
                 staged = Path(staging.name) / str(index)
-                with source.open('rb') as stream, staged.open('xb') as target:
-                    self.copy_checked(stream, target, check)
-                if digest(staged) != entry['sha256']:
+                with self.source(sha, entry['path']).open('rb') as stream, staged.open('xb') as target:
+                    copied = self.copy_checked(stream, target, check)
+                if copied != entry['sha256']:
                     raise ValueError('Library content changed. Restore the original archive before importing.')
                 entry['staged'] = staged
             # Folder metadata may already be present while its empty folder is absent.
@@ -456,37 +463,18 @@ class Library:
                 if entry['folderAsset']:
                     folder = project / entry['destination'].removesuffix('.meta')
                     self.validate_destination(project, folder)
-                    missing = []
-                    while folder != project and not folder.exists():
-                        missing.append(folder)
-                        folder = folder.parent
-                    for folder in reversed(missing):
-                        folder.mkdir()
-                        created_dirs.append(folder)
+                    self.make_folders(project, folder, created_dirs)
             for entry in sorted(pending, key=lambda entry: not entry['destination'].endswith('.meta')):
                 check()
-                if entry['state'] != 'new':
-                    continue
-                source = entry['staged']
-                target = Path(project) / entry['destination']
+                target = project / entry['destination']
                 self.validate_destination(project, target)
-                folders = []
-                folder = target.with_suffix('') if entry['folderAsset'] else target.parent
-                while folder != project and not folder.exists():
-                    folders.append(folder)
-                    folder = folder.parent
-                for folder in reversed(folders):
-                    folder.mkdir()
-                    created_dirs.append(folder)
-                with source.open('rb') as stream, target.open('xb') as out:
+                self.make_folders(project, target.with_suffix('') if entry['folderAsset'] else target.parent, created_dirs)
+                with entry['staged'].open('rb') as stream, target.open('xb') as out:
                     written.append(target)
-                    if cancel_check:
-                        self.copy_checked(stream, out, check)
-                    else:
-                        shutil.copyfileobj(stream, out, 1024 * 1024)
+                    self.copy_checked(stream, out, check)
             check()
             with self.connect() as db:
-                db.execute('INSERT OR REPLACE INTO usage VALUES(?,?,?,?,?)', (sha, str(Path(project).resolve()), '', '', json.dumps([x['destination'] for x in current['files']])))
+                db.execute('INSERT OR REPLACE INTO usage VALUES(?,?,?,?,?)', (sha, str(project), '', '', json.dumps([x['destination'] for x in current['files']])))
         except Exception:
             # We only remove files this call successfully created; originals/shared files survive.
             for target in reversed(written):
@@ -503,12 +491,26 @@ class Library:
                 'message': 'Files copied. Unity must import them and resolve dependencies before Wear.'}
 
     @staticmethod
+    def make_folders(project, folder, created):
+        """Create folder and its missing parents below project, recording each one created."""
+        missing = []
+        while folder != project and not folder.exists():
+            missing.append(folder)
+            folder = folder.parent
+        for folder in reversed(missing):
+            folder.mkdir()
+            created.append(folder)
+
+    @staticmethod
     def copy_checked(source, destination, check):
+        """Copy in blocks, checking for cancellation; returns the SHA-256 of the copied bytes."""
+        h = hashlib.sha256()
         while True:
             check()
             block = source.read(1024 * 1024)
             if not block:
-                break
+                return h.hexdigest()
+            h.update(block)
             destination.write(block)
 
     def reconcile_usage(self, project, snapshot):
