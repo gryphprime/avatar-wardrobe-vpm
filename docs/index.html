@@ -9,64 +9,61 @@
     a { color:#8fc5ff; }
     pre { background:#09131f; border:1px solid #34475b; border-radius:8px; padding:16px; overflow-x:auto; }
     code { font-size:14px; }
-    button { font:inherit; background:#294a70; color:#fff; border:1px solid #7098c2; border-radius:6px; padding:9px 16px; cursor:pointer; }
+    button, select { font:inherit; background:#294a70; color:#fff; border:1px solid #7098c2; border-radius:6px; padding:9px 16px; }
+    button { cursor:pointer; }
+    .language-control { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; }
+    .language-control[hidden] { display:none; }
+    :focus-visible { outline:3px solid #8fc5ff; outline-offset:3px; }
     small, .hint { color:#aebcca; }
     #copy-status { min-height:1.6em; }
   </style>
 </head>
 <body>
+  <div id="language-control" class="language-control" hidden>
+    <label for="language" data-i18n="language">Language</label>
+    <select id="language">
+      <option value="en" lang="en">English</option>
+      <option value="ja" lang="ja">日本語</option>
+      <option value="ko" lang="ko">한국어</option>
+      <option value="zh" lang="zh-Hans">简体中文</option>
+    </select>
+  </div>
   <h1>Avatar Wardrobe</h1>
-  <p>VPM repository for authorized users of Avatar Wardrobe.</p>
-  <p><a id="open-app" href="vcc://vpm/addRepo?url=https%3A%2F%2Fgryphprime.github.io%2Favatar-wardrobe-vpm%2Findex.json">Open in VCC / ALCOM</a></p>
-  <p class="hint">Your browser may ask permission to open the app. If nothing happens, use the manual steps below.</p>
-  <h2>1. Add the repository</h2>
-  <p>Use <strong>Open in VCC / ALCOM</strong> above and confirm the repository in the app, or add it manually:</p>
+  <p data-i18n="intro">VPM repository for authorized users of Avatar Wardrobe.</p>
+  <p><a id="open-app" data-i18n="openApp" href="vcc://vpm/addRepo?url=https%3A%2F%2Fgryphprime.github.io%2Favatar-wardrobe-vpm%2Findex.json">Open in VCC / ALCOM</a></p>
+  <p class="hint" data-i18n="appHint">Your browser may ask permission to open the app. If nothing happens, use the manual steps below.</p>
+  <h2 data-i18n="addHeading">1. Add the repository</h2>
+  <p data-i18n="addIntro">Use <strong>Open in VCC / ALCOM</strong> above and confirm the repository in the app, or add it manually:</p>
   <ol>
-    <li>Open ALCOM and go to <strong>Repositories → Add Repository</strong>.</li>
-    <li>Paste this repository URL and confirm the repository.</li>
+    <li data-i18n="addStep1">Open ALCOM and go to <strong>Repositories → Add Repository</strong>.</li>
+    <li data-i18n="addStep2">Paste this repository URL and confirm the repository.</li>
   </ol>
   <pre><code id="repository-url">https://gryphprime.github.io/avatar-wardrobe-vpm/index.json</code></pre>
-  <button id="copy-url" type="button">Copy repository URL</button>
+  <button id="copy-url" data-i18n="copyUrl" type="button">Copy repository URL</button>
   <p id="copy-status" role="status" aria-live="polite"></p>
   <details>
-    <summary>Why doesn't the app link open?</summary>
-    <p>The link uses the <code>vcc:</code> URL scheme. An installed application must register that scheme, and the browser must allow opening it.</p>
-    <p>If your ALCOM settings offer <strong>Use ALCOM for vcc: URL Scheme</strong>, enable it and click <strong>Register URL Scheme Handler Now</strong>. These controls are platform-dependent; if they are absent, use the manual steps above.</p>
+    <summary data-i18n="linkHelpHeading">Why doesn't the app link open?</summary>
+    <p data-i18n="linkHelp">The link uses the <code>vcc:</code> URL scheme. An installed application must register that scheme, and the browser must allow opening it.</p>
+    <p data-i18n="linkSettings">If your ALCOM settings offer <strong>Use ALCOM for vcc: URL Scheme</strong>, enable it and click <strong>Register URL Scheme Handler Now</strong>. These controls are platform-dependent; if they are absent, use the manual steps above.</p>
   </details>
-  <h2>2. Install Avatar Wardrobe</h2>
+  <h2 data-i18n="installHeading">2. Install Avatar Wardrobe</h2>
   <ol>
-    <li>Close the target project in Unity.</li>
-    <li>In ALCOM, open your project's <strong>Manage Packages</strong> page.</li>
-    <li>Refresh the package list, search for <strong>Avatar Wardrobe</strong>, and install it.</li>
-    <li>Review and apply the package changes.</li>
+    <li data-i18n="installStep1">Close the target project in Unity.</li>
+    <li data-i18n="installStep2">In ALCOM, open your project's <strong>Manage Packages</strong> page.</li>
+    <li data-i18n="installStep3">Refresh the package list, search for <strong>Avatar Wardrobe</strong>, and install it.</li>
+    <li data-i18n="installStep4">Review and apply the package changes.</li>
   </ol>
-  <p>Regular releases appear without enabling prerelease packages.</p>
-  <p>VPM resolves the required VRChat SDK Avatars and Modular Avatar packages. If Modular Avatar cannot be found, add its repository using the <a href="https://modular-avatar.nadena.dev/docs/intro">Modular Avatar installation page</a>.</p>
-  <p>An existing <code>Assets/OutfitToggleGenerator</code> installation is migrated automatically.</p>
-  <h2>3. Open Avatar Wardrobe in Unity</h2>
-  <p>Open the project in Unity. After compilation finishes, choose <strong>Tools → Avatar Wardrobe</strong>.</p>
-  <p>The VPM package still needs a fresh installation smoke test. Start with a separate test project before installing it in your main avatar project.</p>
-  <h2 id="update">Update Avatar Wardrobe</h2>
-  <p>Close the project in Unity. In ALCOM or VCC, open the project’s <strong>Manage Packages</strong> page, refresh the list, and update <strong>Avatar Wardrobe</strong> to the latest version. Apply the changes, then reopen Unity and wait for compilation.</p>
-  <p><strong>View-only license.</strong> Installation and use require separate permission from gryphprime.</p>
-  <p><a href="https://github.com/gryphprime/avatar-wardrobe-vpm">Source and license</a> · <a href="https://gryphprime.github.io/avatar-wardrobe/">User guide</a></p>
-  <small>VPM package: compilation and package checks passed; fresh Unity installation testing is pending.</small>
-  <script>
-    const url = document.getElementById('repository-url');
-    const status = document.getElementById('copy-status');
-    document.getElementById('copy-url').addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(url.textContent.trim());
-        status.textContent = 'Copied. Paste the URL into ALCOM’s Add Repository dialog.';
-      } catch {
-        const range = document.createRange();
-        range.selectNodeContents(url);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        status.textContent = 'Select and copy the URL above, then paste it into ALCOM.';
-      }
-    });
-  </script>
+  <p data-i18n="regularReleases">Regular releases appear without enabling prerelease packages.</p>
+  <p data-i18n="dependencies">VPM resolves the required VRChat SDK Avatars and Modular Avatar packages. If Modular Avatar cannot be found, add its repository using the <a href="https://modular-avatar.nadena.dev/docs/intro">Modular Avatar installation page</a>.</p>
+  <p data-i18n="migration">An existing <code>Assets/OutfitToggleGenerator</code> installation is migrated automatically.</p>
+  <h2 data-i18n="openHeading">3. Open Avatar Wardrobe in Unity</h2>
+  <p data-i18n="openInstructions">Open the project in Unity. After compilation finishes, choose <strong>Tools → Avatar Wardrobe</strong>.</p>
+  <p data-i18n="testProject">The VPM package still needs a fresh installation smoke test. Start with a separate test project before installing it in your main avatar project.</p>
+  <h2 id="update" data-i18n="updateHeading">Update Avatar Wardrobe</h2>
+  <p data-i18n="updateInstructions">Close the project in Unity. In ALCOM or VCC, open the project’s <strong>Manage Packages</strong> page, refresh the list, and update <strong>Avatar Wardrobe</strong> to the latest version. Apply the changes, then reopen Unity and wait for compilation.</p>
+  <p data-i18n="license"><strong>View-only license.</strong> Installation and use require separate permission from gryphprime.</p>
+  <p><a data-i18n="sourceLink" href="https://github.com/gryphprime/avatar-wardrobe-vpm">Source and license</a> · <a data-i18n="guideLink" href="https://gryphprime.github.io/avatar-wardrobe/">User guide</a></p>
+  <small data-i18n="checks">VPM package: compilation and package checks passed; fresh Unity installation testing is pending.</small>
+  <script src="localization.js"></script>
 </body>
 </html>

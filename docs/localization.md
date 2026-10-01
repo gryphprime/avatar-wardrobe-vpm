@@ -8,4 +8,18 @@ Creator names, asset names, user-authored preset/menu names, file paths, SDK ide
 
 The Korean and Chinese catalogs, and newly covered Japanese entries, were generated with machine translation and reviewed for key workflow terminology and placeholder preservation. Further native-speaker wording improvements are welcome.
 
+The VPM installation page uses the same four languages in `docs/localization.js`.
+Every instruction, heading, link label, copy-button result, and page title is translated.
+Keep the language options in `docs/index.html` aligned with the shared catalog. URLs,
+package names, paths, and exact application menu labels remain unchanged.
+The page chooses an explicit `?lang=en|ja|ko|zh` first, then a saved choice, then the
+first supported browser language. Changing language saves the choice and preserves
+the `#update` anchor. If storage is unavailable, switching and copying still work.
+The English instructions remain available without JavaScript. `docs/VPM_USAGE.txt`
+links to this page and each language for the BOOTH download.
+
+Run `node --test tests/vpm-page-localization.test.js` after changing the VPM page,
+and check language switching and the copy button in a browser. Documentation-only
+deployments preserve the live VPM listing and do not publish a new package release.
+
 Run `node --test tests/localization.test.js` and the browser test suite after changing localization. Verify language switching in the live UI, especially Organization, Settings, the wearing list, item details and upload dialogs. Preserve unsaved form values while rebuilding translated controls.

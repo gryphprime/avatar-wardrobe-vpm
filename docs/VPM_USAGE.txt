@@ -1,0 +1,12 @@
+Avatar Wardrobe — VPM installation and usage / VPM導入・使用ガイド
+
+Installation, updates, and usage instructions:
+導入・更新・使用方法：
+설치, 업데이트 및 사용 안내:
+安装、更新与使用指南：
+https://gryphprime.github.io/avatar-wardrobe-vpm/
+
+English: https://gryphprime.github.io/avatar-wardrobe-vpm/?lang=en
+日本語: https://gryphprime.github.io/avatar-wardrobe-vpm/?lang=ja
+한국어: https://gryphprime.github.io/avatar-wardrobe-vpm/?lang=ko
+简体中文: https://gryphprime.github.io/avatar-wardrobe-vpm/?lang=zh

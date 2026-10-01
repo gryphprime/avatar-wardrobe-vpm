@@ -10,10 +10,31 @@ concurrency:
   group: vpm-release
   cancel-in-progress: false
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.detect.outputs.package }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect distributable changes
+        id: detect
+        env:
+          BEFORE: ${{ github.event.before }}
+        shell: bash
+        run: |
+          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo 'package=true' >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" "$GITHUB_SHA" -- Packages scripts RELEASE_NOTES.md .github/workflows/validate.yml; then
+            echo 'package=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'package=true' >> "$GITHUB_OUTPUT"
+          fi
   validation:
     uses: ./.github/workflows/validate.yml
   release:
-    needs: validation
+    needs: [validation, changes]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -34,10 +55,12 @@ jobs:
       - name: Check installed sidebar grouping
         run: node tests/installed-sidebar.test.js
       - name: Build package and merge listing history
+        if: needs.changes.outputs.package == 'true'
         run: |
           echo "WARDROBE_VERSION=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
           python3 scripts/build_release.py --live --version "1.0.$GITHUB_RUN_NUMBER"
       - name: Publish immutable release assets
+        if: needs.changes.outputs.package == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -49,6 +72,19 @@ jobs:
           else
             gh release create "$tag" dist/*.zip dist/SHA256SUMS --target "$GITHUB_SHA" --title "Avatar Wardrobe $tag" --notes-file RELEASE_NOTES.md --prerelease=false --latest
           fi
+      - name: Preserve live VPM listing for documentation updates
+        if: needs.changes.outputs.package != 'true'
+        run: |
+          python3 - <<'PY'
+          import json
+          import urllib.request
+          from pathlib import Path
+          with urllib.request.urlopen('https://gryphprime.github.io/avatar-wardrobe-vpm/index.json', timeout=30) as response:
+              listing = json.load(response)
+          if listing.get('id') != 'dev.gryphprime.avatar-wardrobe.listing' or not listing.get('packages'):
+              raise ValueError('Unexpected live VPM listing; refusing to replace it')
+          Path('docs/index.json').write_text(json.dumps(listing, indent=2) + '\n')
+          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
