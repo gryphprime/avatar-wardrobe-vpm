@@ -20,7 +20,7 @@ function setup() {
       requests.push({query:new URL(url, 'http://localhost').searchParams, options});
       return release ? new Promise(resolve=>{release.push(resolve);}) : Promise.resolve({ok:1});
     }},
-    refreshState:async()=>{refreshes++;}, renderGrid(){}, loadInstalled(){}, previews:{resume(){}},
+    refreshState:async()=>{refreshes++;}, renderGrid(){}, resetFolderItems(){}, loadInstalled(){}, previews:{resume(){}},
     setTimeout(fn, ms){timers.set(++next, {fn, ms});return next;}, clearTimeout(id){timers.delete(id);},
     encodeURIComponent, Promise
   };

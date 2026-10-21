@@ -8,10 +8,10 @@ namespace OutfitToggleGenerator
     // Like Unity scene Undo, history lasts for this Editor session (not a restart).
     internal sealed class WardrobeEditHistory : ScriptableObject
     {
-        [SerializeField] private string presets, overrides;
-        [SerializeField] private bool presetsExist, overridesExist;
+        [SerializeField] private string presets, overrides, uploads;
+        [SerializeField] private bool presetsExist, overridesExist, uploadsExist, uploadsTracked;
         private static WardrobeEditHistory current;
-        private static string appliedPresets, appliedOverrides;
+        private static string appliedPresets, appliedOverrides, appliedUploads;
         private static string appliedHistory;
         private static WardrobeEditHistory Current
         {
@@ -28,21 +28,29 @@ namespace OutfitToggleGenerator
             Undo.undoRedoPerformed += Restore;
             appliedPresets = AvatarWardrobePresets.CaptureSettings();
             appliedOverrides = AvatarWardrobeCatalog.CaptureOverrides();
+            appliedUploads = ShiroTools.OutfitProjectData.CaptureSettings();
             current = Resources.FindObjectsOfTypeAll<WardrobeEditHistory>().FirstOrDefault();
             appliedHistory = current == null ? null : JsonUtility.ToJson(current);
         }
-        internal static void Begin(string label)
+        internal static void Begin(string label, bool trackUploads = false)
         {
-            Capture();
+            Capture(trackUploads);
             Undo.RegisterCompleteObjectUndo(Current, label);
         }
-        internal static void Capture()
+        internal static void Capture(bool trackUploads = false)
         {
             var state = Current;
             appliedPresets = AvatarWardrobePresets.CaptureSettings();
             appliedOverrides = AvatarWardrobeCatalog.CaptureOverrides();
             state.presetsExist = appliedPresets != null; state.presets = appliedPresets ?? "";
             state.overridesExist = appliedOverrides != null; state.overrides = appliedOverrides ?? "";
+            state.uploadsTracked = trackUploads;
+            if (trackUploads)
+            {
+                appliedUploads = ShiroTools.OutfitProjectData.CaptureSettings();
+                state.uploadsExist = appliedUploads != null; state.uploads = appliedUploads ?? "";
+            }
+            else { state.uploadsExist = false; state.uploads = ""; }
             EditorUtility.SetDirty(state);
             appliedHistory = JsonUtility.ToJson(state);
         }
@@ -50,13 +58,16 @@ namespace OutfitToggleGenerator
         {
             if (current == null) current = Resources.FindObjectsOfTypeAll<WardrobeEditHistory>().FirstOrDefault();
             if (current == null) return;
-            // Ignore unrelated Undo events when the serialized history has not changed.
+            // Unity fires this for every Undo, including unrelated scene edits.
+            // After a reload the hidden object can contain an older snapshot than
+            // disk. Only replay it when Unity actually changed that object.
             var nextHistory = JsonUtility.ToJson(current);
             if (nextHistory == appliedHistory) return;
             try
             {
                 var nextPresets = current.presetsExist ? current.presets : null;
                 var nextOverrides = current.overridesExist ? current.overrides : null;
+                var nextUploads = current.uploadsExist ? current.uploads : null;
                 if (nextPresets != appliedPresets)
                 {
                     if (AvatarWardrobePresets.CaptureSettings() != appliedPresets)
@@ -68,6 +79,12 @@ namespace OutfitToggleGenerator
                     if (AvatarWardrobeCatalog.CaptureOverrides() != appliedOverrides)
                         throw new InvalidOperationException("Compatibility settings changed outside this operation. Scene Undo completed; review settings before continuing.");
                     AvatarWardrobeCatalog.RestoreOverrides(nextOverrides); appliedOverrides = nextOverrides;
+                }
+                if (current.uploadsTracked && nextUploads != appliedUploads)
+                {
+                    if (ShiroTools.OutfitProjectData.CaptureSettings() != appliedUploads)
+                        throw new InvalidOperationException("Upload settings changed outside this operation. Scene Undo completed; review settings before continuing.");
+                    ShiroTools.OutfitProjectData.RestoreSettings(nextUploads); appliedUploads = nextUploads;
                 }
                 appliedHistory = nextHistory;
             }

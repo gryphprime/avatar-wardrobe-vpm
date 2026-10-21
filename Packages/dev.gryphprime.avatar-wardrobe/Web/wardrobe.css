@@ -451,3 +451,5 @@ body[data-view="upload"][data-preset-inspector="true"] #hud{grid-column:2/-1}
 .grid-folder-toggle:hover:not(:disabled){background:transparent;border-color:transparent}
 
 .grid-folder{position:relative}.grid-folder.is-open{z-index:4;border-color:var(--accent);background:linear-gradient(145deg,#204560,#102a40);box-shadow:inset 3px 0 0 var(--accent)}.grid-folder.is-open:hover{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent),0 6px 16px #03070e33}.grid-folder-open-indicator{position:absolute;top:10px;right:10px;padding:2px 8px;border:1px solid #5893bc70;border-radius:999px;color:#b9def7;background:#102637eb;font-size:10px;pointer-events:none}.grid-folder-expansion .card{transform-origin:left center}
+
+.up-preset-copy{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#142130}.up-preset-copy[hidden]{display:none}.up-preset-copy label{display:flex;align-items:center;gap:10px}.up-preset-copy select{min-width:190px}.up-preset-copy .up-hint{flex-basis:100%;margin:0}

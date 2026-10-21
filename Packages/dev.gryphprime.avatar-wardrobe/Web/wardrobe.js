@@ -30,11 +30,23 @@
   var sideBackdrop=$("sideBackdrop"),hideBtn=$("hideEmpty"),avatarModeChip=$("workflowMulti");
   var lastState=null,catalogEpoch="",contextKey="",previewContext="",connected=false,currentView="wardrobe";
   var listCache=new Map(),detailCache=new Map(),cardCache=new Map(),listItems=[];
+  var folderItems=new Map(),folderChecked=new Set(),folderPending=new Set(),folderFailed=new Set();
+  var folderQuery='',folderController=null,folderFlight=false,folderToken=0;
   var listToken=0,listInflight=false,listController=null,gridNotice="",installedFlight=null,stateFlight=null;
   var previewActivity={active:0,queued:0},activityEntries=[],pollTimer=null;
   var detailSettingDrafts=new Map(),installedIdentity=null;
   function cacheSet(map,key,value,cap){ map.delete(key); map.set(key,value); while(map.size>cap) map.delete(map.keys().next().value); }
-  function dropCaches(){ listCache.clear(); detailCache.clear(); }
+  function dropCaches(){ listCache.clear(); detailCache.clear(); resetFolderItems(); }
+  function resetFolderItems(){
+    folderToken++;if(folderController)folderController.abort();
+    folderController=null;folderFlight=false;folderQuery='';
+    folderItems.clear();folderChecked.clear();folderPending.clear();folderFailed.clear();
+  }
+  function gridItems(){
+    var items=new Map(listItems.map(function(item){return [item.id,item];}));
+    folderItems.forEach(function(item,id){if(!items.has(id))items.set(id,item);});
+    return Array.from(items.values());
+  }
   function api(path,options){
     if(path.indexOf("/api/")===0) path+=(path.indexOf("?")>=0?"&":"?")+"lang="+encodeURIComponent(langCode||"en");
     return R.request(path,options);
@@ -222,7 +234,8 @@
     var any=detail?detail.variants.some(function(v){return v.installed;}):isInstalled;
     listCache.forEach(function(result){ result.items.forEach(function(f){ if(f.id===familyId) f.installed=any?1:0; }); });
     listItems.forEach(function(f){if(f.id===familyId) f.installed=any?1:0;});
-    var card=cardCache.get(familyId),row=listItems.find(function(f){return f.id===familyId;}); if(card&&row) paintCardBody(card,row);
+    if(folderItems.has(familyId))folderItems.get(familyId).installed=any?1:0;
+    var card=cardCache.get(familyId),row=gridItems().find(function(f){return f.id===familyId;}); if(card&&row) paintCardBody(card,row);
   }
   function cardBodyHtml(f){
     var compatibility=filter==="unknown"&&!f.compatibleOverride?"":'<span class="badge c'+Number(f.compat)+'">'+esc(f.compatText)+'</span>';
@@ -291,16 +304,64 @@
   function preloadFolderPreviews(){
     // Hidden cards need decoded images in their DOM as well as cached blobs:
     // the folder expansion animation snapshots them before intersection fires.
-    grid.querySelectorAll('.in-grid-folder').forEach(function(card){
+    var cards=Array.from(grid.querySelectorAll('.in-grid-folder'));
+    // Queue every cover before variants, including cards in closed folders.
+    cards.forEach(function(card){
       var family=card._family;if(!family)return;
-      previews.bind(card.querySelector('.thumb'),family.thumb,{priority:card.hidden?4:1,root:$('main'),requireHi:true});
-      previews.prefetch(family.variantGuids||[]);
+      previews.bind(card.querySelector('.thumb'),family.thumb,{priority:card.hidden?3:1,root:$('main'),requireHi:true});
+    });
+    cards.forEach(function(card){
+      var family=card._family;if(family)previews.prefetch(family.variantGuids||[],5);
     });
   }
-  var gridFolders=new window.WardrobeGridFolders({grid:grid,render:renderGrid,sort:function(){return sortMode;},error:function(message){toast(message,'err');},filtered:function(){return !!search||!!shop||!!category||filter!=='all';}});
-  gridFolders.setScope(location.origin);
+  var gridFolders=new window.WardrobeGridFolders({grid:grid,render:renderGrid,sort:function(){return sortMode;},error:function(message){toast(message,'err');},
+    memberState:function(id){return folderPending.has(id)?'loading':folderFailed.has(id)?'error':folderChecked.has(id)&&!folderItems.has(id)?'unavailable':'';},
+    retry:function(ids){ids.forEach(function(id){folderFailed.delete(id);});syncFolderItems();}
+  });
+  var gridFolderScopeKey='wardrobeGridFolderScope:'+location.origin;
+  // Restore the last project's folders before any network requests finish.
+  // State confirms the scope again when this origin connects to a project.
+  gridFolders.setScope(R.stored(gridFolderScopeKey,location.origin));
+  function setGridFolderScope(scope){
+    if(!scope)return;
+    R.store(gridFolderScopeKey,scope);
+    if(gridFolders.setScope(scope)){resetFolderItems();renderGrid();}
+  }
+  // Preload all folders' members, independently of infinite scrolling.
+  // Keep these rows separate so loading a folder never skips catalog pages.
+  async function syncFolderItems(){
+    if(previewPageClosed||!connected||!contextKey||initialGridPending||listInflight||folderFlight)return;
+    var loaded=new Set(gridItems().map(function(item){return item.id;}));
+    var ids=gridFolders.memberIds().filter(function(id){return !loaded.has(id)&&!folderChecked.has(id)&&!folderFailed.has(id);});
+    if(!ids.length)return;
+    var token=++folderToken,controller=new AbortController(),query=queryFor(0,200);
+    folderController=controller;folderFlight=true;folderPending=new Set(ids);renderGrid();
+    try{
+      // Bound URL length and keep each requested set within one metadata page.
+      while(folderPending.size){
+        // Opening a folder promotes its remaining members ahead of closed ones.
+        var batch=gridFolders.memberIds().filter(function(id){return folderPending.has(id);}).slice(0,100),wanted=new Set(batch);
+        if(!batch.length)break;
+        var result=await api(query+'&ids='+encodeURIComponent(JSON.stringify({ids:batch})),{method:'GET',signal:controller.signal,timeout:40000});
+        if(token!==folderToken)return;
+        if(!result||!Array.isArray(result.items)||result.items.some(function(item){return !wanted.has(item.id);})||result.total>batch.length)throw new Error(T('grid.error'));
+        result.items.forEach(function(item){folderItems.set(item.id,item);});
+        batch.forEach(function(id){folderChecked.add(id);folderPending.delete(id);});
+        renderGrid();
+      }
+    }catch(error){
+      if(token!==folderToken||error.name==='AbortError')return;
+      folderPending.forEach(function(id){folderFailed.add(id);});
+      toast(error.message||T('grid.error'),'err');
+    }finally{
+      if(token===folderToken){folderFlight=false;folderController=null;folderPending.clear();renderGrid();}
+    }
+  }
   function renderGrid(){
-    R.reconcile(grid,listItems,function(f){return f.id;},function(f){
+    var nextFolderQuery=[langCode,catalogEpoch,contextKey,queryFor(0)].join('|');
+    if(folderQuery!==nextFolderQuery){resetFolderItems();folderQuery=nextFolderQuery;}
+    var items=gridItems();
+    R.reconcile(grid,items,function(f){return f.id;},function(f){
       var card=cardCache.get(f.id);
       if(!card){
         card=document.createElement("article"); card.className="card"; card.tabIndex=0; card.setAttribute("role","button");
@@ -315,15 +376,15 @@
       card.hidden=filter!=="all" && !!hideEmpty && previews.isUnavailable(f.thumb); paintCardBody(card,f);
       previews.observe(card.querySelector(".thumb"),f.thumb,{priority:1,root:$("main")});
     });
-    gridFolders.render(listItems);
+    gridFolders.render(items);
     preloadFolderPreviews();
     // Detached cards are disposable; retain the current grid and a small warm history.
     if(cardCache.size>180) cardCache.forEach(function(card,id){if(cardCache.size>180&&!card.isConnected) cardCache.delete(id);});
-    previews.sweep(); paintCount(); paintEmptyGrid();scheduleGridPreload();
+    previews.sweep(); paintCount(); paintEmptyGrid();scheduleGridPreload();syncFolderItems();
   }
-  function queryFor(p){ return "/api/families?target="+encodeURIComponent(effectivePreset())+"&filter="+filter+"&page="+p+"&pageSize="+pageSize+"&search="+encodeURIComponent(search)+"&shop="+encodeURIComponent(shop)+"&category="+encodeURIComponent(category)+"&hideEmpty="+hideEmpty+"&sort="+sortMode+(sortMode==='used'?"&used="+encodeURIComponent(JSON.stringify({ids:recentlyUsedItems()})):""); }
+  function queryFor(p,size){ return "/api/families?target="+encodeURIComponent(effectivePreset())+"&filter="+filter+"&page="+p+"&pageSize="+(size||pageSize)+"&search="+encodeURIComponent(search)+"&shop="+encodeURIComponent(shop)+"&category="+encodeURIComponent(category)+"&hideEmpty="+hideEmpty+"&sort="+sortMode+(sortMode==='used'?"&used="+encodeURIComponent(JSON.stringify({ids:recentlyUsedItems()})):""); }
   function paintCount(){
-    R.text(status,T("page.loaded",listItems.length,total)); R.text(pageinfo,status.textContent);
+    R.text(status,T("page.loaded",gridItems().length,total)); R.text(pageinfo,status.textContent);
     var more=$("more"); more.hidden=page>=pageCount-1; more.disabled=listInflight; more.textContent=T(listInflight?"page.loading.more":"page.more");
   }
   async function load(append,preserveScroll){
@@ -361,7 +422,7 @@
       gridNotice="error";
       if(listItems.length) toast(error.message||T("grid.error"),"err");
     } finally {
-      if(token===listToken){ initialGridPending=false; listInflight=false; paintEmptyGrid(); paintCount(); if(!gridNotice) scheduleGridPreload(); }
+      if(token===listToken){ initialGridPending=false; listInflight=false; paintEmptyGrid(); paintCount(); if(!gridNotice){scheduleGridPreload();syncFolderItems();} }
     }
   }
   function groupInstalledItems(items,presets,separate){
@@ -384,7 +445,7 @@
       if(signature===sideContent.dataset.signature) return;
       sideContent.dataset.signature=signature; installedItems=result.items;
       if(result.projectId&&recentItemScope!==result.projectId){recentItemScope=result.projectId;if(sortMode==='used'){dropCaches();load();}}
-      if(result.projectId&&gridFolders.setScope(result.projectId))renderGrid();
+      setGridFolderScope((lastState||{}).projectPath||result.projectId);
       installedIdentity=result.projectId&&result.avatarId?JSON.stringify([result.projectId,result.avatarId]):null;
       var list=$("instlist"),groups=groupInstalledItems(installedItems,(lastState||{}).workflowPresets||[],!!avatarMode);
       R.reconcile(list,Array.from(groups.values()),function(group){return group.id;},function(){
@@ -410,7 +471,7 @@
       var installedGuids=new Set(targetItems.map(function(x){return x.guid;}));
       var installedFamilies=new Set(targetItems.map(function(x){return x.familyId;}));
       detailCache.forEach(function(detail){detail.variants.forEach(function(v){v.installed=installedGuids.has(v.guid)?1:0;});});
-      listItems.forEach(function(f){f.installed=installedFamilies.has(f.id)?1:0;var card=cardCache.get(f.id);if(card) paintCardBody(card,f);});
+      gridItems().forEach(function(f){f.installed=installedFamilies.has(f.id)?1:0;var card=cardCache.get(f.id);if(card) paintCardBody(card,f);});
       listCache.clear();
       if(!avatarMode&&!installedItems.length&&groups.size===1) list.innerHTML='<p class="subtle">'+esc(T("inst.empty"))+'</p>';
     }).catch(function(){}).finally(function(){if(expectedContext===contextKey)installedFlight=null;});
@@ -444,6 +505,7 @@
       var firstDesktopState=!lastState&&s.desktop,wasConnected=connected;
       connected=s.bridgeOnline!==false; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
       R.setContext(s.session, s.avatarInstanceId);
+      setGridFolderScope(s.projectPath);
       $("navLibrary").hidden=!s.desktop||!viewFeatures.library;
       if(s.bridgeOnline===false&&(wasConnected||firstDesktopState)) toast(T(viewFeatures.library?"library.offlineHelp":"grid.connectUnityHint"),"info");
       if(firstDesktopState&&viewFeatures.library)setBatchView("library");
@@ -689,7 +751,7 @@
     var lastPresets=[],installedPresets=[],groupLoadToken=0,presetLoadToken=0,presetsReady=false,settingsReady=false;
     function refreshPresets(){
       var guid=v.guid;
-      return Promise.all([api("/api/presets"),api('/api/prefab_presets?guid='+encodeURIComponent(guid))]).then(function(results){
+      return Promise.all([api("/api/presets"),api('/api/prefab_presets?guid='+encodeURIComponent(guid),{method:'GET'})]).then(function(results){
         var p=results[0],memberships=results[1];
         if(!p||!Array.isArray(p.presets)||!memberships||!Array.isArray(memberships.presets))throw new Error(T('detail.presetLoadFailed'));
         p.installedPresets=memberships.presets;return p;
@@ -887,7 +949,7 @@
         }catch(error){if(current())R.text(status,error.message);}
         finally{installInFlight=false;if(current()){controls(false);apply.disabled=false;cancel.disabled=false;}}
       };
-      api('/api/menu_groups?id='+encodeURIComponent(id)).then(function(r){
+      api('/api/menu_groups?id='+encodeURIComponent(id),{method:'GET'}).then(function(r){
         if(!current())return;
         if(!r||!r.ok||!Array.isArray(r.groups))throw new Error(r&&r.message||T('detail.groupsLoadFailed'));
         var groups=r.groups,paths=membership?membership.paths||[]:[],assigned=paths.map(function(path){var group=groups.find(function(g){return (g.paths||[]).indexOf(path)>=0;});return group?group.id:'';});
@@ -1294,8 +1356,9 @@
   });
   window.addEventListener("focus",function(){pingActive(true).then(function(){renderGrid();previews.resume();loadInstalled();});});
   window.addEventListener("blur",function(){pingActive(true);});
-  window.addEventListener("pagehide",function(){previewPageClosed=true;pingActive(false);clearTimeout(pollTimer);if(listController) listController.abort();});
-  window.addEventListener("pageshow",function(event){if(event.persisted){previewPageClosed=false;tick();}});
+  window.addEventListener("pagehide",function(){previewPageClosed=true;pingActive(false);clearTimeout(pollTimer);if(listController) listController.abort();resetFolderItems();});
+  window.addEventListener("pageshow",function(event){if(event.persisted){previewPageClosed=false;renderGrid();tick();}});
+  renderGrid();
   loadLangs().then(function(){
     applyStrings();paintHide();paintAvatarMode();setBatchView("wardrobe");
     document.querySelectorAll("#chips button").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.f===filter));});

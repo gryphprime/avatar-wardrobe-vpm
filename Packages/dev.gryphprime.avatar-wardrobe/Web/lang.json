@@ -4331,6 +4331,38 @@
         {
           "k": "sort.used",
           "v": "Recently used"
+        },
+        {
+          "k": "upload.preset.copySource",
+          "v": "Source avatar"
+        },
+        {
+          "k": "upload.preset.copyCount",
+          "v": "{0} presets"
+        },
+        {
+          "k": "upload.preset.copyButton",
+          "v": "Copy presets to this avatar"
+        },
+        {
+          "k": "upload.preset.copyHint",
+          "v": "Only matching avatar prefabs in this scene are listed. Copied presets get separate upload profiles and blank VRChat IDs."
+        },
+        {
+          "k": "upload.preset.copyConfirm",
+          "v": "Copy {0} presets from {1} to this avatar? The source stays unchanged. The copied presets will have blank VRChat IDs."
+        },
+        {
+          "k": "upload.preset.copyDone",
+          "v": "Copied {0} presets."
+        },
+        {
+          "k": "upload.preset.copySkipped",
+          "v": "Skipped {0} preset folders, {1} outfit assignments, and {2} menu groups that do not match this avatar."
+        },
+        {
+          "k": "upload.preset.copyAppearance",
+          "v": "{0} saved appearance snapshots were not copied. Save them again for this avatar."
         }
       ]
     },
@@ -8665,6 +8697,38 @@
         {
           "k": "sort.used",
           "v": "最近使用した順"
+        },
+        {
+          "k": "upload.preset.copySource",
+          "v": "コピー元アバター"
+        },
+        {
+          "k": "upload.preset.copyCount",
+          "v": "プリセット {0} 件"
+        },
+        {
+          "k": "upload.preset.copyButton",
+          "v": "このアバターにプリセットをコピー"
+        },
+        {
+          "k": "upload.preset.copyHint",
+          "v": "このシーン内の同じアバタープレハブのみ表示されます。コピー先には別のアップロード設定が作られ、VRChat ID は空になります。"
+        },
+        {
+          "k": "upload.preset.copyConfirm",
+          "v": "{1} からこのアバターにプリセットを {0} 件コピーしますか？コピー元は変更されず、コピー先の VRChat ID は空になります。"
+        },
+        {
+          "k": "upload.preset.copyDone",
+          "v": "プリセットを {0} 件コピーしました。"
+        },
+        {
+          "k": "upload.preset.copySkipped",
+          "v": "このアバターに一致しないフォルダー {0} 件、衣装割り当て {1} 件、メニューグループ {2} 件をスキップしました。"
+        },
+        {
+          "k": "upload.preset.copyAppearance",
+          "v": "保存済み外見スナップショット {0} 件はコピーされませんでした。このアバターで保存し直してください。"
         }
       ]
     },
@@ -12999,6 +13063,38 @@
         {
           "k": "sort.used",
           "v": "최근 사용순"
+        },
+        {
+          "k": "upload.preset.copySource",
+          "v": "원본 아바타"
+        },
+        {
+          "k": "upload.preset.copyCount",
+          "v": "프리셋 {0}개"
+        },
+        {
+          "k": "upload.preset.copyButton",
+          "v": "이 아바타로 프리셋 복사"
+        },
+        {
+          "k": "upload.preset.copyHint",
+          "v": "현재 씬에서 같은 아바타 프리팹만 표시됩니다. 복사본에는 별도의 업로드 프로필이 만들어지고 VRChat ID는 비워집니다."
+        },
+        {
+          "k": "upload.preset.copyConfirm",
+          "v": "{1}에서 이 아바타로 프리셋 {0}개를 복사할까요? 원본은 변경되지 않으며 복사본의 VRChat ID는 비워집니다."
+        },
+        {
+          "k": "upload.preset.copyDone",
+          "v": "프리셋 {0}개를 복사했습니다."
+        },
+        {
+          "k": "upload.preset.copySkipped",
+          "v": "이 아바타와 일치하지 않는 프리셋 폴더 {0}개, 의상 할당 {1}개, 메뉴 그룹 {2}개를 건너뛰었습니다."
+        },
+        {
+          "k": "upload.preset.copyAppearance",
+          "v": "저장된 외형 스냅샷 {0}개는 복사되지 않았습니다. 이 아바타에서 다시 저장하세요."
         }
       ]
     },
@@ -17333,6 +17429,38 @@
         {
           "k": "sort.used",
           "v": "最近使用"
+        },
+        {
+          "k": "upload.preset.copySource",
+          "v": "来源虚拟形象"
+        },
+        {
+          "k": "upload.preset.copyCount",
+          "v": "{0} 个预设"
+        },
+        {
+          "k": "upload.preset.copyButton",
+          "v": "复制预设到此虚拟形象"
+        },
+        {
+          "k": "upload.preset.copyHint",
+          "v": "仅列出此场景中使用相同虚拟形象预制件的对象。副本会使用独立的上传配置，VRChat ID 将留空。"
+        },
+        {
+          "k": "upload.preset.copyConfirm",
+          "v": "要从 {1} 复制 {0} 个预设到此虚拟形象吗？来源不会更改，副本的 VRChat ID 将留空。"
+        },
+        {
+          "k": "upload.preset.copyDone",
+          "v": "已复制 {0} 个预设。"
+        },
+        {
+          "k": "upload.preset.copySkipped",
+          "v": "已跳过与此虚拟形象不匹配的预设文件夹 {0} 个、服装分配 {1} 个和菜单组 {2} 个。"
+        },
+        {
+          "k": "upload.preset.copyAppearance",
+          "v": "未复制 {0} 个已保存的外观快照；请在此虚拟形象上重新保存。"
         }
       ]
     }

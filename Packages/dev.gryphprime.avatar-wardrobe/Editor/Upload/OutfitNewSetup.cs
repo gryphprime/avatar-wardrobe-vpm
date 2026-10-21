@@ -590,7 +590,8 @@ namespace ShiroTools
 
             // Auto-confirm the SDK's copyright/ownership modal that pops up for a brand-new
             // avatar (its content ID is only reserved mid-upload, so it can't be pre-agreed).
-            if (WardrobeHeadless || _nsAutoConsent) StartConsentWatcher();
+            if (WardrobeHeadless || _nsAutoConsent)
+                StartConsentWatcher(_webPresetCancellation?.Token ?? CancellationToken.None);
 
             try
             {
@@ -656,11 +657,17 @@ namespace ShiroTools
         //  Auto-confirm the SDK copyright/ownership modal
         // ============================================================
         private bool _consentWatcherActive;
+        private CancellationToken _consentWatcherCancellation;
 
-        private void StartConsentWatcher()
+        private void StartConsentWatcher(CancellationToken cancellation = default)
         {
-            if (_consentWatcherActive) return;
+            if (_consentWatcherActive)
+            {
+                _consentWatcherCancellation = cancellation;
+                return;
+            }
             _consentWatcherActive = true;
+            _consentWatcherCancellation = cancellation;
             EditorApplication.update += ConsentWatcherTick;
         }
 
@@ -668,6 +675,7 @@ namespace ShiroTools
         {
             if (!_consentWatcherActive) return;
             _consentWatcherActive = false;
+            _consentWatcherCancellation = default;
             EditorApplication.update -= ConsentWatcherTick;
         }
 
@@ -675,8 +683,7 @@ namespace ShiroTools
         {
             // The awaiting upload owns this watcher and releases it in finally.
             // Long builds/API calls must not expire it before the dialog appears.
-            if ((_cts != null && _cts.IsCancellationRequested) ||
-                (_webPresetCancellation != null && _webPresetCancellation.IsCancellationRequested))
+            if (_consentWatcherCancellation.IsCancellationRequested)
             {
                 StopConsentWatcher();
                 return;

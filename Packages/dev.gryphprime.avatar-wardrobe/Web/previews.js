@@ -181,11 +181,17 @@
     }
     // Warm every unique item through the bounded scheduler. Visible consumers
     // promote the same job; background work never uses the reserved render slot.
-    function prefetch(guids) {
+    function prefetch(guids, priority) {
+      priority=priority==null?4:priority;
       (guids || []).forEach(function (guid) {
-        if (!guid || prefetched.has(guid) || stopped) return;
+        if (!guid || stopped) return;
+        if (prefetched.has(guid)) {
+          var pending=jobs.get(key(guid));
+          if(pending&&priority<pending.priority){pending.priority=priority;pump();}
+          return;
+        }
         prefetched.add(guid);
-        get(guid, 4, false, null, false, true);
+        get(guid, priority, false, null, false, true);
       });
     }
     function label(id) { return options.text ? options.text(id) : id; }

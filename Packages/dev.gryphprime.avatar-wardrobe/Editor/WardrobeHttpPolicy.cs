@@ -9,7 +9,7 @@ namespace OutfitToggleGenerator
         {
             "/api/write_result", "/api/operation_context", "/api/operation_result", "/api/snapshot", "/api/preset_appearance", "/api/preset_appearance_export", "/api/appearance_snapshot", "/api/appearance_textures", "/api/appearance_tools", "/api/menu_snapshot", "/api/scene_snapshot", "/api/scene_upload_thumbnail", "/api/scene_upload_review", "/api/state", "/api/families", "/api/family", "/api/installed", "/api/nameResult",
             "/api/shops", "/api/diag", "/api/thumb", "/api/upload_result", "/api/upload_status",
-            "/api/batch_thumb_img", "/api/batch_unassigned", "/api/batch_state", "/api/batch_job", "/api/batch_export", "/api/presets"
+            "/api/batch_thumb_img", "/api/batch_unassigned", "/api/batch_state", "/api/batch_job", "/api/batch_export", "/api/presets", "/api/prefab_presets", "/api/preset_copy_sources"
         };
         internal static bool SameOrigin(string value, int port)
         {
@@ -21,9 +21,16 @@ namespace OutfitToggleGenerator
         {
             if (path == "/api/thumb" && retry == "1") return false;
             if (Reads.Contains(path)) return true;
+            if (path == "/api/menu_groups") return string.IsNullOrEmpty(operation);
             // These older endpoints have explicit read/write operation variants.
             return (path == "/api/batch_blendshape" || path == "/api/batch_item" || path == "/api/batch_faceemo") &&
                    (string.IsNullOrEmpty(operation) || operation == "get");
+        }
+        internal static bool IsLegacyReadPost(string path, string operation, string method)
+        {
+            // Pages already open before the read-policy fix still send POST.
+            return method == "POST" && (path == "/api/prefab_presets" ||
+                (path == "/api/menu_groups" && string.IsNullOrEmpty(operation)));
         }
     }
 }

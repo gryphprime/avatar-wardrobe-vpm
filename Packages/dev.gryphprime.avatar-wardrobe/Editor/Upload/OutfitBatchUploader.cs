@@ -1719,7 +1719,12 @@ namespace ShiroTools
                     }
 
                     ValidateWardrobeBuildTarget();
-                    if (WardrobeHeadless) StartConsentWatcher();
+                    // This can resume after a platform/domain reload before the
+                    // settings UI has drawn. Reload the saved preference here so
+                    // auto-consent is not silently disabled for the resumed item.
+                    LoadNewSetupDefaults();
+                    if (WardrobeHeadless || _nsAutoConsent)
+                        StartConsentWatcher(_cts?.Token ?? CancellationToken.None);
                     try
                     {
                         await builder.BuildAndUpload(_avatarRoot, avatar, cancellationToken: _cts.Token);
