@@ -85,7 +85,26 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Skip when this commit is being released
+        # Pages ignores a second deployment of the same commit, so a docs deploy
+        # here would hide the tag's listing. The tag's release job deploys instead.
+        id: tagged
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version=$(python3 -c "import json;print(json.load(open('Packages/dev.gryphprime.avatar-wardrobe/package.json'))['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --tags origin | grep -qE "^$GITHUB_SHA\s+refs/tags/v${version//./\\.}(\^\{\})?$" \
+              && ! gh release view "v$version" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "v$version is tagged on this commit and not yet released; leaving Pages to the release job."
+          fi
       - name: Preserve live VPM listing
+        if: steps.tagged.outputs.skip != 'true'
         run: |
           python3 - <<'PY'
           import json
@@ -100,10 +119,29 @@ jobs:
               raise ValueError('Unexpected live VPM listing; refusing to replace it')
           Path('docs/index.json').write_text(json.dumps(listing, indent=2) + '\n')
           PY
+      - name: Restore a published release missing from the listing
+        # Heals a listing whose release deployment Pages skipped. The rebuilt zip
+        # must match the published SHA256SUMS before it is listed.
+        if: steps.tagged.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.tagged.outputs.version }}
+        shell: bash
+        run: |
+          listed=$(python3 -c "import json,os;print(os.environ['VERSION'] in json.load(open('docs/index.json'))['packages'].get('dev.gryphprime.avatar-wardrobe',{}).get('versions',{}))")
+          if [[ "$listed" == "True" ]] || ! gh release view "v$VERSION" >/dev/null 2>&1; then exit 0; fi
+          python3 scripts/build_release.py
+          mkdir -p published
+          gh release download "v$VERSION" --pattern SHA256SUMS --dir published
+          cmp dist/SHA256SUMS published/SHA256SUMS
+          echo "Restored v$VERSION to the listing."
       - uses: actions/configure-pages@v5
+        if: steps.tagged.outputs.skip != 'true'
       - uses: actions/upload-pages-artifact@v3
+        if: steps.tagged.outputs.skip != 'true'
         with:
           path: docs
       - name: Deploy documentation
+        if: steps.tagged.outputs.skip != 'true'
         id: deployment
         uses: actions/deploy-pages@v4
