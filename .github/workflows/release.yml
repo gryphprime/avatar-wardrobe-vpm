@@ -48,6 +48,7 @@ jobs:
         # Editor/WardrobeVersion.json all agree.
         run: python3 scripts/build_release.py --live --tag "$GITHUB_REF_NAME"
       - name: Publish immutable release assets
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
@@ -58,6 +59,7 @@ jobs:
             cmp dist/SHA256SUMS published/SHA256SUMS
           else
             gh release create "$TAG" dist/*.zip dist/SHA256SUMS --verify-tag --title "Avatar Wardrobe $TAG" --notes-file RELEASE_NOTES.md --prerelease=false --latest
+            echo "created=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -66,6 +68,14 @@ jobs:
       - name: Deploy VPM listing
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Announce in Discord
+        # Runs after the listing is live, and only for a newly created release,
+        # so re-running a tag's workflow does not announce twice.
+        if: steps.publish.outputs.created == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TAG: ${{ github.ref_name }}
+        run: python3 scripts/announce_discord.py --tag "$TAG" --release-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG"
   docs:
     if: github.ref == 'refs/heads/main'
     needs: validation
