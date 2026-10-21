@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 import urllib.error
+import time
 import urllib.request
 import zipfile
 
@@ -12,18 +13,24 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / 'Packages/dev.gryphprime.avatar-wardrobe'
 LISTING_URL = 'https://gryphprime.github.io/avatar-wardrobe-vpm/index.json'
 
-def build(live=False, tag=None, version=None):
+def set_version(version):
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise ValueError('Only regular release versions are supported for now')
     manifest = json.loads((PACKAGE / 'package.json').read_text())
-    if version is not None:
-        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
-            raise ValueError('Only regular release versions are supported for now')
-        (PACKAGE / 'Editor/WardrobeVersion.json').write_text(json.dumps({'version': version}) + '\n')
-        manifest['version'] = version
-        manifest['url'] = f"https://github.com/gryphprime/avatar-wardrobe-vpm/releases/download/v{version}/{manifest['name']}-{version}.zip"
-        (PACKAGE / 'package.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    (PACKAGE / 'Editor/WardrobeVersion.json').write_text(json.dumps({'version': version}) + '\n')
+    manifest['version'] = version
+    manifest['url'] = f"https://github.com/gryphprime/avatar-wardrobe-vpm/releases/download/v{version}/{manifest['name']}-{version}.zip"
+    (PACKAGE / 'package.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    return manifest
+
+def build(live=False, tag=None, version=None):
+    manifest = set_version(version) if version is not None else json.loads((PACKAGE / 'package.json').read_text())
     name, version = manifest['name'], manifest['version']
     if tag and tag != 'v' + version:
-        raise ValueError('Git tag must match package.json version')
+        raise ValueError(f'Git tag {tag} must match package.json version {version}')
+    shown = json.loads((PACKAGE / 'Editor/WardrobeVersion.json').read_text())['version']
+    if shown != version:
+        raise ValueError(f'Editor/WardrobeVersion.json ({shown}) must match package.json version {version}')
     for required in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'AvatarWardrobe.Runtime.asmdef',
                      'Editor/AvatarWardrobe.Editor.asmdef', 'Editor/WardrobePackagePaths.cs',
                      'Editor/WardrobeIndexer/wardrobe_index.py', 'Web/wardrobe.html']:
@@ -32,7 +39,8 @@ def build(live=False, tag=None, version=None):
                'url': LISTING_URL, 'author': 'gryphprime', 'packages': {}}
     if live:
         try:
-            with urllib.request.urlopen(LISTING_URL, timeout=30) as response:
+            # Bypass the Pages CDN cache so back-to-back releases keep each other's entries.
+            with urllib.request.urlopen(f'{LISTING_URL}?t={int(time.time())}', timeout=30) as response:
                 listing = json.load(response)
         except urllib.error.HTTPError as error:
             if error.code != 404:
@@ -73,6 +81,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--live', action='store_true')
     parser.add_argument('--tag')
-    parser.add_argument('--version')
+    parser.add_argument('--version', help='Stamp this version for a local packaging check (rewrites package.json)')
+    parser.add_argument('--set-version', help='Write the release version into package.json and the UI, then exit')
     args = parser.parse_args()
-    build(args.live, args.tag, args.version)
+    if args.set_version:
+        set_version(args.set_version)
+    else:
+        build(args.live, args.tag, args.version)

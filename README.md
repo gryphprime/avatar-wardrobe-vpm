@@ -56,16 +56,24 @@ Fresh Unity installation smoke testing remains pending.
 
 ## Release
 
-Every push to `main` automatically publishes a regular GitHub and VPM release
-and updates the repository listing. No manual tag or prerelease setting is needed.
-This includes documentation-only pushes.
+Packages are published only from version tags. Pushes to `main` run validation
+and refresh the documentation site, keeping the live VPM listing unchanged.
 
-Versions are generated as `1.0.N`, where `N` is the release workflow run number.
-The build stamps that version and download URL into the packaged `package.json`;
-the source manifest is a template. The release tag points to the pushed source
-commit. Rerunning a workflow keeps the same version and verifies existing assets.
+To release:
 
-For a local packaging check, run `python3 scripts/build_release.py --version 1.0.0`.
+1. On `main`, set the version: `python3 scripts/build_release.py --set-version 1.0.29`.
+   This updates `package.json` (version and download URL) and
+   `Editor/WardrobeVersion.json`. Add the changes to `RELEASE_NOTES.md`, then
+   commit and push.
+2. Tag that commit and push the tag: `git tag v1.0.29 && git push origin v1.0.29`.
+
+The tag workflow refuses to publish unless the tag points to a commit on `main`
+and matches both version files. It then builds the archive, creates the GitHub
+release from `RELEASE_NOTES.md`, and adds the version to the VPM listing.
+Rerunning it verifies the existing assets instead of replacing them.
+
+For a local packaging check, run `python3 scripts/build_release.py --version 1.0.0`
+(this rewrites the version files; do not commit the result).
 The workflow merges the previous live listing, keeping old versions available.
 Release archives include SHA-256 values in the listing and are never overwritten.
 Release versus prerelease channels will be introduced later at launch.
