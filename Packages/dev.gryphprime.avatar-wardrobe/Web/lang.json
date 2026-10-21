@@ -1286,7 +1286,7 @@
         },
         {
           "k": "detail.advancedOptions",
-          "v": "Advanced options"
+          "v": "More options"
         },
         {
           "k": "upload.faceEmoDisabled",
@@ -1394,7 +1394,7 @@
         },
         {
           "k": "wear.action",
-          "v": "Wear action"
+          "v": "How to wear"
         },
         {
           "k": "wear.apply",
@@ -1850,11 +1850,11 @@
         },
         {
           "k": "detail.generateToggles",
-          "v": "Generate part toggles"
+          "v": "Menu toggle for each part"
         },
         {
           "k": "detail.generateTogglesHint",
-          "v": "Create independent toggles for each child object in this prefab."
+          "v": "Switch the top, skirt and other parts separately in game."
         },
         {
           "k": "detail.menuGroup",
@@ -1898,11 +1898,11 @@
         },
         {
           "k": "detail.editSemantics",
-          "v": "Applies to every copy of this variant in this preset. Use Apply settings to save."
+          "v": "Applies to every copy in this preset."
         },
         {
           "k": "detail.newSemantics",
-          "v": "Your menu and toggle choices apply when you choose Wear."
+          "v": "Applied when you choose Wear."
         },
         {
           "k": "detail.settingsPending",
@@ -4363,6 +4363,318 @@
         {
           "k": "upload.preset.copyAppearance",
           "v": "{0} saved appearance snapshots were not copied. Save them again for this avatar."
+        },
+        {
+          "k": "filter.hidden",
+          "v": "Hidden"
+        },
+        {
+          "k": "org.tags",
+          "v": "Tags"
+        },
+        {
+          "k": "org.tags.title",
+          "v": "Filter by tag"
+        },
+        {
+          "k": "org.tags.all",
+          "v": "All tags"
+        },
+        {
+          "k": "org.tags.untagged",
+          "v": "Untagged"
+        },
+        {
+          "k": "org.title.button",
+          "v": "Tags & hidden…"
+        },
+        {
+          "k": "org.title.hint",
+          "v": "Manage tags and hidden folders"
+        },
+        {
+          "k": "org.title",
+          "v": "Organize"
+        },
+        {
+          "k": "org.manage",
+          "v": "Edit tags"
+        },
+        {
+          "k": "org.failed",
+          "v": "Could not save the change."
+        },
+        {
+          "k": "org.tag.new",
+          "v": "Add tag"
+        },
+        {
+          "k": "org.tag.name",
+          "v": "Tag name"
+        },
+        {
+          "k": "org.tag.color",
+          "v": "Color"
+        },
+        {
+          "k": "org.tag.count",
+          "v": "{0} items"
+        },
+        {
+          "k": "org.tag.nameRequired",
+          "v": "Enter a tag name."
+        },
+        {
+          "k": "org.tag.duplicate",
+          "v": "A tag named {0} already exists."
+        },
+        {
+          "k": "org.tag.missing",
+          "v": "That tag no longer exists. Refresh and try again."
+        },
+        {
+          "k": "org.tag.limit",
+          "v": "You can create up to {0} tags."
+        },
+        {
+          "k": "org.tag.deleteConfirm",
+          "v": "Delete the tag {0}? Items keep everything else."
+        },
+        {
+          "k": "org.tags.none",
+          "v": "No tags yet. Add tags from an item's details."
+        },
+        {
+          "k": "org.delete",
+          "v": "Delete"
+        },
+        {
+          "k": "org.hide",
+          "v": "Hide from catalog"
+        },
+        {
+          "k": "org.hide.title",
+          "v": "For things you never wear, like shader helpers or props. The Hidden filter brings them back."
+        },
+        {
+          "k": "org.hideFolder",
+          "v": "Hide this folder"
+        },
+        {
+          "k": "org.hideFolder.confirm",
+          "v": "Hide every item in {0}?"
+        },
+        {
+          "k": "org.hide.badFolder",
+          "v": "Only folders inside Assets or Packages can be hidden."
+        },
+        {
+          "k": "org.hidden.toast",
+          "v": "Hidden. Use the Hidden filter to bring it back."
+        },
+        {
+          "k": "org.hiddenItem",
+          "v": "Hidden from the catalog."
+        },
+        {
+          "k": "org.hiddenByFolder",
+          "v": "Hidden with the folder {0}"
+        },
+        {
+          "k": "org.show",
+          "v": "Show in catalog"
+        },
+        {
+          "k": "org.showFolder",
+          "v": "Show folder again"
+        },
+        {
+          "k": "org.hiddenFolders",
+          "v": "Hidden folders"
+        },
+        {
+          "k": "org.hiddenFolders.none",
+          "v": "No hidden folders."
+        },
+        {
+          "k": "org.hiddenCount",
+          "v": "{0} hidden items. Choose the Hidden filter to review them."
+        },
+        {
+          "k": "org.saved",
+          "v": "Tags and hidden items are saved in this Unity project (ProjectSettings/AvatarWardrobeOrganization.json)."
+        },
+        {
+          "k": "parts.title",
+          "v": "Customize"
+        },
+        {
+          "k": "parts.addShape",
+          "v": "Add adjustment"
+        },
+        {
+          "k": "parts.mesh",
+          "v": "Mesh"
+        },
+        {
+          "k": "parts.shape",
+          "v": "Blendshape"
+        },
+        {
+          "k": "parts.shape.ph",
+          "v": "Blendshape, e.g. Shrink_Chest"
+        },
+        {
+          "k": "parts.deleteShape",
+          "v": "Hide skin"
+        },
+        {
+          "k": "parts.value",
+          "v": "Value"
+        },
+        {
+          "k": "parts.removeShape",
+          "v": "Remove adjustment"
+        },
+        {
+          "k": "parts.sync",
+          "v": "Follow body shape"
+        },
+        {
+          "k": "parts.syncHint",
+          "v": "Clothes follow body sliders like chest or hips ({0} matching shapes)."
+        },
+        {
+          "k": "parts.copies",
+          "v": "Applies to all {0} worn copies in this preset."
+        },
+        {
+          "k": "parts.save",
+          "v": "Apply to avatar"
+        },
+        {
+          "k": "parts.saved",
+          "v": "Applied to the avatar."
+        },
+        {
+          "k": "parts.saveFailed",
+          "v": "Could not apply the changes."
+        },
+        {
+          "k": "parts.loadFailed",
+          "v": "Could not read this item's parts."
+        },
+        {
+          "k": "parts.noBody",
+          "v": "No mesh with blendshapes was found."
+        },
+        {
+          "k": "parts.invalid",
+          "v": "The parts change is invalid. Refresh and try again."
+        },
+        {
+          "k": "parts.missing",
+          "v": "The part {0} is no longer on this item. Refresh and try again."
+        },
+        {
+          "k": "parts.duplicate",
+          "v": "More than one part is named {0}. Rename one in Unity first."
+        },
+        {
+          "k": "parts.meshMissing",
+          "v": "The body mesh {0} was not found on this avatar."
+        },
+        {
+          "k": "parts.shapeMissing",
+          "v": "{1} has no blendshape named {0}."
+        },
+        {
+          "k": "detail.section.wear",
+          "v": "Wear"
+        },
+        {
+          "k": "parts.worn",
+          "v": "Parts worn"
+        },
+        {
+          "k": "parts.worn.toggles",
+          "v": "Unticked parts start off; switch them in the in-game menu."
+        },
+        {
+          "k": "parts.adjust",
+          "v": "Body adjustments"
+        },
+        {
+          "k": "parts.adjust.empty",
+          "v": "Shrink or hide the body under this item, or add a slider to the in-game menu."
+        },
+        {
+          "k": "parts.mode",
+          "v": "Adjustment"
+        },
+        {
+          "k": "parts.mode.set",
+          "v": "Set to"
+        },
+        {
+          "k": "parts.mode.slider",
+          "v": "Menu slider"
+        },
+        {
+          "k": "parts.hide.note",
+          "v": "Removes the skin this shape moves"
+        },
+        {
+          "k": "parts.when",
+          "v": "Applies while"
+        },
+        {
+          "k": "parts.when.item",
+          "v": "While the item is worn"
+        },
+        {
+          "k": "parts.when.part",
+          "v": "While {0} is worn"
+        },
+        {
+          "k": "sliders.menu",
+          "v": "{0} sliders"
+        },
+        {
+          "k": "sliders.label",
+          "v": "Menu name"
+        },
+        {
+          "k": "sliders.label.ph",
+          "v": "Menu name (optional)"
+        },
+        {
+          "k": "sliders.start",
+          "v": "Starts at"
+        },
+        {
+          "k": "sliders.note",
+          "v": "Sliders appear in the menu under “{0}”. Each uses 8 of the avatar’s 256 synced parameter bits."
+        },
+        {
+          "k": "sliders.limit",
+          "v": "Up to {0} sliders per item."
+        },
+        {
+          "k": "sliders.duplicate",
+          "v": "{0} already has a slider."
+        },
+        {
+          "k": "sliders.conflict",
+          "v": "{0} is both fixed and a slider. Keep one."
+        },
+        {
+          "k": "status.unityBusy",
+          "v": "Waiting for Unity…"
+        },
+        {
+          "k": "status.busyLabel",
+          "v": "Unity busy"
         }
       ]
     },
@@ -5652,7 +5964,7 @@
         },
         {
           "k": "detail.advancedOptions",
-          "v": "詳細オプション"
+          "v": "その他のオプション"
         },
         {
           "k": "upload.faceEmoDisabled",
@@ -5760,7 +6072,7 @@
         },
         {
           "k": "wear.action",
-          "v": "着用操作"
+          "v": "着用方法"
         },
         {
           "k": "wear.apply",
@@ -6216,11 +6528,11 @@
         },
         {
           "k": "detail.generateToggles",
-          "v": "パーツのトグルを生成"
+          "v": "パーツごとのメニュートグル"
         },
         {
           "k": "detail.generateTogglesHint",
-          "v": "このプレハブの各子オブジェクトに個別のトグルを作成します。"
+          "v": "トップスやスカートなどをゲーム内で個別に切り替えられます。"
         },
         {
           "k": "detail.menuGroup",
@@ -6264,11 +6576,11 @@
         },
         {
           "k": "detail.editSemantics",
-          "v": "このプリセット内のこのバリエーションのすべてのコピーに適用します。「設定を適用」で保存します。"
+          "v": "このプリセット内のすべてのコピーに適用されます。"
         },
         {
           "k": "detail.newSemantics",
-          "v": "メニューとトグルの選択は「着用」を選ぶと適用されます。"
+          "v": "「着用」を押すと適用されます。"
         },
         {
           "k": "detail.settingsPending",
@@ -8729,6 +9041,318 @@
         {
           "k": "upload.preset.copyAppearance",
           "v": "保存済み外見スナップショット {0} 件はコピーされませんでした。このアバターで保存し直してください。"
+        },
+        {
+          "k": "filter.hidden",
+          "v": "非表示"
+        },
+        {
+          "k": "org.tags",
+          "v": "タグ"
+        },
+        {
+          "k": "org.tags.title",
+          "v": "タグで絞り込み"
+        },
+        {
+          "k": "org.tags.all",
+          "v": "すべてのタグ"
+        },
+        {
+          "k": "org.tags.untagged",
+          "v": "タグなし"
+        },
+        {
+          "k": "org.title.button",
+          "v": "タグと非表示…"
+        },
+        {
+          "k": "org.title.hint",
+          "v": "タグと非表示フォルダーを管理"
+        },
+        {
+          "k": "org.title",
+          "v": "整理"
+        },
+        {
+          "k": "org.manage",
+          "v": "タグを編集"
+        },
+        {
+          "k": "org.failed",
+          "v": "変更を保存できませんでした。"
+        },
+        {
+          "k": "org.tag.new",
+          "v": "タグを追加"
+        },
+        {
+          "k": "org.tag.name",
+          "v": "タグ名"
+        },
+        {
+          "k": "org.tag.color",
+          "v": "色"
+        },
+        {
+          "k": "org.tag.count",
+          "v": "{0} 件"
+        },
+        {
+          "k": "org.tag.nameRequired",
+          "v": "タグ名を入力してください。"
+        },
+        {
+          "k": "org.tag.duplicate",
+          "v": "「{0}」というタグはすでにあります。"
+        },
+        {
+          "k": "org.tag.missing",
+          "v": "このタグはもうありません。更新してからやり直してください。"
+        },
+        {
+          "k": "org.tag.limit",
+          "v": "タグは最大 {0} 個まで作成できます。"
+        },
+        {
+          "k": "org.tag.deleteConfirm",
+          "v": "タグ「{0}」を削除しますか？アイテムのほかの設定はそのままです。"
+        },
+        {
+          "k": "org.tags.none",
+          "v": "タグはまだありません。アイテムの詳細から追加できます。"
+        },
+        {
+          "k": "org.delete",
+          "v": "削除"
+        },
+        {
+          "k": "org.hide",
+          "v": "カタログから非表示"
+        },
+        {
+          "k": "org.hide.title",
+          "v": "シェーダー用プレハブや小物など、着用しないもの向けです。「非表示」フィルターで戻せます。"
+        },
+        {
+          "k": "org.hideFolder",
+          "v": "このフォルダーを非表示"
+        },
+        {
+          "k": "org.hideFolder.confirm",
+          "v": "{0} 内のアイテムをすべて非表示にしますか？"
+        },
+        {
+          "k": "org.hide.badFolder",
+          "v": "非表示にできるのは Assets または Packages 内のフォルダーだけです。"
+        },
+        {
+          "k": "org.hidden.toast",
+          "v": "非表示にしました。「非表示」フィルターから戻せます。"
+        },
+        {
+          "k": "org.hiddenItem",
+          "v": "カタログで非表示です。"
+        },
+        {
+          "k": "org.hiddenByFolder",
+          "v": "フォルダー {0} ごと非表示"
+        },
+        {
+          "k": "org.show",
+          "v": "カタログに表示"
+        },
+        {
+          "k": "org.showFolder",
+          "v": "フォルダーを再表示"
+        },
+        {
+          "k": "org.hiddenFolders",
+          "v": "非表示のフォルダー"
+        },
+        {
+          "k": "org.hiddenFolders.none",
+          "v": "非表示のフォルダーはありません。"
+        },
+        {
+          "k": "org.hiddenCount",
+          "v": "非表示のアイテムは {0} 件です。「非表示」フィルターで確認できます。"
+        },
+        {
+          "k": "org.saved",
+          "v": "タグと非表示の設定はこの Unity プロジェクトに保存されます（ProjectSettings/AvatarWardrobeOrganization.json）。"
+        },
+        {
+          "k": "parts.title",
+          "v": "カスタマイズ"
+        },
+        {
+          "k": "parts.addShape",
+          "v": "調整を追加"
+        },
+        {
+          "k": "parts.mesh",
+          "v": "メッシュ"
+        },
+        {
+          "k": "parts.shape",
+          "v": "ブレンドシェイプ"
+        },
+        {
+          "k": "parts.shape.ph",
+          "v": "ブレンドシェイプ（例: Shrink_Chest）"
+        },
+        {
+          "k": "parts.deleteShape",
+          "v": "肌を隠す"
+        },
+        {
+          "k": "parts.value",
+          "v": "値"
+        },
+        {
+          "k": "parts.removeShape",
+          "v": "調整を削除"
+        },
+        {
+          "k": "parts.sync",
+          "v": "素体の形に追従"
+        },
+        {
+          "k": "parts.syncHint",
+          "v": "胸や腰などの素体シェイプに服が追従します（一致するシェイプ {0} 個）。"
+        },
+        {
+          "k": "parts.copies",
+          "v": "このプリセットで着ている {0} 個のコピーすべてに適用されます。"
+        },
+        {
+          "k": "parts.save",
+          "v": "アバターに適用"
+        },
+        {
+          "k": "parts.saved",
+          "v": "アバターに適用しました。"
+        },
+        {
+          "k": "parts.saveFailed",
+          "v": "変更を適用できませんでした。"
+        },
+        {
+          "k": "parts.loadFailed",
+          "v": "このアイテムのパーツを読み込めませんでした。"
+        },
+        {
+          "k": "parts.noBody",
+          "v": "ブレンドシェイプを持つメッシュが見つかりません。"
+        },
+        {
+          "k": "parts.invalid",
+          "v": "パーツの変更内容が正しくありません。更新してからやり直してください。"
+        },
+        {
+          "k": "parts.missing",
+          "v": "パーツ「{0}」がこのアイテムにありません。更新してからやり直してください。"
+        },
+        {
+          "k": "parts.duplicate",
+          "v": "「{0}」という名前のパーツが複数あります。先に Unity で名前を変更してください。"
+        },
+        {
+          "k": "parts.meshMissing",
+          "v": "素体メッシュ {0} がこのアバターに見つかりません。"
+        },
+        {
+          "k": "parts.shapeMissing",
+          "v": "{1} に「{0}」というブレンドシェイプはありません。"
+        },
+        {
+          "k": "detail.section.wear",
+          "v": "着用"
+        },
+        {
+          "k": "parts.worn",
+          "v": "着用するパーツ"
+        },
+        {
+          "k": "parts.worn.toggles",
+          "v": "チェックを外したパーツは初期状態でオフ。ゲーム内メニューで切り替えられます。"
+        },
+        {
+          "k": "parts.adjust",
+          "v": "素体の調整"
+        },
+        {
+          "k": "parts.adjust.empty",
+          "v": "このアイテムの下の素体を縮めたり隠したり、ゲーム内メニューにスライダーを追加できます。"
+        },
+        {
+          "k": "parts.mode",
+          "v": "調整方法"
+        },
+        {
+          "k": "parts.mode.set",
+          "v": "値を設定"
+        },
+        {
+          "k": "parts.mode.slider",
+          "v": "メニュースライダー"
+        },
+        {
+          "k": "parts.hide.note",
+          "v": "このシェイプが動かす肌を削除します"
+        },
+        {
+          "k": "parts.when",
+          "v": "適用するとき"
+        },
+        {
+          "k": "parts.when.item",
+          "v": "アイテム着用中"
+        },
+        {
+          "k": "parts.when.part",
+          "v": "{0} 着用中"
+        },
+        {
+          "k": "sliders.menu",
+          "v": "{0} スライダー"
+        },
+        {
+          "k": "sliders.label",
+          "v": "メニュー名"
+        },
+        {
+          "k": "sliders.label.ph",
+          "v": "メニュー名（任意）"
+        },
+        {
+          "k": "sliders.start",
+          "v": "初期値"
+        },
+        {
+          "k": "sliders.note",
+          "v": "スライダーはメニューの「{0}」に表示されます。1つにつき同期パラメーター 256 ビット中 8 ビットを使います。"
+        },
+        {
+          "k": "sliders.limit",
+          "v": "スライダーは1アイテムにつき最大 {0} 個です。"
+        },
+        {
+          "k": "sliders.duplicate",
+          "v": "{0} にはすでにスライダーがあります。"
+        },
+        {
+          "k": "sliders.conflict",
+          "v": "{0} が固定値とスライダーの両方に設定されています。どちらか一方にしてください。"
+        },
+        {
+          "k": "status.unityBusy",
+          "v": "Unityの処理を待っています…"
+        },
+        {
+          "k": "status.busyLabel",
+          "v": "Unity処理中"
         }
       ]
     },
@@ -10018,7 +10642,7 @@
         },
         {
           "k": "detail.advancedOptions",
-          "v": "고급 옵션"
+          "v": "추가 옵션"
         },
         {
           "k": "upload.faceEmoDisabled",
@@ -10126,7 +10750,7 @@
         },
         {
           "k": "wear.action",
-          "v": "마모 동작"
+          "v": "착용 방법"
         },
         {
           "k": "wear.apply",
@@ -10582,11 +11206,11 @@
         },
         {
           "k": "detail.generateToggles",
-          "v": "부품 토글 생성"
+          "v": "파츠별 메뉴 토글"
         },
         {
           "k": "detail.generateTogglesHint",
-          "v": "이 프리팹의 각 하위 개체에 대해 독립적인 토글을 만듭니다."
+          "v": "상의, 치마 등 파츠를 게임에서 따로 전환할 수 있습니다."
         },
         {
           "k": "detail.menuGroup",
@@ -10630,11 +11254,11 @@
         },
         {
           "k": "detail.editSemantics",
-          "v": "이 프리셋에 있는 이 변형의 모든 복사본에 적용됩니다. 설정 적용을 사용하여 저장하세요."
+          "v": "이 프리셋의 모든 사본에 적용됩니다."
         },
         {
           "k": "detail.newSemantics",
-          "v": "Wear를 선택하면 메뉴 및 토글 선택 사항이 적용됩니다."
+          "v": "착용을 누르면 적용됩니다."
         },
         {
           "k": "detail.settingsPending",
@@ -13095,6 +13719,318 @@
         {
           "k": "upload.preset.copyAppearance",
           "v": "저장된 외형 스냅샷 {0}개는 복사되지 않았습니다. 이 아바타에서 다시 저장하세요."
+        },
+        {
+          "k": "filter.hidden",
+          "v": "숨김"
+        },
+        {
+          "k": "org.tags",
+          "v": "태그"
+        },
+        {
+          "k": "org.tags.title",
+          "v": "태그로 필터"
+        },
+        {
+          "k": "org.tags.all",
+          "v": "모든 태그"
+        },
+        {
+          "k": "org.tags.untagged",
+          "v": "태그 없음"
+        },
+        {
+          "k": "org.title.button",
+          "v": "태그 및 숨김…"
+        },
+        {
+          "k": "org.title.hint",
+          "v": "태그와 숨긴 폴더 관리"
+        },
+        {
+          "k": "org.title",
+          "v": "정리"
+        },
+        {
+          "k": "org.manage",
+          "v": "태그 편집"
+        },
+        {
+          "k": "org.failed",
+          "v": "변경 사항을 저장하지 못했습니다."
+        },
+        {
+          "k": "org.tag.new",
+          "v": "태그 추가"
+        },
+        {
+          "k": "org.tag.name",
+          "v": "태그 이름"
+        },
+        {
+          "k": "org.tag.color",
+          "v": "색상"
+        },
+        {
+          "k": "org.tag.count",
+          "v": "{0}개"
+        },
+        {
+          "k": "org.tag.nameRequired",
+          "v": "태그 이름을 입력하세요."
+        },
+        {
+          "k": "org.tag.duplicate",
+          "v": "{0} 태그가 이미 있습니다."
+        },
+        {
+          "k": "org.tag.missing",
+          "v": "해당 태그가 더 이상 없습니다. 새로 고친 후 다시 시도하세요."
+        },
+        {
+          "k": "org.tag.limit",
+          "v": "태그는 최대 {0}개까지 만들 수 있습니다."
+        },
+        {
+          "k": "org.tag.deleteConfirm",
+          "v": "{0} 태그를 삭제할까요? 아이템의 다른 설정은 유지됩니다."
+        },
+        {
+          "k": "org.tags.none",
+          "v": "아직 태그가 없습니다. 아이템 상세에서 추가하세요."
+        },
+        {
+          "k": "org.delete",
+          "v": "삭제"
+        },
+        {
+          "k": "org.hide",
+          "v": "카탈로그에서 숨기기"
+        },
+        {
+          "k": "org.hide.title",
+          "v": "셰이더 도우미나 소품처럼 착용하지 않는 항목용입니다. 숨김 필터로 되돌릴 수 있습니다."
+        },
+        {
+          "k": "org.hideFolder",
+          "v": "이 폴더 숨기기"
+        },
+        {
+          "k": "org.hideFolder.confirm",
+          "v": "{0}의 모든 아이템을 숨길까요?"
+        },
+        {
+          "k": "org.hide.badFolder",
+          "v": "Assets 또는 Packages 안의 폴더만 숨길 수 있습니다."
+        },
+        {
+          "k": "org.hidden.toast",
+          "v": "숨겼습니다. 숨김 필터에서 되돌릴 수 있습니다."
+        },
+        {
+          "k": "org.hiddenItem",
+          "v": "카탈로그에서 숨겨져 있습니다."
+        },
+        {
+          "k": "org.hiddenByFolder",
+          "v": "폴더 {0}과(와) 함께 숨겨짐"
+        },
+        {
+          "k": "org.show",
+          "v": "카탈로그에 표시"
+        },
+        {
+          "k": "org.showFolder",
+          "v": "폴더 다시 표시"
+        },
+        {
+          "k": "org.hiddenFolders",
+          "v": "숨긴 폴더"
+        },
+        {
+          "k": "org.hiddenFolders.none",
+          "v": "숨긴 폴더가 없습니다."
+        },
+        {
+          "k": "org.hiddenCount",
+          "v": "숨긴 아이템 {0}개. 숨김 필터에서 확인하세요."
+        },
+        {
+          "k": "org.saved",
+          "v": "태그와 숨김 설정은 이 Unity 프로젝트에 저장됩니다(ProjectSettings/AvatarWardrobeOrganization.json)."
+        },
+        {
+          "k": "parts.title",
+          "v": "사용자 지정"
+        },
+        {
+          "k": "parts.addShape",
+          "v": "조정 추가"
+        },
+        {
+          "k": "parts.mesh",
+          "v": "메시"
+        },
+        {
+          "k": "parts.shape",
+          "v": "블렌드셰이프"
+        },
+        {
+          "k": "parts.shape.ph",
+          "v": "블렌드셰이프 (예: Shrink_Chest)"
+        },
+        {
+          "k": "parts.deleteShape",
+          "v": "피부 숨기기"
+        },
+        {
+          "k": "parts.value",
+          "v": "값"
+        },
+        {
+          "k": "parts.removeShape",
+          "v": "조정 제거"
+        },
+        {
+          "k": "parts.sync",
+          "v": "바디 형태 따라가기"
+        },
+        {
+          "k": "parts.syncHint",
+          "v": "가슴이나 골반 같은 바디 슬라이더를 옷이 따라갑니다(일치 셰이프 {0}개)."
+        },
+        {
+          "k": "parts.copies",
+          "v": "이 프리셋에서 착용한 사본 {0}개 모두에 적용됩니다."
+        },
+        {
+          "k": "parts.save",
+          "v": "아바타에 적용"
+        },
+        {
+          "k": "parts.saved",
+          "v": "아바타에 적용했습니다."
+        },
+        {
+          "k": "parts.saveFailed",
+          "v": "변경 사항을 적용하지 못했습니다."
+        },
+        {
+          "k": "parts.loadFailed",
+          "v": "이 아이템의 파츠를 읽지 못했습니다."
+        },
+        {
+          "k": "parts.noBody",
+          "v": "블렌드셰이프가 있는 메시를 찾지 못했습니다."
+        },
+        {
+          "k": "parts.invalid",
+          "v": "파츠 변경 내용이 올바르지 않습니다. 새로 고친 후 다시 시도하세요."
+        },
+        {
+          "k": "parts.missing",
+          "v": "파츠 {0}이(가) 이 아이템에 더 이상 없습니다. 새로 고친 후 다시 시도하세요."
+        },
+        {
+          "k": "parts.duplicate",
+          "v": "{0}(이)라는 파츠가 여러 개 있습니다. 먼저 Unity에서 이름을 바꾸세요."
+        },
+        {
+          "k": "parts.meshMissing",
+          "v": "이 아바타에서 바디 메시 {0}을(를) 찾지 못했습니다."
+        },
+        {
+          "k": "parts.shapeMissing",
+          "v": "{1}에 {0} 블렌드셰이프가 없습니다."
+        },
+        {
+          "k": "detail.section.wear",
+          "v": "착용"
+        },
+        {
+          "k": "parts.worn",
+          "v": "착용할 파츠"
+        },
+        {
+          "k": "parts.worn.toggles",
+          "v": "체크 해제한 파츠는 꺼진 상태로 시작하며 게임 내 메뉴에서 전환할 수 있습니다."
+        },
+        {
+          "k": "parts.adjust",
+          "v": "바디 조정"
+        },
+        {
+          "k": "parts.adjust.empty",
+          "v": "이 아이템 아래의 바디를 줄이거나 숨기고, 게임 내 메뉴에 슬라이더를 추가할 수 있습니다."
+        },
+        {
+          "k": "parts.mode",
+          "v": "조정 방식"
+        },
+        {
+          "k": "parts.mode.set",
+          "v": "값 설정"
+        },
+        {
+          "k": "parts.mode.slider",
+          "v": "메뉴 슬라이더"
+        },
+        {
+          "k": "parts.hide.note",
+          "v": "이 셰이프가 움직이는 피부를 제거합니다"
+        },
+        {
+          "k": "parts.when",
+          "v": "적용 시점"
+        },
+        {
+          "k": "parts.when.item",
+          "v": "아이템 착용 중"
+        },
+        {
+          "k": "parts.when.part",
+          "v": "{0} 착용 중"
+        },
+        {
+          "k": "sliders.menu",
+          "v": "{0} 슬라이더"
+        },
+        {
+          "k": "sliders.label",
+          "v": "메뉴 이름"
+        },
+        {
+          "k": "sliders.label.ph",
+          "v": "메뉴 이름(선택)"
+        },
+        {
+          "k": "sliders.start",
+          "v": "시작 값"
+        },
+        {
+          "k": "sliders.note",
+          "v": "슬라이더는 메뉴의 “{0}”에 표시됩니다. 각각 동기화 파라미터 256비트 중 8비트를 사용합니다."
+        },
+        {
+          "k": "sliders.limit",
+          "v": "아이템당 슬라이더는 최대 {0}개입니다."
+        },
+        {
+          "k": "sliders.duplicate",
+          "v": "{0}에 이미 슬라이더가 있습니다."
+        },
+        {
+          "k": "sliders.conflict",
+          "v": "{0}이(가) 고정 값과 슬라이더에 모두 있습니다. 하나만 남기세요."
+        },
+        {
+          "k": "status.unityBusy",
+          "v": "Unity 작업을 기다리는 중…"
+        },
+        {
+          "k": "status.busyLabel",
+          "v": "Unity 작업 중"
         }
       ]
     },
@@ -14384,7 +15320,7 @@
         },
         {
           "k": "detail.advancedOptions",
-          "v": "高级选项"
+          "v": "更多选项"
         },
         {
           "k": "upload.faceEmoDisabled",
@@ -14492,7 +15428,7 @@
         },
         {
           "k": "wear.action",
-          "v": "佩戴动作"
+          "v": "穿戴方式"
         },
         {
           "k": "wear.apply",
@@ -14948,11 +15884,11 @@
         },
         {
           "k": "detail.generateToggles",
-          "v": "生成零件切换"
+          "v": "每个部件单独的菜单开关"
         },
         {
           "k": "detail.generateTogglesHint",
-          "v": "为该预制体中的每个子对象创建独立的切换。"
+          "v": "在游戏中分别切换上衣、裙子等部件。"
         },
         {
           "k": "detail.menuGroup",
@@ -14996,11 +15932,11 @@
         },
         {
           "k": "detail.editSemantics",
-          "v": "适用于该预设中该变体的每个副本。使用“应用设置”进行保存。"
+          "v": "应用于此预设中的所有副本。"
         },
         {
           "k": "detail.newSemantics",
-          "v": "当您选择“穿戴”时，您的菜单和切换选项将适用。"
+          "v": "点击“穿戴”时应用。"
         },
         {
           "k": "detail.settingsPending",
@@ -17461,6 +18397,318 @@
         {
           "k": "upload.preset.copyAppearance",
           "v": "未复制 {0} 个已保存的外观快照；请在此虚拟形象上重新保存。"
+        },
+        {
+          "k": "filter.hidden",
+          "v": "已隐藏"
+        },
+        {
+          "k": "org.tags",
+          "v": "标签"
+        },
+        {
+          "k": "org.tags.title",
+          "v": "按标签筛选"
+        },
+        {
+          "k": "org.tags.all",
+          "v": "全部标签"
+        },
+        {
+          "k": "org.tags.untagged",
+          "v": "无标签"
+        },
+        {
+          "k": "org.title.button",
+          "v": "标签和隐藏…"
+        },
+        {
+          "k": "org.title.hint",
+          "v": "管理标签和隐藏的文件夹"
+        },
+        {
+          "k": "org.title",
+          "v": "整理"
+        },
+        {
+          "k": "org.manage",
+          "v": "编辑标签"
+        },
+        {
+          "k": "org.failed",
+          "v": "无法保存更改。"
+        },
+        {
+          "k": "org.tag.new",
+          "v": "添加标签"
+        },
+        {
+          "k": "org.tag.name",
+          "v": "标签名称"
+        },
+        {
+          "k": "org.tag.color",
+          "v": "颜色"
+        },
+        {
+          "k": "org.tag.count",
+          "v": "{0} 项"
+        },
+        {
+          "k": "org.tag.nameRequired",
+          "v": "请输入标签名称。"
+        },
+        {
+          "k": "org.tag.duplicate",
+          "v": "已存在名为 {0} 的标签。"
+        },
+        {
+          "k": "org.tag.missing",
+          "v": "该标签已不存在。请刷新后重试。"
+        },
+        {
+          "k": "org.tag.limit",
+          "v": "最多可创建 {0} 个标签。"
+        },
+        {
+          "k": "org.tag.deleteConfirm",
+          "v": "删除标签 {0}？物品的其他设置保持不变。"
+        },
+        {
+          "k": "org.tags.none",
+          "v": "还没有标签。可在物品详情中添加。"
+        },
+        {
+          "k": "org.delete",
+          "v": "删除"
+        },
+        {
+          "k": "org.hide",
+          "v": "从目录中隐藏"
+        },
+        {
+          "k": "org.hide.title",
+          "v": "适用于着色器辅助物或道具等不穿戴的物品。可通过“已隐藏”筛选恢复。"
+        },
+        {
+          "k": "org.hideFolder",
+          "v": "隐藏此文件夹"
+        },
+        {
+          "k": "org.hideFolder.confirm",
+          "v": "隐藏 {0} 中的所有物品？"
+        },
+        {
+          "k": "org.hide.badFolder",
+          "v": "只能隐藏 Assets 或 Packages 中的文件夹。"
+        },
+        {
+          "k": "org.hidden.toast",
+          "v": "已隐藏。可通过“已隐藏”筛选恢复。"
+        },
+        {
+          "k": "org.hiddenItem",
+          "v": "已从目录中隐藏。"
+        },
+        {
+          "k": "org.hiddenByFolder",
+          "v": "随文件夹 {0} 一起隐藏"
+        },
+        {
+          "k": "org.show",
+          "v": "在目录中显示"
+        },
+        {
+          "k": "org.showFolder",
+          "v": "重新显示文件夹"
+        },
+        {
+          "k": "org.hiddenFolders",
+          "v": "隐藏的文件夹"
+        },
+        {
+          "k": "org.hiddenFolders.none",
+          "v": "没有隐藏的文件夹。"
+        },
+        {
+          "k": "org.hiddenCount",
+          "v": "共 {0} 个隐藏物品。选择“已隐藏”筛选即可查看。"
+        },
+        {
+          "k": "org.saved",
+          "v": "标签和隐藏设置保存在此 Unity 项目中（ProjectSettings/AvatarWardrobeOrganization.json）。"
+        },
+        {
+          "k": "parts.title",
+          "v": "自定义"
+        },
+        {
+          "k": "parts.addShape",
+          "v": "添加调整"
+        },
+        {
+          "k": "parts.mesh",
+          "v": "网格"
+        },
+        {
+          "k": "parts.shape",
+          "v": "形态键"
+        },
+        {
+          "k": "parts.shape.ph",
+          "v": "形态键，例如 Shrink_Chest"
+        },
+        {
+          "k": "parts.deleteShape",
+          "v": "隐藏皮肤"
+        },
+        {
+          "k": "parts.value",
+          "v": "数值"
+        },
+        {
+          "k": "parts.removeShape",
+          "v": "移除调整"
+        },
+        {
+          "k": "parts.sync",
+          "v": "跟随身体形态"
+        },
+        {
+          "k": "parts.syncHint",
+          "v": "衣服跟随胸部、臀部等身体滑块（{0} 个匹配的形态键）。"
+        },
+        {
+          "k": "parts.copies",
+          "v": "应用于此预设中穿戴的全部 {0} 个副本。"
+        },
+        {
+          "k": "parts.save",
+          "v": "应用到模型"
+        },
+        {
+          "k": "parts.saved",
+          "v": "已应用到模型。"
+        },
+        {
+          "k": "parts.saveFailed",
+          "v": "无法应用更改。"
+        },
+        {
+          "k": "parts.loadFailed",
+          "v": "无法读取此物品的部件。"
+        },
+        {
+          "k": "parts.noBody",
+          "v": "未找到带形态键的网格。"
+        },
+        {
+          "k": "parts.invalid",
+          "v": "部件更改无效。请刷新后重试。"
+        },
+        {
+          "k": "parts.missing",
+          "v": "此物品上已没有部件 {0}。请刷新后重试。"
+        },
+        {
+          "k": "parts.duplicate",
+          "v": "有多个名为 {0} 的部件。请先在 Unity 中重命名。"
+        },
+        {
+          "k": "parts.meshMissing",
+          "v": "此模型上未找到身体网格 {0}。"
+        },
+        {
+          "k": "parts.shapeMissing",
+          "v": "{1} 上没有名为 {0} 的形态键。"
+        },
+        {
+          "k": "detail.section.wear",
+          "v": "穿戴"
+        },
+        {
+          "k": "parts.worn",
+          "v": "穿戴的部件"
+        },
+        {
+          "k": "parts.worn.toggles",
+          "v": "未勾选的部件默认关闭，可在游戏内菜单中切换。"
+        },
+        {
+          "k": "parts.adjust",
+          "v": "身体调整"
+        },
+        {
+          "k": "parts.adjust.empty",
+          "v": "可缩小或隐藏此物品下的身体，或在游戏内菜单中添加滑块。"
+        },
+        {
+          "k": "parts.mode",
+          "v": "调整方式"
+        },
+        {
+          "k": "parts.mode.set",
+          "v": "设为"
+        },
+        {
+          "k": "parts.mode.slider",
+          "v": "菜单滑块"
+        },
+        {
+          "k": "parts.hide.note",
+          "v": "删除此形态键所移动的皮肤"
+        },
+        {
+          "k": "parts.when",
+          "v": "生效条件"
+        },
+        {
+          "k": "parts.when.item",
+          "v": "穿戴此物品时"
+        },
+        {
+          "k": "parts.when.part",
+          "v": "穿戴 {0} 时"
+        },
+        {
+          "k": "sliders.menu",
+          "v": "{0} 滑块"
+        },
+        {
+          "k": "sliders.label",
+          "v": "菜单名称"
+        },
+        {
+          "k": "sliders.label.ph",
+          "v": "菜单名称（可选）"
+        },
+        {
+          "k": "sliders.start",
+          "v": "初始值"
+        },
+        {
+          "k": "sliders.note",
+          "v": "滑块显示在菜单的“{0}”中。每个占用 256 位同步参数中的 8 位。"
+        },
+        {
+          "k": "sliders.limit",
+          "v": "每个物品最多 {0} 个滑块。"
+        },
+        {
+          "k": "sliders.duplicate",
+          "v": "{0} 已有滑块。"
+        },
+        {
+          "k": "sliders.conflict",
+          "v": "{0} 同时设为固定值和滑块，请只保留一个。"
+        },
+        {
+          "k": "status.unityBusy",
+          "v": "正在等待 Unity…"
+        },
+        {
+          "k": "status.busyLabel",
+          "v": "Unity 忙碌中"
         }
       ]
     }

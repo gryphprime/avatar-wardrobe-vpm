@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -36,7 +37,7 @@ namespace OutfitToggleGenerator
         private static readonly Dictionary<string, WriteReceipt> writes = new Dictionary<string, WriteReceipt>();
         private static readonly HashSet<string> queuedWriteRoutes = new HashSet<string>(StringComparer.Ordinal)
         {
-            "/api/cache_clear", "/api/install", "/api/remove", "/api/preset_remove_item", "/api/part_toggles", "/api/item_settings",
+            "/api/item_parts", "/api/cache_clear", "/api/install", "/api/remove", "/api/preset_remove_item", "/api/part_toggles", "/api/item_settings",
             "/api/menu_groups", "/api/menu_execute", "/api/scene_execute", "/api/appearance_apply",
             "/api/appearance_tool", "/api/appearance_optimizer_apply", "/api/regenerate_toggles",
             "/api/migrate_avatar", "/api/preset_save", "/api/preset_delete", "/api/preset_assign",
@@ -66,9 +67,20 @@ namespace OutfitToggleGenerator
             if (!requestWritesAvatar || context.Request.Headers["X-Wardrobe-Queue"] != "1" || context.Request.HttpMethod != "POST" ||
                 !queuedWriteRoutes.Contains(context.Request.Url.AbsolutePath))
             {
-                var action = PrepareMainWork(work, code);
+                var direct = PrepareMainWork(work, code);
+                long mainMs = 0;
+                // Measure only the synchronous main-thread part, so slow logs separate
+                // Unity work from time spent waiting in the queue.
+                Func<Task<T>> action = () =>
+                {
+                    var timer = System.Diagnostics.Stopwatch.StartNew();
+                    try { return direct(); }
+                    finally { Interlocked.Exchange(ref mainMs, timer.ElapsedMilliseconds); }
+                };
                 var task = requestWritesAvatar ? dispatcher.EnqueueOperationAsync(action) : dispatcher.Invoke(action, background);
-                WriteJson(context, 200, task.GetAwaiter().GetResult()); return;
+                try { WriteJson(context, 200, task.GetAwaiter().GetResult()); }
+                finally { requestMainMs += Interlocked.Read(ref mainMs); }
+                return;
             }
             var prepared = PrepareMainWork(work, code);
             var id = context.Request.Headers["X-Wardrobe-Write-Id"];

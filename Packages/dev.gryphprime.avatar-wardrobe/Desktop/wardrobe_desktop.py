@@ -26,7 +26,7 @@ STATIC = {'/': 'wardrobe.html', '/wardrobe.html': 'wardrobe.html', '/lang.json':
           '/wardrobe.css': 'wardrobe.css', '/wardrobe.js': 'wardrobe.js', '/runtime.js': 'runtime.js',
           '/upload.js': 'upload.js', '/previews.js': 'previews.js', '/library.js': 'library.js', '/reporting.js': 'reporting.js',
           '/scene-editor.js': 'scene-editor.js', '/operations.js': 'operations.js',
-          '/snapshots.js': 'snapshots.js', '/photo-history.js': 'photo-history.js', '/photo-history.css': 'photo-history.css', '/drag-drop.js': 'drag-drop.js', '/menu-organizer.js': 'menu-organizer.js', '/preset-appearance.js': 'preset-appearance.js', '/appearance-editor.js': 'appearance-editor.js', '/appearance-editor.css': 'appearance-editor.css'}
+          '/snapshots.js': 'snapshots.js', '/photo-history.js': 'photo-history.js', '/photo-history.css': 'photo-history.css', '/drag-drop.js': 'drag-drop.js', '/organize.js': 'organize.js', '/menu-organizer.js': 'menu-organizer.js', '/preset-appearance.js': 'preset-appearance.js', '/appearance-editor.js': 'appearance-editor.js', '/appearance-editor.css': 'appearance-editor.css'}
 READ_CACHE = {'/api/state', '/api/families', '/api/family', '/api/installed', '/api/thumb', '/api/snapshot'}
 LEASE_RENEW_SECONDS = 30
 BUILD_ROUTES = {'/api/scene_upload_review', '/api/scene_upload', '/api/upload', '/api/batch_upload_one',

@@ -12,7 +12,7 @@
   };
   $("navAppearance").hidden=!viewFeatures.appearanceEditor;
   $("navMenu").hidden=!viewFeatures.menuOrganizer;
-  var page=0,pageSize=60,filter="compatible",search="",shop="",category="",total=0,pageCount=1,aiAvailable=0;
+  var page=0,pageSize=60,filter="compatible",search="",shop="",category="",tagFilter="",total=0,pageCount=1,aiAvailable=0;
   var sortMode=R.stored("wardrobeSort","added"),hideEmpty=R.stored("wardrobeHideEmpty","0")==="1"?1:0;
   if(!["added","used","name"].includes(sortMode))sortMode="added";
   var recentItemScope=location.origin;
@@ -28,7 +28,7 @@
   var grid=$("grid"),status=$("status"),avatar=$("avatar"),pageinfo=$("pageinfo"),emptyGridState=$("emptyGridState");
   var side=$("side"),sideContent=$("sideContent"),modal=$("modal"),modalContent=$("modalContent"),modalTitle=$("modalTitle"),modalMode=$("modalMode");
   var sideBackdrop=$("sideBackdrop"),hideBtn=$("hideEmpty"),avatarModeChip=$("workflowMulti");
-  var lastState=null,catalogEpoch="",contextKey="",previewContext="",connected=false,currentView="wardrobe";
+  var lastState=null,catalogEpoch="",contextKey="",previewContext="",connected=false,unityBusy=false,currentView="wardrobe";
   var listCache=new Map(),detailCache=new Map(),cardCache=new Map(),listItems=[];
   var folderItems=new Map(),folderChecked=new Set(),folderPending=new Set(),folderFailed=new Set();
   var folderQuery='',folderController=null,folderFlight=false,folderToken=0;
@@ -131,7 +131,7 @@
     var empty=listItems.length===0&&!grid.querySelector('.grid-folder');
     emptyGridState.classList.toggle("on",empty);
     if(!empty) return;
-    var state=lastState||{},filtered=!!(search||shop||category||hideEmpty||filter!=="all");
+    var state=lastState||{},filtered=!!(search||shop||category||tagFilter||hideEmpty||filter!=="all");
     var mode=!connected&&state.desktop?"offline":(initialGridPending||indexing||listInflight||indexAction)?"loading":connected&&lastState&&!state.avatarInstanceId?"target":gridNotice==="error"?"error":state.desktop&&state.outfits===0?"files":filtered?"filters":"empty";
     var message=mode==="loading"?T(indexing?(indexPhase==="discovery"?"index.discovery":indexPhase==="dependencies"?"index.dependencies":"banner.indexing"):"grid.loading",indexDone,indexTotal):T({target:"grid.chooseAvatarHint",error:"grid.error",offline:viewFeatures.library?"grid.offlineHint":"grid.connectUnityHint",files:viewFeatures.library?"grid.addFilesHint":"grid.importInUnityHint",filters:"grid.empty",empty:"grid.empty"}[mode]);
     if(message==="grid.loading")message=T("grid.loading");
@@ -149,7 +149,7 @@
     if(id==="gridChooseAvatar"){$("wardrobeTarget").focus();return;}
     if(id==="gridAddFiles"&&viewFeatures.library){setBatchView("library");$("libraryFiles").focus();return;}
     if(id==="gridClearFilters"){
-      search=shop=category="";hideEmpty=0;$("search").value=$("shop").value=$("category").value="";
+      search=shop=category=tagFilter="";hideEmpty=0;$("search").value=$("shop").value=$("category").value=$("tagFilter").value="";
       R.store("wardrobeHideEmpty","0");paintHide();selectFilter("all");$("search").focus();
     }
   }
@@ -237,9 +237,16 @@
     if(folderItems.has(familyId))folderItems.get(familyId).installed=any?1:0;
     var card=cardCache.get(familyId),row=gridItems().find(function(f){return f.id===familyId;}); if(card&&row) paintCardBody(card,row);
   }
+  function markFamilyTags(familyId,tags){
+    var detail=detailCache.get(familyId);if(detail)detail.tags=tags.slice();
+    listCache.forEach(function(result){result.items.forEach(function(f){if(f.id===familyId)f.tags=tags.slice();});});
+    listItems.forEach(function(f){if(f.id===familyId)f.tags=tags.slice();});
+    if(folderItems.has(familyId))folderItems.get(familyId).tags=tags.slice();
+    var card=cardCache.get(familyId),row=gridItems().find(function(f){return f.id===familyId;});if(card&&row)paintCardBody(card,row);
+  }
   function cardBodyHtml(f){
     var compatibility=filter==="unknown"&&!f.compatibleOverride?"":'<span class="badge c'+Number(f.compat)+'">'+esc(f.compatText)+'</span>';
-    return '<div class="body"><div class="name" title="'+esc(f.name)+'">'+esc(f.name)+'</div><div class="meta">'+esc(T(f.variants===1?"card.variant.one":"card.variant.other",f.variants))+'</div><div class="meta creator" title="'+esc([f.shop,f.product].filter(Boolean).join(" / "))+'">'+(esc([f.shop,f.product].filter(Boolean).join(" / "))||" ")+'</div><div class="badges">'+compatibility+(f.installed?'<span class="installed">'+esc(T("card.installed"))+'</span>':"")+'</div></div>'+(f.variants>1?'<span class="vcount">×'+Number(f.variants)+'</span>':"");
+    return '<div class="body"><div class="name" title="'+esc(f.name)+'">'+esc(f.name)+'</div><div class="meta">'+esc(T(f.variants===1?"card.variant.one":"card.variant.other",f.variants))+'</div><div class="meta creator" title="'+esc([f.shop,f.product].filter(Boolean).join(" / "))+'">'+(esc([f.shop,f.product].filter(Boolean).join(" / "))||" ")+'</div><div class="badges">'+compatibility+(f.installed?'<span class="installed">'+esc(T("card.installed"))+'</span>':"")+window.WardrobeOrganize.cardTags(f.tags)+'</div></div>'+(f.variants>1?'<span class="vcount">×'+Number(f.variants)+'</span>':"");
   }
   function paintCardBody(card,f){
     card.dataset.family=f.id; card.classList.toggle("selected",selectedFamilyId===f.id);
@@ -382,7 +389,7 @@
     if(cardCache.size>180) cardCache.forEach(function(card,id){if(cardCache.size>180&&!card.isConnected) cardCache.delete(id);});
     previews.sweep(); paintCount(); paintEmptyGrid();scheduleGridPreload();syncFolderItems();
   }
-  function queryFor(p,size){ return "/api/families?target="+encodeURIComponent(effectivePreset())+"&filter="+filter+"&page="+p+"&pageSize="+(size||pageSize)+"&search="+encodeURIComponent(search)+"&shop="+encodeURIComponent(shop)+"&category="+encodeURIComponent(category)+"&hideEmpty="+hideEmpty+"&sort="+sortMode+(sortMode==='used'?"&used="+encodeURIComponent(JSON.stringify({ids:recentlyUsedItems()})):""); }
+  function queryFor(p,size){ return "/api/families?target="+encodeURIComponent(effectivePreset())+"&filter="+filter+"&page="+p+"&pageSize="+(size||pageSize)+"&search="+encodeURIComponent(search)+"&shop="+encodeURIComponent(shop)+"&category="+encodeURIComponent(category)+"&tag="+encodeURIComponent(tagFilter)+"&hideEmpty="+hideEmpty+"&sort="+sortMode+(sortMode==='used'?"&used="+encodeURIComponent(JSON.stringify({ids:recentlyUsedItems()})):""); }
   function paintCount(){
     R.text(status,T("page.loaded",gridItems().length,total)); R.text(pageinfo,status.textContent);
     var more=$("more"); more.hidden=page>=pageCount-1; more.disabled=listInflight; more.textContent=T(listInflight?"page.loading.more":"page.more");
@@ -479,15 +486,15 @@
   }
   function hud(){
     var s=lastState||{},pending=previewActivity.active+previewActivity.queued;
-    R.text($("hudLow"),T(!connected?(s.desktop&&viewFeatures.library?"library.offlineReady":"status.reconnecting"):indexing?"banner.indexing":pending?"status.rendering":"status.browseReady",indexDone,indexTotal));
+    R.text($("hudLow"),T(unityBusy?"status.unityBusy":!connected?(s.desktop&&viewFeatures.library?"library.offlineReady":"status.reconnecting"):indexing?"banner.indexing":pending?"status.rendering":"status.browseReady",indexDone,indexTotal));
     R.text($("indexedCount"),s.outfits?T("status.indexed",s.outfits):"");
     R.text($("pendingCount"),s.dirty?"· "+T(s.dirty===1?"status.pending":"status.pending.other",s.dirty):"");
     R.text($("hudHi"),pending?T("preview.queue",previewActivity.active,previewActivity.queued):T("preview.idle"));
     // Cache coverage is not a completion target: only the current grid and
     // nearby items are warmed. Keep it in Activity, separate from actual work.
     $("hudPercent").hidden=true; $("hudHiBar").parentNode.hidden=true;
-    $("connectionDot").classList.toggle("offline",!connected);
-    R.text($("connectionLabel"),T(connected?"status.connected":"status.disconnected"));
+    $("connectionDot").classList.toggle("offline",!connected);$("connectionDot").classList.toggle("busy",unityBusy);
+    R.text($("connectionLabel"),T(unityBusy?"status.busyLabel":connected?"status.connected":"status.disconnected"));
   }
   function paintActivity(){
     var s=lastState||{};
@@ -503,7 +510,7 @@
     stateFlight=api("/api/state",{method:"GET",timeout:30000}).then(function(s){
       if(!s||s.pending||s.ok===0) throw new Error("No state");
       var firstDesktopState=!lastState&&s.desktop,wasConnected=connected;
-      connected=s.bridgeOnline!==false; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
+      connected=s.bridgeOnline!==false; unityBusy=false; lastState=s; indexing=s.indexing?1:0;indexPhase=s.indexPhase||(s.total?"parsing":"discovery");indexDone=s.done||0;indexTotal=s.total||0;
       R.setContext(s.session, s.avatarInstanceId);
       setGridFolderScope(s.projectPath);
       $("navLibrary").hidden=!s.desktop||!viewFeatures.library;
@@ -572,7 +579,13 @@
       }
 
       return s;
-    }).catch(function(){connected=false;hud();paintActivity();}).finally(function(){stateFlight=null;});
+    }).catch(function(error){
+      // A queued or timed-out read means Unity is busy (importing, compiling, a long
+      // edit); the page stays usable. Only an unreachable server is a disconnect.
+      if(connected&&error&&(error.status===503||error.name==="AbortError"))unityBusy=true;
+      else{connected=false;unityBusy=false;}
+      hud();paintActivity();
+    }).finally(function(){stateFlight=null;});
     return stateFlight;
   }
   var nextAutoIndexAt=0;
@@ -637,9 +650,9 @@
         [T("dt.confidence"),v.confidence||"—"]];
       if(v.mats&&v.mats.length) rows.push([T("dt.materials"),v.mats.join(", ")]);
       if(v.parts&&v.parts.length) rows.push([T("dt.parts"),v.parts.join(", ")]);
-      return '<details class="technical"><summary>'+esc(T("detail.technical"))+'</summary><dl>'+rows.map(function(row){
+      return '<h4 class="detail-more-title">'+esc(T("detail.technical"))+'</h4><dl>'+rows.map(function(row){
         return '<dt>'+esc(row[0])+'</dt><dd>'+esc(row[1])+'</dd>';
-      }).join("")+'</dl></details>';
+      }).join("")+'</dl>';
     }
     function draw(){
       var multi=variants.length>1;
@@ -652,9 +665,12 @@
         (multi
           ? '<div class="variant-control"><button class="variant-nav" id="dPrevVar" aria-label="'+esc(T("nav.prev.variant"))+'">&#8249;</button><div class="filmstrip" id="dFilm"></div><button class="variant-nav" id="dNextVar" aria-label="'+esc(T("nav.next.variant"))+'">&#8250;</button></div>'
           : '<div class="single-variant-label" id="dSingleVariant"></div>')+
-        '</section><section class="detail-options"><div id="dCompatibility"></div><div id="dPresetWrap"></div><div id="dAllowWrap"></div><div id="dVarBody"></div></section></div>'+
+        '</section><section class="detail-options"><div id="dCompatibility"></div><div id="dPresetWrap"></div><div id="dPartsWrap" hidden></div><div id="dTagsWrap"></div>'+
+        '<details class="detail-more"><summary>'+esc(T("detail.advancedOptions"))+'</summary><div id="dAllowWrap"></div><div id="dHideWrap" class="detail-hide"></div><div id="dVarBody"></div></details></section></div>'+
         '<footer class="detail-footer"><button id="dReportItem">'+esc(T("report.item"))+'</button><div class="actions" id="dActs"></div></footer>';
       document.getElementById("dReportItem").onclick=function(){window.WardrobeReporting.openItem(d,v);};
+      window.WardrobeOrganize.renderDetail(document.getElementById("dTagsWrap"),d);
+      window.WardrobeOrganize.renderHide(document.getElementById("dHideWrap"),d);
       if(multi) buildFilm();
       selectVariant(startIndex);
     }
@@ -707,8 +723,8 @@
       document.getElementById("dVarBody").innerHTML=variantBody();
       var familyInstalled=d.variants.some(function(x){ return !!x.installed; });
       document.getElementById("dAllowWrap").innerHTML=
-        '<details class="technical" open><summary>'+esc(T("detail.advancedOptions"))+'</summary><label class="allow"><input type="checkbox" id="dCreateToggles" disabled> '+esc(T('detail.generateToggles'))+'</label><div class="subtle">'+esc(T('detail.generateTogglesHint'))+'</div><div id="dToggleStatus" class="subtle" role="status" aria-live="polite"></div>'+
-        '<label class="allow"><input type="checkbox" id="dCompatibleOverride"'+(v.compatibleOverride?' checked':'')+'> '+esc(T("detail.compatibleOverride"))+'</label>' +'</details>';
+        '<div id="dTogglesRow" class="detail-check"><label class="allow"><input type="checkbox" id="dCreateToggles" disabled> <span>'+esc(T('detail.generateToggles'))+'<span class="subtle">'+esc(T('detail.generateTogglesHint'))+'</span></span></label><div id="dToggleStatus" class="subtle" role="status" aria-live="polite"></div></div>'+
+        '<label class="allow"><input type="checkbox" id="dCompatibleOverride"'+(v.compatibleOverride?' checked':'')+'> '+esc(T("detail.compatibleOverride"))+'</label>';
       document.getElementById("dCompatibleOverride").onchange=function(){
         var box=this, guid=v.guid, enabled=box.checked, saved=false;
         if(detailBusy()){box.checked=!enabled;return;}
@@ -727,7 +743,7 @@
           toast(error.message,"err");
         });
       };
-      document.getElementById("dPresetWrap").innerHTML='<label for="dPreset">'+esc(T("detail.preset.tag"))+'</label><div class="preset-row"><select id="dPreset" disabled></select><button id="dNewPreset" title="'+esc(T("detail.newPreset"))+'">+</button></div><div id="dPresetFeedback" class="detail-load-error" hidden><p id="dPresetStatus" class="subtle" role="status"></p><button id="dPresetRetry" type="button" hidden>'+esc(T('grid.retry'))+'</button></div>';
+      document.getElementById("dPresetWrap").innerHTML='<h3 class="detail-section-title">'+esc(T("detail.section.wear"))+'</h3><label for="dPreset">'+esc(T("detail.preset.tag"))+'</label><div class="preset-row"><select id="dPreset" disabled></select><button id="dNewPreset" title="'+esc(T("detail.newPreset"))+'">+</button></div><div id="dPresetFeedback" class="detail-load-error" hidden><p id="dPresetStatus" class="subtle" role="status"></p><button id="dPresetRetry" type="button" hidden>'+esc(T('grid.retry'))+'</button></div>';
       document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend','<div id="dGroupWrap" hidden><label for="dGroup">'+esc(T('detail.menuGroup'))+("</label><div class=\"preset-row\"><select id=\"dGroup\"><option value=\"\">"+esc(T("detail.noMenuGroup"))+"</option></select><button id=\"dNewGroup\" title=\""+esc(T("ui.new.menu.group"))+"\">+</button></div><div id=\"dGroupStatus\" class=\"subtle\" role=\"status\" aria-live=\"polite\"></div></div>"));
       var wornFamily=installedItems.filter(function(item){return item.familyId===d.id && item.target===effectivePreset();});
       document.getElementById('dPresetWrap').insertAdjacentHTML('beforeend',
@@ -736,6 +752,8 @@
         '<label for="dReplaceCopy">'+esc(T('wear.replaceCopy'))+'</label><select id="dReplaceCopy">'+wornFamily.map(function(item){return '<option value="'+item.instanceId+'">'+esc(item.path+' — '+item.variant)+'</option>';}).join('')+'</select>'+
         '<p id="dSaveSemantics" class="subtle"></p><div id="dSettingsStatus" class="subtle" role="status" aria-live="polite"></div>');
       document.getElementById('dWearMode').value=wornFamily.length&&!v.installed?'replace':'wear';
+      if(!wornFamily.length){$('dWearMode').hidden=true;$('dWearMode').previousElementSibling.hidden=true;}
+      $('dGroupWrap').appendChild($('dTogglesRow'));
       var replaceSelect=document.getElementById('dReplaceCopy');
       function paintWearMode(){replaceSelect.hidden=document.getElementById('dWearMode').value!=='replace';replaceSelect.previousElementSibling.hidden=replaceSelect.hidden;}
       document.getElementById('dWearMode').onchange=paintWearMode;paintWearMode();
@@ -898,6 +916,7 @@
       if(choices.some(function(item){return item.id===oldId;}))copy.value=String(oldId);
       else if(choices.length===1)copy.value=String(choices[0].id);
       copy.parentElement.hidden=!present;
+      copy.hidden=copy.previousElementSibling.hidden=choices.length<2;
       function chooseCopy(){
         detailInstanceId=Number(copy.value)||0;
         if(remove)remove.disabled=!detailInstanceId;
@@ -911,6 +930,7 @@
       installedList.textContent=installedPresets.length?T("detail.installedIn",installedPresets.map(function(p){return p.name;}).join(', ')):T("ui.not.installed.in.any.preset");
       var scope=id+'|'+v.guid,token=++groupLoadToken,guid=v.guid;
       var partBox=$('dCreateToggles'),membership=installedPresets.find(function(p){return p.id===id;});
+      if($('dPartsWrap'))window.WardrobeOrganize.renderParts($('dPartsWrap'),guid,id,!!membership);
       var draftKey=JSON.stringify([installedIdentity||contextKey,id,guid]),partKey='wardrobePartToggles|'+[(lastState||{}).avatarGuid||'',(lastState||{}).avatarName||'',scope].join('|');
       var savedGroup='',savedToggles=membership?!!membership.partToggles:savedPartTogglePreference(R.stored(partKey,'0')),savedMixed=!!(membership&&membership.partTogglesMixed);
       var apply=$('dApplySettings'),cancel=$('dCancelSettings'),status=$('dSettingsStatus');
@@ -1327,7 +1347,22 @@
       R.reconcile(select,[{name:"",count:0}].concat(d.items),function(x){return x.name;},function(){return document.createElement("option");},function(option,x){option.value=x.name;R.text(option,x.name?x.name+" ("+x.count+")":T("shop.all"));});
       select.value=shop;if(select.value!==shop){shop="";select.value="";}
     } catch(_){}
+    window.WardrobeOrganize.refresh();
   }
+  window.WardrobeOrganize.configure({toast:toast,changed:function(scene,patch){
+    // A tag change on one item repaints its card; a reload is needed only when the
+    // current results depend on tags (tag filter, or search, which matches tag names).
+    if(patch&&patch.familyId&&!tagFilter&&!search){markFamilyTags(patch.familyId,patch.tags);return;}
+    if(patch&&patch.sceneOnly){refreshState();loadInstalled();return;}
+    dropCaches();load(false,true);if(scene){refreshState();loadInstalled();}
+  }});
+  window.WardrobeOrganize.onChange(function(){
+    var value=window.WardrobeOrganize.fillTagSelect($("tagFilter"),tagFilter);
+    if(value!==tagFilter){tagFilter=value;load();}
+    else if(listItems.length)renderGrid();
+  });
+  $("tagFilter").onchange=function(){tagFilter=this.value;load();};
+  $("organize").onclick=function(){window.WardrobeOrganize.openManager();};
   $("lang").onchange=function(){
     R.store("wardrobeLang",this.value);var selected=selectedFamilyId;
     loadLangs().then(function(){applyStrings();paintHide();paintAvatarMode();dropCaches();sideContent.dataset.signature="";loadShops();load(false,true);refreshState();uploadUI.localize();paintActivity();operations.refresh();if(currentView==='advancedScene')window.WardrobeSceneEditor.show();if(currentView==='appearanceEditor')window.WardrobeAppearanceEditor.show();if(currentView==='menuOrganizer')window.WardrobeMenuOrganizer.show();if(selected) openDetail(selected);});
