@@ -216,6 +216,9 @@ namespace OutfitToggleGenerator
             InitializeOperations();
             EditorApplication.hierarchyChanged += InvalidateInstalled;
             Undo.undoRedoPerformed += InvalidateInstalled;
+            ObjectChangeEvents.changesPublished += OnObjectChangesPublished;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaved += OnSceneSaved;
+            ForgetInstalledList();
             AssemblyReloadEvents.beforeAssemblyReload += PauseForReload;
             EditorApplication.quitting += Stop;
             EditorApplication.update += Pump;
@@ -306,6 +309,9 @@ namespace OutfitToggleGenerator
             EditorApplication.update -= Pump;
             EditorApplication.hierarchyChanged -= InvalidateInstalled;
             Undo.undoRedoPerformed -= InvalidateInstalled;
+            ObjectChangeEvents.changesPublished -= OnObjectChangesPublished;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaved -= OnSceneSaved;
+            ForgetInstalledList();
             AssemblyReloadEvents.beforeAssemblyReload -= PauseForReload;
             EditorApplication.quitting -= Stop;
             if (dispatcher != null) dispatcher.Close();
@@ -369,7 +375,12 @@ namespace OutfitToggleGenerator
                 var previous = WardrobeStrings.RequestCode;
                 WardrobeStrings.RequestCode = requestCode;
                 try { return work(); }
-                finally { WardrobeStrings.RequestCode = previous; }
+                finally
+                {
+                    WardrobeStrings.RequestCode = previous;
+                    // Scene change events can arrive a frame after the write's own result.
+                    if (writesAvatar) sceneEditRevision++;
+                }
             };
         }
 

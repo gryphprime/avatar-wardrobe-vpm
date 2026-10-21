@@ -41,6 +41,7 @@
       <button class="chip on" data-f="compatible" data-i18n="filter.compatible">Compatible</button>
       <button class="chip" data-f="installed" data-i18n="filter.installed">Installed</button>
       <button class="chip" data-f="unknown" data-i18n="filter.unknown">Review</button>
+      <button class="chip" data-f="hidden" data-i18n="filter.hidden">Hidden</button>
     </div>
     <details class="filters"><summary data-i18n="filters.label">Filters</summary><div class="filters-menu">
       <label><span data-i18n="shop.label">Creator</span><select id="shop" data-i18n-title="shop.title" title="Filter by creator"><option value="" data-i18n="shop.all">All shops</option></select></label>
@@ -51,11 +52,13 @@
         <option value="gimmick" data-i18n="cat.gimmick">Gimmicks</option>
         <option value="unknown" data-i18n="cat.unknown">Unknown</option>
       </select></label>
+      <label><span data-i18n="org.tags">Tags</span><select id="tagFilter" data-i18n-title="org.tags.title" title="Filter by tag"><option value="" data-i18n="org.tags.all">All tags</option></select></label>
       <label><span data-i18n="sort.label">Sort</span><select id="sort" data-i18n-title="sort.title" title="Sort order">
         <option value="added" data-i18n="sort.added">Date added · newest first</option>
         <option value="used" data-i18n="sort.used">Recently used</option>
         <option value="name" data-i18n="sort.name">Name A–Z</option>
       </select></label>
+      <button id="organize" data-i18n="org.title.button" data-i18n-title="org.title.hint" title="Manage tags and hidden folders">Tags &amp; hidden…</button>
       <button id="hideEmpty" data-i18n-title="hide.title" title="Hide items Unity cannot render a preview for" data-i18n="hide.hide">Hide no-preview</button>
     </div></details>
     <span id="status" role="status" aria-live="polite"></span><span id="hdrspin" style="display:none"></span>
@@ -201,6 +204,7 @@
 <script src="/photo-history.js" defer></script>
 <script src="/snapshots.js" defer></script>
 <script src="/drag-drop.js" defer></script>
+<script src="/organize.js" defer></script>
 <script src="/wardrobe.js" defer></script>
 </body>
 </html>

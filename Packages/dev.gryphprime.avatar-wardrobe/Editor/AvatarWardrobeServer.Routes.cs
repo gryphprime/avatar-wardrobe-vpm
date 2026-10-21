@@ -42,6 +42,7 @@ namespace OutfitToggleGenerator
             var path = request.Url.AbsolutePath;
             if (HandleWriteResult(context, path)) return;
             if (HandleOperations(context, path)) return;
+            if (HandleOrganization(context, path, requestCode)) return;
             if (path == "/" || path == "/index.html" || path == "/wardrobe.html")
             {
                 // Static file, served straight off the listener thread: even a
@@ -76,6 +77,7 @@ namespace OutfitToggleGenerator
                 case "/photo-history.js": uiFile = "photo-history.js"; uiMime = "application/javascript"; break;
                 case "/photo-history.css": uiFile = "photo-history.css"; uiMime = "text/css"; break;
                 case "/drag-drop.js": uiFile = "drag-drop.js"; uiMime = "application/javascript"; break;
+                case "/organize.js": uiFile = "organize.js"; uiMime = "application/javascript"; break;
                 case "/preset-appearance.js": uiFile = "preset-appearance.js"; uiMime = "application/javascript"; break;
                 case "/appearance-editor.js": uiFile = "appearance-editor.js"; uiMime = "application/javascript"; break;
                 case "/appearance-editor.css": uiFile = "appearance-editor.css"; uiMime = "text/css"; break;
@@ -219,7 +221,7 @@ namespace OutfitToggleGenerator
             }
             if (path == "/api/installed")
             {
-                var installed = PopulateUsageHashes(RunOnMain(GetInstalled, requestCode));
+                var installed = PopulateUsageHashes(RunOnMain(InstalledListSnapshot, requestCode));
                 WriteJson(context, 200, RunOnMain(() => ValidateUsageHashes(installed), requestCode));
                 return;
             }
@@ -1009,7 +1011,8 @@ namespace OutfitToggleGenerator
             }
             requestWritesAvatar = !read && !r.Url.AbsolutePath.StartsWith("/api/library_import_", StringComparison.Ordinal) &&
                 r.Url.AbsolutePath != "/api/batch_cancel" &&
-                r.Url.AbsolutePath != "/api/operation_cancel" && r.Url.AbsolutePath != "/api/index" && r.Url.AbsolutePath != "/api/active" && r.Url.AbsolutePath != "/api/thumb" && r.Url.AbsolutePath != "/api/name";
+                r.Url.AbsolutePath != "/api/operation_cancel" && r.Url.AbsolutePath != "/api/index" && r.Url.AbsolutePath != "/api/active" && r.Url.AbsolutePath != "/api/thumb" && r.Url.AbsolutePath != "/api/name" &&
+                !IsOrganizationWrite(r.Url.AbsolutePath);
             int.TryParse(r.Headers["X-Wardrobe-Avatar"], out requestAvatarId);
             if (requestWritesAvatar && (suppliedSession != serverSession ||
                 (requestAvatarId == 0 && r.Url.AbsolutePath != "/api/target")))

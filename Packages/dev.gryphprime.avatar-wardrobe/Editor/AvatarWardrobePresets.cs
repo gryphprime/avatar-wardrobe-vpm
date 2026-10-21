@@ -1027,6 +1027,9 @@ namespace OutfitToggleGenerator
         private static long cachedLength;
         private static double nextStat;
 
+        // Identity of the loaded preset settings; changes whenever they are reloaded or saved.
+        internal static object FileSnapshot => LoadFile();
+
         private static PresetFile CloneFile(PresetFile file)
         {
             return JsonUtility.FromJson<PresetFile>(JsonUtility.ToJson(file));

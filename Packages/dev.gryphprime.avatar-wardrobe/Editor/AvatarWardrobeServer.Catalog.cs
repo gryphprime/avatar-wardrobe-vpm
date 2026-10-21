@@ -152,6 +152,8 @@ namespace OutfitToggleGenerator
             public string category = string.Empty;
             public string categoryConfidence = string.Empty;
             public List<string> variantGuids = new List<string>();
+            public List<string> tags = new List<string>();
+            public int hidden;
         }
 
         [Serializable]
@@ -198,6 +200,10 @@ namespace OutfitToggleGenerator
             public string id = string.Empty;
             public string name = string.Empty;
             public List<VariantDto> variants = new List<VariantDto>();
+            public List<string> tags = new List<string>();
+            public int hidden;
+            public string hiddenFolder = string.Empty;
+            public string folder = string.Empty;
         }
 
         [Serializable]
@@ -372,8 +378,86 @@ namespace OutfitToggleGenerator
             installedCache = null;
             installedRootsCache.Clear();
             installedCacheVersion++;
+            sceneEditRevision++;
             matchesCache.Clear();
         }
+
+        // The installed listing walks every prefab instance on the main thread (seconds on
+        // large avatars), and the page asks for it after each change and on focus. Reuse it
+        // until an editable scene, an asset, the catalog or the presets change.
+        private static int sceneEditRevision;
+        private static InstalledListDto installedList;
+        private static string installedListKey;
+        private static object installedListPresets;
+        private static DateTime installedListAt;
+
+        private static void OnObjectChangesPublished(ref ObjectChangeEventStream stream)
+        {
+            for (var i = 0; i < stream.length; i++)
+                if (EditsUserScene(ref stream, i)) { sceneEditRevision++; return; }
+        }
+
+        private static bool EditsUserScene(ref ObjectChangeEventStream stream, int index)
+        {
+            UnityEngine.SceneManagement.Scene scene;
+            switch (stream.GetEventType(index))
+            {
+                case ObjectChangeKind.ChangeGameObjectOrComponentProperties:
+                    stream.GetChangeGameObjectOrComponentPropertiesEvent(index, out var properties); scene = properties.scene; break;
+                case ObjectChangeKind.ChangeGameObjectStructure:
+                    stream.GetChangeGameObjectStructureEvent(index, out var structure); scene = structure.scene; break;
+                case ObjectChangeKind.ChangeGameObjectStructureHierarchy:
+                    stream.GetChangeGameObjectStructureHierarchyEvent(index, out var hierarchy); scene = hierarchy.scene; break;
+                case ObjectChangeKind.CreateGameObjectHierarchy:
+                    stream.GetCreateGameObjectHierarchyEvent(index, out var created); scene = created.scene; break;
+                case ObjectChangeKind.DestroyGameObjectHierarchy:
+                    stream.GetDestroyGameObjectHierarchyEvent(index, out var destroyed); scene = destroyed.scene; break;
+                case ObjectChangeKind.ChangeGameObjectParent:
+                    stream.GetChangeGameObjectParentEvent(index, out var parent);
+                    return IsUserScene(parent.newScene) || IsUserScene(parent.previousScene);
+                // Scene-wide and asset changes: prefab saves change dependency hashes.
+                default: return true;
+            }
+            return IsUserScene(scene);
+        }
+
+        // Preview renders build avatars in preview scenes; those never affect the listing.
+        private static bool IsUserScene(UnityEngine.SceneManagement.Scene scene) =>
+            !scene.IsValid() || !UnityEditor.SceneManagement.EditorSceneManager.IsPreviewScene(scene);
+
+        private static void OnSceneSaved(UnityEngine.SceneManagement.Scene scene) => sceneEditRevision++;
+
+        // Main thread. Each request gets its own usage rows, which the route annotates with hashes.
+        private static InstalledListDto InstalledListSnapshot()
+        {
+            var avatar = SceneAvatar;
+            var key = sceneEditRevision + "|" + serverSession + "|" + (avatar == null ? 0 : avatar.GetInstanceID()) + "|" +
+                (avatar == null ? "" : avatar.gameObject.scene.path) + "|" + EditorApplication.isPlayingOrWillChangePlaymode + "|" +
+                AvatarWardrobeCatalog.CatalogEpoch + "|" + AvatarWardrobeCatalog.OverridesVersion;
+            var presets = AvatarWardrobePresets.FileSnapshot;
+            if (installedList == null || key != installedListKey || !ReferenceEquals(presets, installedListPresets) ||
+                (DateTime.UtcNow - installedListAt).TotalSeconds >= 60)
+            {
+                installedList = GetInstalled();
+                installedListKey = key;
+                installedListPresets = presets;
+                installedListAt = DateTime.UtcNow;
+            }
+            var source = installedList;
+            return new InstalledListDto
+            {
+                projectId = source.projectId, avatarId = source.avatarId, avatarName = source.avatarName,
+                scene = source.scene, session = source.session, usageComplete = source.usageComplete,
+                items = source.items,
+                usage = source.usage.Select(row => new LibraryUsageItemDto
+                {
+                    sourcePath = row.sourcePath, instanceId = row.instanceId, path = row.path, guid = row.guid,
+                    sourceSha256 = "", dependencyHash = row.dependencyHash
+                }).ToList(),
+            };
+        }
+
+        private static void ForgetInstalledList() { installedList = null; installedListPresets = null; }
 
         private static List<WardrobeFamily> CachedMatches(string key, Func<List<WardrobeFamily>> compute)
         {
@@ -504,10 +588,12 @@ namespace OutfitToggleGenerator
             return best;
         }
 
-        private static bool MatchesSearch(WardrobeFamily family, string query)
+        private static bool MatchesSearch(WardrobeFamily family, string query, Dictionary<string, string> tagNames = null)
         {
             if (string.IsNullOrEmpty(query)) return true;
             if (family.displayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            if (tagNames != null && tagNames.Count > 0 && WardrobeOrganization.TagsFor(family.id).Any(id =>
+                    tagNames.TryGetValue(id, out var name) && name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)) return true;
             return family.variants.Any(variant =>
                 variant.displayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
                 variant.assetPath.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -526,6 +612,10 @@ namespace OutfitToggleGenerator
             string category;
             query.TryGetValue("category", out category);
             category = (category ?? string.Empty).Trim().ToLowerInvariant();
+            string tag;
+            query.TryGetValue("tag", out tag);
+            tag = (tag ?? string.Empty).Trim();
+            var tagNames = WardrobeOrganization.Tags().ToDictionary(item => item.id, item => item.name);
             string hideEmpty;
             query.TryGetValue("hideEmpty", out hideEmpty);
             var needThumb = filter != "all" && hideEmpty == "1";
@@ -565,7 +655,7 @@ namespace OutfitToggleGenerator
             // One full-catalog scan per distinct query: pages and prefetch
             // crawls reuse it. Compatibility itself stays cached per family;
             // the key mirrors that scope plus anything else the scan reads.
-            var matchKey = target + "|" + string.Join(",", installed.OrderBy(g => g)) + "|" + filter + "|" + search + "|" + shop + "|" + category + "|" + hideEmpty + "|" + sort + "|" + (recentlyUsed ? usedJson : "") + "|" +
+            var matchKey = target + "|" + string.Join(",", installed.OrderBy(g => g)) + "|" + filter + "|" + search + "|" + shop + "|" + category + "|" + tag + "|" + WardrobeOrganization.Version + "|" + hideEmpty + "|" + sort + "|" + (recentlyUsed ? usedJson : "") + "|" +
                              avatarGuid + "|" + AvatarWardrobeCatalog.CatalogEpoch + "|" +
                              AvatarWardrobeCatalog.OverridesVersion + "|" + AvatarWardrobeCatalog.BaseAvatarStamp + "|" +
                              installedCacheVersion + "|" + thumbDead.Count;
@@ -579,7 +669,14 @@ namespace OutfitToggleGenerator
                     : CachedFamilies().Concat(CachedCandidates()).ToList();
                 foreach (var family in source)
                 {
-                    if (!MatchesSearch(family, search)) continue;
+                    // Hidden items leave every view except the Hidden filter.
+                    if (WardrobeOrganization.IsHidden(family) != (filter == "hidden")) continue;
+                    if (!string.IsNullOrEmpty(tag))
+                    {
+                        var familyTags = WardrobeOrganization.TagsFor(family.id);
+                        if (tag == "untagged" ? familyTags.Count > 0 : !familyTags.Contains(tag)) continue;
+                    }
+                    if (!MatchesSearch(family, search, tagNames)) continue;
                     var familyShop = CachedFamilyShop(family);
                     if (!string.IsNullOrEmpty(shop) &&
                         !string.Equals(familyShop, shop, StringComparison.Ordinal)) continue;
@@ -670,6 +767,8 @@ namespace OutfitToggleGenerator
                     installed = family.variants.Any(variant => installed.Contains(variant.guid)) ? 1 : 0,
                     category = familyCategory,
                     categoryConfidence = familyConfidence.ToString("0%"),
+                    tags = WardrobeOrganization.TagsFor(family.id),
+                    hidden = WardrobeOrganization.IsHidden(family) ? 1 : 0,
                 };
                 {
                     var compatibility = CachedCompatibility(
@@ -714,7 +813,15 @@ namespace OutfitToggleGenerator
                 installed = new HashSet<string>(family.variants.Select(variant => variant.guid).Where(guid =>
                     installedRootsCache.TryGetValue(guid, out var instances) && instances.Any(instance => instance != null &&
                         AvatarWardrobePresets.ItemPreset(instance, SceneAvatar) == target)));
-            var detail = new FamilyDetailDto { id = family.id, name = family.displayName };
+            var detail = new FamilyDetailDto
+            {
+                id = family.id,
+                name = family.displayName,
+                tags = WardrobeOrganization.TagsFor(family.id),
+                hidden = WardrobeOrganization.IsHidden(family) ? 1 : 0,
+                hiddenFolder = WardrobeOrganization.HiddenByPath(family),
+                folder = CommonFolder(family),
+            };
             string assignBaseKey;
             string assignBaseName;
             AvatarWardrobePresets.CurrentBase(out assignBaseKey, out assignBaseName);
@@ -760,6 +867,19 @@ namespace OutfitToggleGenerator
                 });
             }
             return detail;
+        }
+
+        // Deepest folder shared by every variant: the unit a "hide this folder" acts on.
+        private static string CommonFolder(WardrobeFamily family)
+        {
+            var folders = family.variants.Select(variant => (variant.assetPath ?? "").Replace('\\', '/'))
+                .Select(path => path.Contains("/") ? path.Substring(0, path.LastIndexOf('/')) : "").ToList();
+            if (folders.Count == 0 || folders.Any(string.IsNullOrEmpty)) return string.Empty;
+            var common = folders[0];
+            foreach (var folder in folders.Skip(1))
+                while (common.Length > 0 && !(folder == common || folder.StartsWith(common + "/", StringComparison.OrdinalIgnoreCase)))
+                    common = common.Contains("/") ? common.Substring(0, common.LastIndexOf('/')) : "";
+            return common;
         }
 
         [Serializable]
@@ -902,15 +1022,20 @@ namespace OutfitToggleGenerator
                 var instances = avatar.GetComponentsInChildren<Transform>(true).Where(t => PrefabUtility.IsAnyPrefabInstanceRoot(t.gameObject)).Take(8193).ToArray();
                 list.usageComplete = instances.Length <= 8192;
                 var dependencyHashes = new Dictionary<string, string>(StringComparer.Ordinal);
-                foreach (var transform in instances.Take(8192))
+                var roots = instances.Take(8192).Select(transform => (UnityEngine.Object)transform.gameObject).ToArray();
+                // One batched lookup: per-object GetGlobalObjectIdSlow dominated this listing.
+                var globalIds = new GlobalObjectId[roots.Length];
+                if (!string.IsNullOrEmpty(list.scene)) GlobalObjectId.GetGlobalObjectIdsSlow(roots, globalIds);
+                for (var index = 0; index < roots.Length; index++)
                 {
+                    var transform = ((GameObject)roots[index]).transform;
                     var assetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(transform.gameObject);
                     var guid = AssetDatabase.AssetPathToGUID(assetPath);
                     if (string.IsNullOrEmpty(guid)) continue;
                     if (!dependencyHashes.TryGetValue(assetPath, out var dependencyHash))
                         dependencyHashes[assetPath] = dependencyHash = AssetDatabase.GetAssetDependencyHash(assetPath).ToString();
                     list.usage.Add(new LibraryUsageItemDto {
-                        instanceId = string.IsNullOrEmpty(list.scene) ? "session:" + serverSession + ":" + transform.GetInstanceID() : GlobalObjectId.GetGlobalObjectIdSlow(transform.gameObject).ToString(),
+                        instanceId = string.IsNullOrEmpty(list.scene) ? "session:" + serverSession + ":" + transform.GetInstanceID() : globalIds[index].ToString(),
                         path = AnimationUtility.CalculateTransformPath(transform, avatar.transform), guid = guid,
                         sourceSha256 = "", sourcePath = Path.Combine(list.projectId, assetPath), dependencyHash = dependencyHash
                     });

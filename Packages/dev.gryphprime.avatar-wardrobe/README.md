@@ -24,6 +24,51 @@ The local release candidate passes Unity 2022.3.22f1 compilation and the
 Avatar Wardrobe EditMode suite (105 passed, three optional integrations skipped).
 A fresh VCC/ALCOM installation and a real avatar upload remain release gates.
 
+## Organizing the catalog
+
+- **Tags.** Open an item and toggle tags under *Tags*, or create one with *Add tag*.
+  Filter by tag (or *Untagged*) from *Filters*. Search also matches tag names.
+  *Edit tags* (or *Filters → Tags & hidden…*) renames, recolors and deletes tags.
+- **Hide from catalog.** Prefabs that are not wearable (shader helpers such as
+  Poiyomi's depth-get, props, samples) can be hidden from an item's *More options*. *Hide this
+  folder* hides everything under the item's folder. The *Hidden* filter lists hidden
+  items so they can be restored; hidden folders are restored from *Tags & hidden…*.
+- Tags and hidden items are stored with the project in
+  `ProjectSettings/AvatarWardrobeOrganization.json` (with a `.bak`). Browser folders
+  remain browser-local. Organization edits never change the avatar or scene.
+
+## Customizing a worn item
+
+An item's details are laid out as **Wear** (menu group, per-part menu toggles, how to
+wear), **Customize**, **Tags**, and a collapsed **More options** section (compatibility
+override, hiding, variant details). *Customize* appears once the item is worn in the
+selected preset:
+
+- **Parts worn** lists the item's parts (each direct child except armatures, the same
+  objects *Menu toggle for each part* turns into toggles). Untick a part to take it off
+  by default. With part toggles this changes the toggle's default; without them it
+  deactivates the part object.
+- **Body adjustments** are blendshape rows. Each row picks a shape and a mode:
+  - *Set to* applies a fixed value with an MA Shape Changer on a generated child, while
+    the whole item or a chosen part is worn.
+  - *Hide skin* uses Shape Changer's delete mode to remove the polygons the shape moves.
+  - *Menu slider* adds an in-game radial for the shape on the body or on one of the
+    item's own meshes, with a label and a starting value. Sliders go into a
+    "*Item name* sliders" submenu, apply whenever the item is on the avatar, and each
+    uses one saved, synced float (8 of the 256 parameter bits). Up to 16 per item; a
+    shape cannot be both fixed and a slider. They are built from MA Menu Installer,
+    Parameters and Merge Animator plus a generated FX controller in
+    `Assets/AvatarWardrobeGenerated/Sliders` (content-addressed and never deleted
+    automatically, so Undo can always restore it). Reapplying keeps parameter names,
+    so players keep their saved slider positions.
+- **Follow body shape** adds MA Blendshape Sync to the item's meshes for every
+  blendshape name they share with the body. Blendshape Sync components that the
+  creator already added are left untouched.
+
+*Apply to avatar* writes every change to all worn copies in the preset as one Undo
+step; sliders on an item's own meshes are mapped onto each copy. Generated objects are
+marked and removed again when their settings are cleared.
+
 ## Local experimental views
 
 Appearance and Menu are feature flagged off by default. To enable either view
