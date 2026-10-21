@@ -71,6 +71,11 @@ The tag workflow refuses to publish unless the tag points to a commit on `main`
 and matches both version files. It then builds the archive, creates the GitHub
 release from `RELEASE_NOTES.md`, and adds the version to the VPM listing.
 Rerunning it verifies the existing assets instead of replacing them.
+Once the listing is live, it posts the release notes to Discord through the
+webhook stored in the `DISCORD_WEBHOOK_URL` repository secret (skipped if the
+secret is unset). Only the run that creates the release announces it.
+Preview the message with
+`python3 scripts/announce_discord.py --tag v1.0.29 --release-url URL --dry-run`.
 
 For a local packaging check, run `python3 scripts/build_release.py --version 1.0.0`
 (this rewrites the version files; do not commit the result).
