@@ -1,7 +1,10 @@
 name: Release VPM package
+# Packages are published only from version tags (v1.2.3) on main. Pushes to main
+# validate and refresh the documentation site while keeping the live VPM listing.
 on:
   push:
     branches: [main]
+    tags: ['v*']
 permissions:
   contents: write
   pages: write
@@ -10,76 +13,78 @@ concurrency:
   group: vpm-release
   cancel-in-progress: false
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      package: ${{ steps.detect.outputs.package }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Detect distributable changes
-        id: detect
-        env:
-          BEFORE: ${{ github.event.before }}
-        shell: bash
-        run: |
-          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            echo 'package=true' >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" "$GITHUB_SHA" -- Packages scripts RELEASE_NOTES.md .github/workflows/validate.yml; then
-            echo 'package=false' >> "$GITHUB_OUTPUT"
-          else
-            echo 'package=true' >> "$GITHUB_OUTPUT"
-          fi
   validation:
     uses: ./.github/workflows/validate.yml
   release:
-    needs: [validation, changes]
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: validation
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Check descriptor detection
-        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
-      - name: Check reporting behavior
-        run: node tests/reporting.test.js
-      - name: Check update indicator behavior
-        run: node tests/updates.test.js
-      - name: Check single-avatar upload UI
-        run: node tests/scene-upload.test.js
-      - name: Check installed sidebar grouping
-        run: node tests/installed-sidebar.test.js
-      - name: Build package and merge listing history
-        if: needs.changes.outputs.package == 'true'
+      - name: Check release tag
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
         run: |
-          echo "WARDROBE_VERSION=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
-          python3 scripts/build_release.py --live --version "1.0.$GITHUB_RUN_NUMBER"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tags must look like v1.2.3, got $TAG"
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$TAG must point to a commit on main"
+            exit 1
+          fi
+      - name: Build package and merge listing history
+        # Uses the committed version; fails unless the tag, package.json and
+        # Editor/WardrobeVersion.json all agree.
+        run: python3 scripts/build_release.py --live --tag "$GITHUB_REF_NAME"
       - name: Publish immutable release assets
-        if: needs.changes.outputs.package == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
-          tag="v$WARDROBE_VERSION"
-          if gh release view "$tag" >/dev/null 2>&1; then
+          if gh release view "$TAG" >/dev/null 2>&1; then
             mkdir -p published
-            gh release download "$tag" --pattern SHA256SUMS --dir published
+            gh release download "$TAG" --pattern SHA256SUMS --dir published
             cmp dist/SHA256SUMS published/SHA256SUMS
           else
-            gh release create "$tag" dist/*.zip dist/SHA256SUMS --target "$GITHUB_SHA" --title "Avatar Wardrobe $tag" --notes-file RELEASE_NOTES.md --prerelease=false --latest
+            gh release create "$TAG" dist/*.zip dist/SHA256SUMS --verify-tag --title "Avatar Wardrobe $TAG" --notes-file RELEASE_NOTES.md --prerelease=false --latest
           fi
-      - name: Preserve live VPM listing for documentation updates
-        if: needs.changes.outputs.package != 'true'
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy VPM listing
+        id: deployment
+        uses: actions/deploy-pages@v4
+  docs:
+    if: github.ref == 'refs/heads/main'
+    needs: validation
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve live VPM listing
         run: |
           python3 - <<'PY'
           import json
+          import time
           import urllib.request
           from pathlib import Path
-          with urllib.request.urlopen('https://gryphprime.github.io/avatar-wardrobe-vpm/index.json', timeout=30) as response:
+          # Bypass the Pages CDN cache so a release deployed moments ago is kept.
+          url = 'https://gryphprime.github.io/avatar-wardrobe-vpm/index.json?t=%d' % time.time()
+          with urllib.request.urlopen(url, timeout=30) as response:
               listing = json.load(response)
           if listing.get('id') != 'dev.gryphprime.avatar-wardrobe.listing' or not listing.get('packages'):
               raise ValueError('Unexpected live VPM listing; refusing to replace it')
@@ -89,6 +94,6 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
-      - name: Deploy VPM listing
+      - name: Deploy documentation
         id: deployment
         uses: actions/deploy-pages@v4
