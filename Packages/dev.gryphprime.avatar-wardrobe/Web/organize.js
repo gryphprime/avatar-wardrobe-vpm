@@ -304,6 +304,6 @@
     configure:function(value){options=Object.assign(options,value||{});},
     refresh:refresh,state:function(){return state;},onChange:function(listener){listeners.push(listener);},
     cardTags:cardTags,fillTagSelect:fillTagSelect,renderDetail:renderDetail,renderHide:renderHide,renderParts:renderParts,openManager:openManager,
-    setHidden:setHidden,setFamilyTag:setFamilyTag
+    setHidden:setHidden,setFamilyTag:setFamilyTag,setFolderHidden:setFolderHidden
   };
 })(window);

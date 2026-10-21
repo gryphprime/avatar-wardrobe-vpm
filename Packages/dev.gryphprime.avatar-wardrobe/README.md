@@ -33,6 +33,12 @@ A fresh VCC/ALCOM installation and a real avatar upload remain release gates.
   Poiyomi's depth-get, props, samples) can be hidden from an item's *More options*. *Hide this
   folder* hides everything under the item's folder. The *Hidden* filter lists hidden
   items so they can be restored; hidden folders are restored from *Tags & hidden…*.
+- **Selecting several items.** Ctrl/Cmd-click cards, Shift-click a range, or use the
+  check circle on a card. While anything is selected, clicks keep selecting. The bar at
+  the bottom wears, tags, hides or shows the whole selection; Escape clears it.
+- **Right-click menu.** Right-click a card (or press Shift+F10 / the Menu key) to open
+  details, wear it, tag it, show the prefab in Unity's Project window, or hide the item
+  or its folder. On a selected card the menu acts on the whole selection.
 - Tags and hidden items are stored with the project in
   `ProjectSettings/AvatarWardrobeOrganization.json` (with a `.bak`). Browser folders
   remain browser-local. Organization edits never change the avatar or scene.
@@ -61,6 +67,9 @@ selected preset:
     `Assets/AvatarWardrobeGenerated/Sliders` (content-addressed and never deleted
     automatically, so Undo can always restore it). Reapplying keeps parameter names,
     so players keep their saved slider positions.
+- **Follow body shape** is also offered under *Wear* for items not yet worn, on by
+  default (the choice is remembered in the browser). It is applied when the item is worn
+  from the details, the right-click menu, the selection bar or by drag and drop.
 - **Follow body shape** adds MA Blendshape Sync to the item's meshes for every
   blendshape name they share with the body. Blendshape Sync components that the
   creator already added are left untouched.

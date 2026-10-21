@@ -17,7 +17,7 @@ namespace OutfitToggleGenerator
         [Serializable] internal sealed class Payload
         {
             public string variantId, assetVersion, instanceId, previewToken, undoToken, view, menuGroup, itemPath;
-            public bool addCopy, allowUnverified, createToggles, before;
+            public bool addCopy, allowUnverified, createToggles, followBody, before;
             public float zoom = 1;
         }
     }

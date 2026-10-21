@@ -68,7 +68,20 @@ namespace OutfitToggleGenerator
             "/api/tag_save", "/api/tag_delete", "/api/family_tag", "/api/family_hide", "/api/folder_hide"
         };
 
-        internal static bool IsOrganizationWrite(string path) => organizationWriteRoutes.Contains(path);
+        // Writes that change project settings or editor selection, never the avatar.
+        internal static bool IsOrganizationWrite(string path) => organizationWriteRoutes.Contains(path) || path == "/api/reveal_asset";
+
+        // Selects and pings an item's prefab in the Project window.
+        private static ResultDto RevealAsset(string guid)
+        {
+            var path = IsAssetGuid(guid) ? UnityEditor.AssetDatabase.GUIDToAssetPath(guid) : "";
+            var asset = string.IsNullOrEmpty(path) ? null : UnityEditor.AssetDatabase.LoadMainAssetAtPath(path);
+            if (asset == null) return new ResultDto { message = WardrobeStrings.T("err.notfound") };
+            UnityEditor.EditorUtility.FocusProjectWindow();
+            UnityEditor.Selection.activeObject = asset;
+            UnityEditor.EditorGUIUtility.PingObject(asset);
+            return new ResultDto { ok = 1 };
+        }
 
         private static List<string> IdList(Dictionary<string, string> query)
         {
@@ -194,6 +207,12 @@ namespace OutfitToggleGenerator
             if (path == "/api/organization")
             {
                 WriteMainJson(context, GetOrganization, requestCode);
+                return true;
+            }
+            if (path == "/api/reveal_asset")
+            {
+                Query(context.Request.Url.Query).TryGetValue("guid", out var revealGuid);
+                WriteMainJson(context, () => RevealAsset(revealGuid), requestCode);
                 return true;
             }
             if (path == "/api/item_parts")

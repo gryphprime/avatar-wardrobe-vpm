@@ -4675,6 +4675,66 @@
         {
           "k": "status.busyLabel",
           "v": "Unity busy"
+        },
+        {
+          "k": "detail.followBodyHint",
+          "v": "Clothes follow body sliders like chest or hips. Change it later under Customize."
+        },
+        {
+          "k": "select.select",
+          "v": "Select"
+        },
+        {
+          "k": "select.deselect",
+          "v": "Deselect"
+        },
+        {
+          "k": "select.all",
+          "v": "Select all"
+        },
+        {
+          "k": "select.clear",
+          "v": "Clear selection"
+        },
+        {
+          "k": "select.count",
+          "v": "{0} selected"
+        },
+        {
+          "k": "select.count.one",
+          "v": "{0} selected"
+        },
+        {
+          "k": "select.hidden",
+          "v": "{0} items hidden. Use the Hidden filter to bring them back."
+        },
+        {
+          "k": "select.shown",
+          "v": "{0} items shown in the catalog again."
+        },
+        {
+          "k": "select.wearConfirm",
+          "v": "Wear {0} items on the avatar?"
+        },
+        {
+          "k": "select.open",
+          "v": "Open details"
+        },
+        {
+          "k": "select.reveal",
+          "v": "Show in Unity"
+        },
+        {
+          "k": "select.toolbar",
+          "v": "Selected items"
+        },
+        {
+          "k": "select.working",
+          "v": "Applying…"
+        },
+        {
+          "k": "select.shown.one",
+          "v": "Shown in the catalog again."
         }
       ]
     },
@@ -9353,6 +9413,66 @@
         {
           "k": "status.busyLabel",
           "v": "Unity処理中"
+        },
+        {
+          "k": "detail.followBodyHint",
+          "v": "胸やヒップなど体のシェイプキーに衣装を追従させます。あとで「カスタマイズ」から変更できます。"
+        },
+        {
+          "k": "select.select",
+          "v": "選択"
+        },
+        {
+          "k": "select.deselect",
+          "v": "選択を解除"
+        },
+        {
+          "k": "select.all",
+          "v": "すべて選択"
+        },
+        {
+          "k": "select.clear",
+          "v": "選択をクリア"
+        },
+        {
+          "k": "select.count",
+          "v": "{0}件を選択中"
+        },
+        {
+          "k": "select.count.one",
+          "v": "{0}件を選択中"
+        },
+        {
+          "k": "select.hidden",
+          "v": "{0}件を非表示にしました。「非表示」フィルターから戻せます。"
+        },
+        {
+          "k": "select.shown",
+          "v": "{0}件をカタログに再表示しました。"
+        },
+        {
+          "k": "select.wearConfirm",
+          "v": "{0}件をアバターに着せますか？"
+        },
+        {
+          "k": "select.open",
+          "v": "詳細を開く"
+        },
+        {
+          "k": "select.reveal",
+          "v": "Unityで表示"
+        },
+        {
+          "k": "select.toolbar",
+          "v": "選択中のアイテム"
+        },
+        {
+          "k": "select.working",
+          "v": "適用中…"
+        },
+        {
+          "k": "select.shown.one",
+          "v": "カタログに再表示しました。"
         }
       ]
     },
@@ -14031,6 +14151,66 @@
         {
           "k": "status.busyLabel",
           "v": "Unity 작업 중"
+        },
+        {
+          "k": "detail.followBodyHint",
+          "v": "가슴, 엉덩이 등 몸의 블렌드셰이프를 옷이 따라갑니다. 나중에 사용자 지정에서 바꿀 수 있습니다."
+        },
+        {
+          "k": "select.select",
+          "v": "선택"
+        },
+        {
+          "k": "select.deselect",
+          "v": "선택 해제"
+        },
+        {
+          "k": "select.all",
+          "v": "모두 선택"
+        },
+        {
+          "k": "select.clear",
+          "v": "선택 지우기"
+        },
+        {
+          "k": "select.count",
+          "v": "{0}개 선택됨"
+        },
+        {
+          "k": "select.count.one",
+          "v": "{0}개 선택됨"
+        },
+        {
+          "k": "select.hidden",
+          "v": "{0}개를 숨겼습니다. 숨김 필터에서 되돌릴 수 있습니다."
+        },
+        {
+          "k": "select.shown",
+          "v": "{0}개를 카탈로그에 다시 표시했습니다."
+        },
+        {
+          "k": "select.wearConfirm",
+          "v": "{0}개를 아바타에 입힐까요?"
+        },
+        {
+          "k": "select.open",
+          "v": "세부 정보 열기"
+        },
+        {
+          "k": "select.reveal",
+          "v": "Unity에서 보기"
+        },
+        {
+          "k": "select.toolbar",
+          "v": "선택한 항목"
+        },
+        {
+          "k": "select.working",
+          "v": "적용 중…"
+        },
+        {
+          "k": "select.shown.one",
+          "v": "카탈로그에 다시 표시했습니다."
         }
       ]
     },
@@ -18709,6 +18889,66 @@
         {
           "k": "status.busyLabel",
           "v": "Unity 忙碌中"
+        },
+        {
+          "k": "detail.followBodyHint",
+          "v": "服装跟随胸部、臀部等身体形态键。之后可在“自定义”中更改。"
+        },
+        {
+          "k": "select.select",
+          "v": "选择"
+        },
+        {
+          "k": "select.deselect",
+          "v": "取消选择"
+        },
+        {
+          "k": "select.all",
+          "v": "全选"
+        },
+        {
+          "k": "select.clear",
+          "v": "清除选择"
+        },
+        {
+          "k": "select.count",
+          "v": "已选择 {0} 项"
+        },
+        {
+          "k": "select.count.one",
+          "v": "已选择 {0} 项"
+        },
+        {
+          "k": "select.hidden",
+          "v": "已隐藏 {0} 项。可通过“已隐藏”筛选恢复。"
+        },
+        {
+          "k": "select.shown",
+          "v": "已在目录中重新显示 {0} 项。"
+        },
+        {
+          "k": "select.wearConfirm",
+          "v": "要给头像穿上 {0} 项吗？"
+        },
+        {
+          "k": "select.open",
+          "v": "打开详情"
+        },
+        {
+          "k": "select.reveal",
+          "v": "在 Unity 中显示"
+        },
+        {
+          "k": "select.toolbar",
+          "v": "已选项目"
+        },
+        {
+          "k": "select.working",
+          "v": "正在应用…"
+        },
+        {
+          "k": "select.shown.one",
+          "v": "已在目录中重新显示。"
         }
       ]
     }
