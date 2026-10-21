@@ -836,6 +836,11 @@ namespace OutfitToggleGenerator
                 WriteMainJson(context, GetPresets, requestCode);
                 return;
             }
+            if (path == "/api/preset_copy_sources")
+            {
+                WriteMainJson(context, GetPresetCopySources, requestCode);
+                return;
+            }
             if (path == "/api/workflow")
             {
                 var query = Query(request.Url.Query);
@@ -858,6 +863,14 @@ namespace OutfitToggleGenerator
                 string name;
                 query.TryGetValue("name", out name);
                 WriteMainJson(context, () => EditAvatar("Save wardrobe preset", () => SavePreset(id, name)), requestCode);
+                return;
+            }
+            if (path == "/api/preset_copy")
+            {
+                var query = Query(request.Url.Query);
+                string sourceId;
+                query.TryGetValue("sourceId", out sourceId);
+                WriteMainJson(context, () => CopyPresetsFrom(sourceId), requestCode);
                 return;
             }
             if (path == "/api/preset_delete")
@@ -983,12 +996,13 @@ namespace OutfitToggleGenerator
             string op, retry;
             query.TryGetValue("op", out op); query.TryGetValue("retry", out retry);
             var read = !api || WardrobeHttpPolicy.IsRead(r.Url.AbsolutePath, op, retry);
-            if (r.HttpMethod != (read ? "GET" : "POST"))
+            var legacyReadPost = WardrobeHttpPolicy.IsLegacyReadPost(r.Url.AbsolutePath, op, r.HttpMethod);
+            if (!legacyReadPost && r.HttpMethod != (read ? "GET" : "POST"))
             { context.Response.Headers["Allow"] = read ? "GET" : "POST"; WriteText(context, 405, "text/plain", "Reload Wardrobe; this action requires " + (read ? "GET" : "POST") + "."); return false; }
             if (!read && r.Headers["X-Wardrobe-Request"] != "1")
             { WriteText(context, 403, "text/plain", "Use the Wardrobe page to perform this action."); return false; }
             var suppliedSession = r.Headers["X-Wardrobe-Session"];
-            if (!string.IsNullOrEmpty(suppliedSession) && suppliedSession != serverSession)
+            if (!legacyReadPost && !string.IsNullOrEmpty(suppliedSession) && suppliedSession != serverSession)
             {
                 WriteText(context, 409, "text/plain", "The Unity session changed. Refresh the wardrobe before editing.");
                 return false;

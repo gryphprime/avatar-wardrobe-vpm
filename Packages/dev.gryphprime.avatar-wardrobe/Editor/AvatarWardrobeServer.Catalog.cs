@@ -619,6 +619,22 @@ namespace OutfitToggleGenerator
                 return found;
             });
 
+            // Folder members can live outside the browser's loaded page range.
+            // Reuse the same filtered/sorted matches, then page only those IDs.
+            string memberJson;
+            if (query.TryGetValue("ids", out memberJson))
+            {
+                var memberIds = new HashSet<string>(StringComparer.Ordinal);
+                try
+                {
+                    if (!string.IsNullOrEmpty(memberJson) && memberJson.Length <= 32768)
+                        foreach (var id in (JsonUtility.FromJson<RecentFamilyIds>(memberJson).ids ?? new string[0]).Take(200))
+                            if (!string.IsNullOrEmpty(id)) memberIds.Add(id);
+                }
+                catch (Exception) { }
+                matches = matches.Where(family => memberIds.Contains(family.id)).ToList();
+            }
+
             var list = new FamilyListDto
             {
                 total = matches.Count,
@@ -765,7 +781,9 @@ namespace OutfitToggleGenerator
         private static PrefabPresetsDto GetPrefabPresets(string guid)
         {
             var result = new PrefabPresetsDto();
-            foreach (var group in AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
+            InstalledGuids();
+            if (string.IsNullOrEmpty(guid) || !installedRootsCache.TryGetValue(guid, out var instances)) return result;
+            foreach (var group in instances.Where(item => item != null)
                 .GroupBy(item => AvatarWardrobePresets.ItemPreset(item, SceneAvatar)))
                 result.presets.Add(new PrefabPresetDto {
                     id = group.Key,
@@ -859,11 +877,14 @@ namespace OutfitToggleGenerator
 
         private static InstalledListDto ValidateUsageHashes(InstalledListDto list)
         {
+            var currentHashes = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var item in list.usage)
             {
                 if (string.IsNullOrEmpty(item.sourceSha256)) continue;
                 var relative = item.sourcePath.Substring(list.projectId.Length + 1).Replace('\\', '/');
-                if (AssetDatabase.GetAssetDependencyHash(relative).ToString() != item.dependencyHash) item.sourceSha256 = "";
+                if (!currentHashes.TryGetValue(relative, out var hash))
+                    currentHashes[relative] = hash = AssetDatabase.GetAssetDependencyHash(relative).ToString();
+                if (hash != item.dependencyHash) item.sourceSha256 = "";
             }
             return list;
         }
@@ -871,6 +892,7 @@ namespace OutfitToggleGenerator
         private static InstalledListDto GetInstalled()
         {
             var list = new InstalledListDto { projectId = Path.GetFullPath(Path.Combine(Application.dataPath, "..")), session = serverSession };
+            var installed = InstalledGuids();
             if (SceneAvatar != null)
             {
                 var avatar = SceneAvatar;
@@ -879,12 +901,14 @@ namespace OutfitToggleGenerator
                 list.scene = avatar.gameObject.scene.path;
                 var instances = avatar.GetComponentsInChildren<Transform>(true).Where(t => PrefabUtility.IsAnyPrefabInstanceRoot(t.gameObject)).Take(8193).ToArray();
                 list.usageComplete = instances.Length <= 8192;
+                var dependencyHashes = new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (var transform in instances.Take(8192))
                 {
                     var assetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(transform.gameObject);
                     var guid = AssetDatabase.AssetPathToGUID(assetPath);
                     if (string.IsNullOrEmpty(guid)) continue;
-                    var dependencyHash = AssetDatabase.GetAssetDependencyHash(assetPath).ToString();
+                    if (!dependencyHashes.TryGetValue(assetPath, out var dependencyHash))
+                        dependencyHashes[assetPath] = dependencyHash = AssetDatabase.GetAssetDependencyHash(assetPath).ToString();
                     list.usage.Add(new LibraryUsageItemDto {
                         instanceId = string.IsNullOrEmpty(list.scene) ? "session:" + serverSession + ":" + transform.GetInstanceID() : GlobalObjectId.GetGlobalObjectIdSlow(transform.gameObject).ToString(),
                         path = AnimationUtility.CalculateTransformPath(transform, avatar.transform), guid = guid,
@@ -892,14 +916,15 @@ namespace OutfitToggleGenerator
                     });
                 }
             }
-            var installed = InstalledGuids();
             if (installed.Count == 0) return list;
             foreach (var family in CachedFamilies().Concat(CachedCandidates()))
             {
                 foreach (var variant in family.variants)
                 {
                     if (!installed.Contains(variant.guid)) continue;
-                    foreach (var instance in AvatarWardrobePresets.PrefabInstances(SceneAvatar, variant.guid))
+                    // InstalledGuids already collected these roots in one scene traversal.
+                    if (!installedRootsCache.TryGetValue(variant.guid, out var instances)) continue;
+                    foreach (var instance in instances.Where(item => item != null))
                     {
                         var target = AvatarWardrobePresets.ItemPreset(instance, SceneAvatar);
                         list.items.Add(new InstalledItemDto {

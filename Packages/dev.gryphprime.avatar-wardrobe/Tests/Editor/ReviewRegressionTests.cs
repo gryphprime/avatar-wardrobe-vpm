@@ -13,6 +13,32 @@ using ShiroTools;
 
 namespace OutfitToggleGenerator
 {
+    public class ModalReadPolicyTests
+    {
+        [TestCase("/api/prefab_presets", null, "POST", true)]
+        [TestCase("/api/menu_groups", null, "POST", true)]
+        [TestCase("/api/menu_groups", "", "POST", true)]
+        [TestCase("/api/menu_groups", "save", "POST", false)]
+        [TestCase("/api/menu_groups", "delete", "GET", false)]
+        [TestCase("/api/prefab_presets", null, "PUT", false)]
+        [TestCase("/api/installed", null, "POST", false)]
+        public void OnlyLegacyModalReadsAcceptPost(string path, string operation, string method, bool allowed)
+        {
+            Assert.AreEqual(allowed, WardrobeHttpPolicy.IsLegacyReadPost(path, operation, method));
+        }
+
+        [TestCase("/api/prefab_presets", null, true)]
+        [TestCase("/api/menu_groups", null, true)]
+        [TestCase("/api/menu_groups", "", true)]
+        [TestCase("/api/menu_groups", "save", false)]
+        [TestCase("/api/menu_groups", "delete", false)]
+        [TestCase("/api/menu_groups", "assign", false)]
+        public void ModalReadsBypassTheWriteQueueAndGroupEditsRemainWrites(string path, string operation, bool read)
+        {
+            Assert.AreEqual(read, WardrobeHttpPolicy.IsRead(path, operation, null));
+        }
+    }
+
     public class CopyrightDialogHandlerTests
     {
         [TestCase(false)]
@@ -44,6 +70,24 @@ namespace OutfitToggleGenerator
             closed.Close();
             Assert.IsFalse(OutfitBatchUploader.TryConfirmCopyrightInRoot(root));
             Assert.AreEqual(0, confirmations);
+        }
+
+        [Test]
+        public void ConfirmsDialogNestedInsideSdkBuildPanel()
+        {
+            var root = new UnityEngine.UIElements.VisualElement();
+            var builderPanel = new UnityEngine.UIElements.VisualElement { name = "builder-panel" };
+            var buildSection = new UnityEngine.UIElements.VisualElement { name = "section-3" };
+            root.Add(builderPanel);
+            builderPanel.Add(buildSection);
+
+            int confirmations = 0;
+            var modal = VRC.SDKBase.Editor.Elements.Modal.CreateAndShow(
+                "Copyright ownership agreement", "Test dialog only", () => confirmations++, "OK", buildSection);
+
+            Assert.IsTrue(OutfitBatchUploader.TryConfirmCopyrightInRoot(root));
+            Assert.AreEqual(1, confirmations);
+            Assert.IsFalse(modal.IsOpen);
         }
     }
 

@@ -98,7 +98,8 @@
       var visible=new Set(Array.from(cards).filter(function(pair){return !pair[1].hidden;}).map(function(pair){return pair[0];}));
       folders.forEach(function(folder){
         var members=folder.members.filter(function(id){return cards.has(id)&&visible.has(id);}).sort(function(a,b){return ranks.get(a)-ranks.get(b);});
-        if(!members.length&&folder.members.length&&options.filtered())return;
+        // Membership on the current page cannot tell us whether a saved folder
+        // is empty: its outfits may still be loading or on a later page.
         var tile=document.createElement('section');tile.className='grid-folder'+(folder.open?' is-open':'');tile.dataset.folder=folder.id;
         tile.innerHTML='<button type="button" class="grid-folder-toggle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 2h9v12H3z M3 6V4h7l2 2"/></svg><strong></strong><span></span></button><div class="grid-folder-actions"><button type="button" data-folder-rename>Rename</button><button type="button" data-folder-delete>Delete folder</button></div>';
         if(folder.open){
@@ -108,6 +109,16 @@
         var toggle=tile.querySelector('.grid-folder-toggle');toggle.setAttribute('aria-expanded',String(folder.open));
         toggle.querySelector('strong').textContent=folder.name;
         toggle.querySelector('span').textContent=(folder.open?'▾ ':'▸ ')+members.length+' of '+folder.members.length+' outfits shown';
+        var loading=options.memberState&&folder.members.some(function(id){return options.memberState(id)==='loading';});
+        var failed=options.memberState&&folder.members.some(function(id){return options.memberState(id)==='error';});
+        tile.setAttribute('aria-busy',String(!!(folder.open&&loading)));
+        if(folder.open&&loading)toggle.querySelector('span').textContent+=' · Loading outfits…';
+        else if(folder.open&&failed){
+          var retry=document.createElement('button');retry.type='button';retry.textContent='Retry loading outfits';
+          retry.onclick=function(){if(options.retry)options.retry(folder.members);};
+          tile.querySelector('.grid-folder-actions').appendChild(retry);
+        }
+        else if(folder.open&&options.memberState&&folder.members.some(function(id){return options.memberState(id)==='unavailable';}))toggle.querySelector('span').textContent+=' · Some outfits are filtered out or unavailable.';
         toggle.onclick=function(){
           var reducedMotion=global.matchMedia('(prefers-reduced-motion: reduce)').matches;
           var previousPositions=reducedMotion?null:gridPositions();
@@ -178,6 +189,11 @@
         return (a.rank-b.rank)||(a.folder&&b.folder?a.folder.name.localeCompare(b.folder.name):0);
       }).forEach(function(block){block.nodes.forEach(function(node){grid.appendChild(node);});});
     }
-    return {render:render,setScope:function(next){if(scope===next)return false;scope=next;read();return true;}};
+    function memberIds(){
+      // Warm closed folders too, with expanded folders first in every batch.
+      var ordered=folders.filter(function(folder){return folder.open;}).concat(folders.filter(function(folder){return !folder.open;}));
+      return Array.from(new Set(ordered.flatMap(function(folder){return folder.members;})));
+    }
+    return {render:render,memberIds:memberIds,setScope:function(next){if(scope===next)return false;scope=next;read();return true;}};
   };
 })(window);
