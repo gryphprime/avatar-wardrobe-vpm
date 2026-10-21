@@ -201,6 +201,20 @@ namespace OutfitToggleGenerator
             Assert.IsTrue(creator != null && creator == top.GetComponent<ModularAvatarBlendshapeSync>());
         }
 
+        [Test] public void WearingWithFollowBodyAddsSyncOnceAndKeepsCustomizeChoices()
+        {
+            OutfitToggleGenerator.EnsureBlendshapeSync(avatar, item);
+            var sync = top.GetComponent<ModularAvatarBlendshapeSync>();
+            Assert.IsNotNull(sync);
+            Assert.AreSame(body.gameObject, sync.Bindings.Single().ReferenceMesh.Get(top.transform));
+            OutfitToggleGenerator.EnsureBlendshapeSync(avatar, item);
+            Assert.AreEqual(1, top.GetComponents<ModularAvatarBlendshapeSync>().Length, "Wearing again does not stack components.");
+            Assert.AreEqual(1, item.GetComponentsInChildren<OutfitToggleGeneratedMenu>(true).Length);
+
+            OutfitToggleGenerator.ApplyPartsEdit(avatar, item, Edit(0, true));
+            Assert.IsFalse(OutfitToggleGenerator.HasBlendshapeSync(item), "Customize can turn wear-time sync off again.");
+        }
+
         [Test] public void ValidationRejectsUnknownShapesAndParts()
         {
             Assert.Throws<ArgumentException>(() => OutfitToggleGenerator.ValidatePartsEdit(avatar, item,

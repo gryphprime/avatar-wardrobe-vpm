@@ -78,6 +78,7 @@ namespace OutfitToggleGenerator
                 case "/photo-history.css": uiFile = "photo-history.css"; uiMime = "text/css"; break;
                 case "/drag-drop.js": uiFile = "drag-drop.js"; uiMime = "application/javascript"; break;
                 case "/organize.js": uiFile = "organize.js"; uiMime = "application/javascript"; break;
+                case "/catalog-actions.js": uiFile = "catalog-actions.js"; uiMime = "application/javascript"; break;
                 case "/preset-appearance.js": uiFile = "preset-appearance.js"; uiMime = "application/javascript"; break;
                 case "/appearance-editor.js": uiFile = "appearance-editor.js"; uiMime = "application/javascript"; break;
                 case "/appearance-editor.css": uiFile = "appearance-editor.css"; uiMime = "text/css"; break;
@@ -386,9 +387,10 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("target", out target);
                 string group;
                 query.TryGetValue("group", out group);
-                // Missing means enabled for clients from before this option.
+                query.TryGetValue("sync", out var sync);
+                // Missing toggles means enabled for clients from before this option; missing sync means off.
                 WriteMainJson(context, () => Install(
-                    guid, allow == "1", toggles != "0", switchVariant == "1", target ?? string.Empty, group ?? string.Empty, query.ContainsKey("replaceId") ? query["replaceId"] : "", query.ContainsKey("copy") && query["copy"] == "1"), requestCode);
+                    guid, allow == "1", toggles != "0", switchVariant == "1", target ?? string.Empty, group ?? string.Empty, query.ContainsKey("replaceId") ? query["replaceId"] : "", query.ContainsKey("copy") && query["copy"] == "1", sync == "1"), requestCode);
                 return;
             }
             if (path == "/api/scene_upload_thumbnail")

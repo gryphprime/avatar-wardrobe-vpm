@@ -263,6 +263,14 @@ namespace OutfitToggleGenerator
             EditorUtility.SetDirty(generated);
         }
 
+        // Used when wearing an item: follow the main body mesh unless the item already
+        // follows one, so a later Customize choice is never overwritten.
+        internal static void EnsureBlendshapeSync(VRCAvatarDescriptor avatar, GameObject item)
+        {
+            if (avatar == null || item == null || HasBlendshapeSync(item)) return;
+            SetBlendshapeSync(avatar, item, BodyMeshes(avatar, item).FirstOrDefault());
+        }
+
         internal static int BlendshapeSyncCandidates(GameObject item, SkinnedMeshRenderer source)
         {
             if (item == null || source == null) return 0;

@@ -14,7 +14,7 @@
     input=input||{};
     var payload={};
     ['variantId','assetVersion','instanceId','previewToken','undoToken','view','menuGroup','itemPath'].forEach(function(field){if(input[field]!=null)payload[field]=String(input[field]);});
-    ['addCopy','allowUnverified','createToggles','before'].forEach(function(field){if(input[field]!=null)payload[field]=!!input[field];});
+    ['addCopy','allowUnverified','createToggles','followBody','before'].forEach(function(field){if(input[field]!=null)payload[field]=!!input[field];});
     payload.zoom=input.zoom==null?1:Number(input.zoom);
     if(!Number.isFinite(payload.zoom)||payload.zoom<=0||payload.zoom>3)throw new Error(L("ui.invalid.snapshot.zoom","Invalid snapshot zoom."));
     if(type!=='render-snapshot'&&type!=='prepare-preview'&&type!=='capture-source'&&type!=='undo-operation'&&!/^[a-f0-9]{32}$/i.test(payload.variantId||''))throw new Error(L("ui.choose.a.specific.outfit.variant.first","Choose a specific outfit variant first."));

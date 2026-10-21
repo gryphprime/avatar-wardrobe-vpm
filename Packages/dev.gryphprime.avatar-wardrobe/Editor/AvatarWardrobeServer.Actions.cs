@@ -464,7 +464,7 @@ namespace OutfitToggleGenerator
             return new ResultDto { ok = 1, message = WardrobeStrings.T("preset.assigned") };
         }
 
-        private static ResultDto Install(string guid, bool allow, bool createToggles, bool switchVariant, string target, string menuGroup = "", string replaceId = "", bool addCopy = false)
+        private static ResultDto Install(string guid, bool allow, bool createToggles, bool switchVariant, string target, string menuGroup = "", string replaceId = "", bool addCopy = false, bool followBody = false)
         {
             if (SceneAvatar == null)
                 return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
@@ -548,6 +548,7 @@ namespace OutfitToggleGenerator
                 OutfitToggleGenerator.SyncMenuGroups(SceneAvatar);
                 if (createToggles) OutfitToggleGenerator.GeneratePartToggles(SceneAvatar, result.instance);
                 else OutfitToggleGenerator.RemovePartToggles(result.instance);
+                if (followBody) OutfitToggleGenerator.EnsureBlendshapeSync(SceneAvatar, result.instance);
                 InvalidateInstalled();
                 return new ResultDto { ok = 1, message = result.message };
             });

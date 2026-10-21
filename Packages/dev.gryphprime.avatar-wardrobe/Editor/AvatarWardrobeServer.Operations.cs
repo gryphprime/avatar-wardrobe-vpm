@@ -378,7 +378,7 @@ namespace OutfitToggleGenerator
                     if (c.type == "remove-outfit") result = RemovePresetItem(c.payload.variantId, c.target.scopeId,
                         AnimationUtility.CalculateTransformPath(exact.transform, avatar.transform), exact.GetInstanceID().ToString());
                     else result = Install(c.payload.variantId, c.payload.allowUnverified, c.payload.createToggles,
-                        c.type == "replace-outfit", c.target.scopeId, c.payload.menuGroup ?? "", exact == null ? "" : exact.GetInstanceID().ToString(), c.payload.addCopy);
+                        c.type == "replace-outfit", c.target.scopeId, c.payload.menuGroup ?? "", exact == null ? "" : exact.GetInstanceID().ToString(), c.payload.addCopy, c.payload.followBody);
                     if (result.ok != 1) throw new InvalidOperationException(result.message);
                     outcome.message = result.message;
                     // Only the installed outfit root is an edit result; nested prefab parts are not independent copies.
