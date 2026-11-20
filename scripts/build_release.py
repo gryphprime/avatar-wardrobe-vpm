@@ -57,7 +57,7 @@ def build(live=False, tag=None, version=None):
             relative = path.relative_to(PACKAGE)
             if path.is_symlink():
                 raise ValueError(f'Symlink prohibited: {relative}')
-            if any(part.startswith('._') or part in {'.DS_Store', '__pycache__', '.git'} for part in relative.parts) or path.suffix == '.pyc':
+            if any(part.startswith('._') or part.endswith('~') or part in {'.DS_Store', '__pycache__', '.git'} for part in relative.parts) or path.suffix == '.pyc':
                 continue
             if not path.is_file():
                 continue
