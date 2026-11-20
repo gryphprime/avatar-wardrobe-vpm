@@ -60,7 +60,8 @@ namespace ShiroTools
         private const string NS_DESC        = "ShiroNewOutfit_DescTemplate";
         private const string NS_NAME        = "ShiroNewOutfit_NameTemplate";
         private const string NS_RELEASE     = "ShiroNewOutfit_Release";          // "private" / "public"
-        private const string NS_THUMB_MODE  = "ShiroNewOutfit_ThumbMode";        // "scene" / "image"
+        // Legacy global thumbnail mode; read once as the default Look thumbnail (OutfitThumbnails.cs).
+        private const string NS_THUMB_MODE  = "ShiroNewOutfit_ThumbMode";        // "scene" / "sceneview" / "image"
         private const string NS_THUMB_IMG   = "ShiroNewOutfit_ThumbImagePath";   // asset or absolute path
         private const string NS_BG_COLOR    = "ShiroNewOutfit_BgColor";          // html RGBA
         private const string NS_AUTO_SPS    = "ShiroNewOutfit_AutoDetectSps";
@@ -82,8 +83,6 @@ namespace ShiroTools
         private string _nsDescTemplate;
         private string _nsNameTemplate;
         private string _nsRelease;
-        private string _nsThumbMode;
-        private string _nsThumbImagePath;
         private Color  _nsBgColor = new Color(0.10f, 0.10f, 0.12f, 1f);
         private bool   _nsAutoSps;
         private bool   _nsAutoFix;
@@ -101,8 +100,6 @@ namespace ShiroTools
             public string Name;
             public string Description;
             public string Release = "private";
-            public string ThumbMode = "scene";   // "scene" (auto-framed) / "sceneview" (current view) / "image"
-            public string ImagePath = "";
             public readonly Dictionary<string, bool> Tags = new Dictionary<string, bool>();
         }
 
@@ -122,8 +119,6 @@ namespace ShiroTools
             _nsDescTemplate   = EditorPrefs.GetString(NS_DESC, "");
             _nsNameTemplate   = EditorPrefs.GetString(NS_NAME, "{outfit}");
             _nsRelease        = NormalizeUploadRelease(EditorPrefs.GetString(NS_RELEASE, "private"));
-            _nsThumbMode      = EditorPrefs.GetString(NS_THUMB_MODE, "scene");
-            _nsThumbImagePath = EditorPrefs.GetString(NS_THUMB_IMG, "");
             _nsAutoSps        = EditorPrefs.GetBool(NS_AUTO_SPS, true);
             _nsAutoFix        = EditorPrefs.GetBool(NS_AUTO_FIX, true);
             _nsAutoConsent    = EditorPrefs.GetBool(NS_AUTO_CONSENT, true);
@@ -141,8 +136,6 @@ namespace ShiroTools
             EditorPrefs.SetString(NS_DESC, _nsDescTemplate ?? "");
             EditorPrefs.SetString(NS_NAME, string.IsNullOrWhiteSpace(_nsNameTemplate) ? "{outfit}" : _nsNameTemplate);
             EditorPrefs.SetString(NS_RELEASE, _nsRelease);
-            EditorPrefs.SetString(NS_THUMB_MODE, _nsThumbMode);
-            EditorPrefs.SetString(NS_THUMB_IMG, _nsThumbImagePath ?? "");
             EditorPrefs.SetBool(NS_AUTO_SPS, _nsAutoSps);
             EditorPrefs.SetBool(NS_AUTO_FIX, _nsAutoFix);
             EditorPrefs.SetBool(NS_AUTO_CONSENT, _nsAutoConsent);
@@ -250,58 +243,24 @@ namespace ShiroTools
 
             EditorGUILayout.Space(4);
             EditorGUILayout.LabelField("Thumbnail", EditorStyles.miniBoldLabel);
+            DrawThumbnailSummary("Default", ThumbPlanLabel(ToPlan(EffectiveThumbDefault(), false)));
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("Source", GUILayout.Width(110));
-                int tIdx = _nsThumbMode == "image" ? 2 : (_nsThumbMode == "sceneview" ? 1 : 0);
-                tIdx = EditorGUILayout.Popup(tIdx, new[]
-                {
-                    "Standard view (auto-framed front shot)",
-                    "Scene view camera (exactly what you see)",
-                    "Default image"
-                });
-                _nsThumbMode = tIdx == 2 ? "image" : (tIdx == 1 ? "sceneview" : "scene");
+                EditorGUILayout.LabelField("Background", GUILayout.Width(110));
+                _nsBgColor = EditorGUILayout.ColorField(_nsBgColor);
             }
-            if (_nsThumbMode != "image")
+            using (new EditorGUILayout.HorizontalScope())
             {
-                if (_nsThumbMode == "sceneview")
-                    EditorGUILayout.LabelField(
-                        "Uses your current Scene view angle & position. Arrange the view first, then check with Preview. " +
-                        "The scene background is replaced by the fill color below.",
-                        EditorStyles.wordWrappedMiniLabel);
-                using (new EditorGUILayout.HorizontalScope())
+                GUILayout.Space(114);
+                using (new EditorGUI.DisabledScope(_avatarRoot == null))
                 {
-                    EditorGUILayout.LabelField("Background", GUILayout.Width(110));
-                    _nsBgColor = EditorGUILayout.ColorField(_nsBgColor);
-                }
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    GUILayout.Space(114);
-                    using (new EditorGUI.DisabledScope(_avatarRoot == null))
+                    if (GUILayout.Button("👁 Preview portrait", EditorStyles.miniButton, GUILayout.Width(140)))
                     {
-                        if (GUILayout.Button("👁 Preview thumbnail", EditorStyles.miniButton, GUILayout.Width(140)))
-                        {
-                            string p = CaptureSceneThumbnail(_nsThumbMode == "sceneview");
-                            if (p != null) ThumbPreviewWindow.Open(p);
-                            else SetStatus("Thumbnail preview failed — see Console.", MessageType.Error);
-                        }
+                        string p = CaptureSceneThumbnail();
+                        if (p != null) ThumbPreviewWindow.Open(p);
+                        else SetStatus("Thumbnail preview failed — see Console.", MessageType.Error);
                     }
                 }
-            }
-            else
-            {
-                Texture2D tex = null;
-                if (!string.IsNullOrEmpty(_nsThumbImagePath) && _nsThumbImagePath.StartsWith("Assets"))
-                    tex = AssetDatabase.LoadAssetAtPath<Texture2D>(_nsThumbImagePath);
-
-                var picked = (Texture2D)EditorGUILayout.ObjectField("Image", tex, typeof(Texture2D), false);
-                if (picked != null)
-                {
-                    string p = AssetDatabase.GetAssetPath(picked);
-                    if (!string.IsNullOrEmpty(p)) _nsThumbImagePath = p;
-                }
-                EditorGUILayout.LabelField(string.IsNullOrEmpty(_nsThumbImagePath) ? "(none)" : _nsThumbImagePath,
-                    EditorStyles.miniLabel);
             }
 
             EditorGUILayout.Space(4);
@@ -352,9 +311,7 @@ namespace ShiroTools
             {
                 Name        = ApplyTokens(_nsNameTemplate, entry),
                 Description = ApplyTokens(_nsDescTemplate, entry),
-                Release     = _nsRelease,
-                ThumbMode   = _nsThumbMode,
-                ImagePath   = _nsThumbImagePath
+                Release     = _nsRelease
             };
             foreach (var tag in CONTENT_TAGS)
                 d.Tags[tag] = _nsTagDefaults.TryGetValue(tag, out var b) && b;
@@ -384,34 +341,7 @@ namespace ShiroTools
                 d.Tags[tag] = EditorGUILayout.ToggleLeft(ContentTagLabel(tag),
                     d.Tags.TryGetValue(tag, out var b) && b);
 
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.LabelField("Thumbnail", GUILayout.Width(110));
-                int tIdx = d.ThumbMode == "image" ? 2 : (d.ThumbMode == "sceneview" ? 1 : 0);
-                tIdx = EditorGUILayout.Popup(tIdx, new[]
-                {
-                    "Standard view (auto-framed front shot)",
-                    "Scene view camera (exactly what you see)",
-                    "Default image"
-                });
-                d.ThumbMode = tIdx == 2 ? "image" : (tIdx == 1 ? "sceneview" : "scene");
-            }
-            if (d.ThumbMode == "image")
-            {
-                Texture2D tex = (!string.IsNullOrEmpty(d.ImagePath) && d.ImagePath.StartsWith("Assets"))
-                    ? AssetDatabase.LoadAssetAtPath<Texture2D>(d.ImagePath) : null;
-                var picked = (Texture2D)EditorGUILayout.ObjectField("Image", tex, typeof(Texture2D), false);
-                if (picked != null)
-                {
-                    string p = AssetDatabase.GetAssetPath(picked);
-                    if (!string.IsNullOrEmpty(p)) d.ImagePath = p;
-                }
-            }
-            else if (GUILayout.Button("👁 Preview thumbnail", EditorStyles.miniButton, GUILayout.Width(140)))
-            {
-                string p = CaptureSceneThumbnail(d.ThumbMode == "sceneview");
-                if (p != null) ThumbPreviewWindow.Open(p);
-            }
+            DrawThumbnailSummary("Thumbnail", ThumbPlanLabel(EffectiveThumb(entry.Data)));
 
             EditorGUILayout.Space(2);
             using (new EditorGUI.DisabledScope(_isBatchUploading || _isExpressBusy))
@@ -507,6 +437,7 @@ namespace ShiroTools
                 ClaimResumeOwnership(); // live-owner mark so a second view defers (see OutfitBatchUploader)
                 SessionState.SetString(SESSION_EXPRESS_OUTFIT, entry.Name);
                 SessionState.SetString(SESSION_EXPRESS_THUMB, thumbPath);
+                SessionState.SetString(SESSION_EXPRESS_THUMB_HASH, HashThumbFile(thumbPath) ?? "");
                 SessionState.SetString(SESSION_EXPRESS_DESC, desc ?? "");
                 SessionState.SetString(SESSION_EXPRESS_NAME, name);
                 SessionState.SetString(SESSION_EXPRESS_TAGS, string.Join(";", tags));
@@ -623,6 +554,11 @@ namespace ShiroTools
                     if (data != null)
                     {
                         data.blueprintId = newId;
+                        if (!string.IsNullOrEmpty(thumbPath))
+                        {
+                            data.thumbSentHash = SessionState.GetString(SESSION_EXPRESS_THUMB_HASH, "");
+                            data.thumbSentBlueprint = newId;
+                        }
                         OutfitProjectData.MarkUploaded(data, GetCurrentPlatform().ToString());
                         _expressSucceeded = true;
                     }
@@ -789,6 +725,7 @@ namespace ShiroTools
             SessionState.EraseBool(SESSION_EXPRESS_PENDING);
             SessionState.EraseString(SESSION_EXPRESS_OUTFIT);
             SessionState.EraseString(SESSION_EXPRESS_THUMB);
+            SessionState.EraseString(SESSION_EXPRESS_THUMB_HASH);
             SessionState.EraseString(SESSION_EXPRESS_DESC);
             SessionState.EraseString(SESSION_EXPRESS_NAME);
             SessionState.EraseString(SESSION_EXPRESS_TAGS);
@@ -948,85 +885,25 @@ namespace ShiroTools
         }
 
         // ---- Thumbnail ----
+        /// <summary>Renders this Look's thumbnail plan (see OutfitThumbnails.cs) for a
+        /// new avatar or a manual thumbnail update. Falls back to the portrait when
+        /// the Look's camera or image is unavailable. Returns a temp PNG path or null.</summary>
         private string ResolveThumbnailPath(OutfitEntry entry, AdvancedDraft draft)
         {
-            string mode = draft != null ? draft.ThumbMode : _nsThumbMode;
-            string imgPath = draft != null ? draft.ImagePath : _nsThumbImagePath;
-
-            if (mode == "image" && !string.IsNullOrEmpty(imgPath))
-            {
-                try
-                {
-                    string abs = imgPath.StartsWith("Assets")
-                        ? Path.GetFullPath(imgPath)
-                        : imgPath;
-                    if (File.Exists(abs)) return abs;
-                    Debug.LogWarning("[OutfitBatchUploader] Default thumbnail image not found, falling back to scene capture: " + abs);
-                }
-                catch (Exception ex) { Debug.LogWarning("[OutfitBatchUploader] Thumbnail path error: " + ex.Message); }
-            }
-
-            return CaptureSceneThumbnail(mode == "sceneview");
+            LoadNewSetupDefaults();
+            string path = RenderThumbnail(_avatarRoot, EffectiveThumb(entry?.Data), _nsBgColor, true, out _, out var warning);
+            if (warning != null)
+                Debug.LogWarning("[OutfitBatchUploader] Thumbnail for '" + entry?.Name + "': " + warning + " Using the automatic portrait.");
+            return path;
         }
 
-        /// <summary>Renders the avatar with a temporary camera against a solid (filled) background
-        /// and writes a 1200x900 PNG to a temp file. Returns the absolute path or null.
-        /// With <paramref name="useSceneView"/> the current Scene view's camera angle/position/FOV
-        /// is used; otherwise a head-and-upper-body portrait. Only the selected avatar is rendered.</summary>
-        private string CaptureSceneThumbnail(bool useSceneView = false)
+        /// <summary>Automatic portrait of the selected avatar as a temp PNG (IMGUI preview).</summary>
+        private string CaptureSceneThumbnail()
         {
-            const int W = 1200, H = 900;
-            GameObject camGo = null;
-            RenderTexture rt = null;
-            RenderTexture prevActive = RenderTexture.active;
             try
             {
-                camGo = new GameObject("~ShiroThumbCam") { hideFlags = HideFlags.HideAndDontSave };
-                var cam = camGo.AddComponent<Camera>();
-                cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = _nsBgColor;           // fills the background
-                cam.fieldOfView = 30f;
-                cam.nearClipPlane = 0.01f;
-                cam.farClipPlane = 100f;
-
-                if (useSceneView)
-                {
-                    var sv = SceneView.lastActiveSceneView;
-                    if (sv != null && sv.camera != null)
-                    {
-                        cam.transform.position = sv.camera.transform.position;
-                        cam.transform.rotation = sv.camera.transform.rotation;
-                        cam.fieldOfView        = sv.camera.fieldOfView;
-                        cam.orthographic       = sv.camera.orthographic;
-                        cam.orthographicSize   = sv.camera.orthographicSize;
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[OutfitBatchUploader] No Scene view open — falling back to the automatic portrait.");
-                        useSceneView = false;
-                    }
-                }
-
-                if (!useSceneView)
-                {
-                    FrameThumbnailPortrait(cam, _avatarRoot);
-                }
-
-                rt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32);
-                cam.targetTexture = rt;
-                using (new ThumbnailIsolationScope(_avatarRoot))
-                    cam.Render();
-
-                RenderTexture.active = rt;
-                var tex = new Texture2D(W, H, TextureFormat.RGB24, false);
-                tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
-                tex.Apply();
-
-                byte[] png = tex.EncodeToPNG();
-                DestroyImmediate(tex);
-
-                string path = Path.Combine(Path.GetTempPath(),
-                    "shiro_thumb_" + DateTime.Now.Ticks + ".png");
+                var png = RenderPortraitThumbnail(_avatarRoot, _nsBgColor, null);
+                string path = Path.Combine(Path.GetTempPath(), "shiro_thumb_" + DateTime.Now.Ticks + ".png");
                 File.WriteAllBytes(path, png);
                 return path;
             }
@@ -1035,11 +912,25 @@ namespace ShiroTools
                 Debug.LogError("[OutfitBatchUploader] Thumbnail capture failed: " + ex);
                 return null;
             }
-            finally
+        }
+
+        private static string ThumbPlanLabel(ThumbPlan plan)
+        {
+            string source = plan.source == "camera" ? "Camera" : plan.source == "image" ? "Image" : "Auto";
+            return source + (plan.update == "always" ? " · update on upload" : " · keep on re-upload") + (plan.inherited ? " (default)" : "");
+        }
+
+        private static void DrawThumbnailSummary(string label, string value)
+        {
+            using (new EditorGUILayout.HorizontalScope())
             {
-                RenderTexture.active = prevActive;
-                if (rt != null) { rt.Release(); DestroyImmediate(rt); }
-                if (camGo != null) DestroyImmediate(camGo);
+                EditorGUILayout.LabelField(label, GUILayout.Width(110));
+                EditorGUILayout.LabelField(value, EditorStyles.miniLabel);
+                if (GUILayout.Button("Edit in Wardrobe", EditorStyles.miniButton, GUILayout.Width(110)))
+                {
+                    if (global::OutfitToggleGenerator.AvatarWardrobeServer.Running || global::OutfitToggleGenerator.AvatarWardrobeServer.Start())
+                        Application.OpenURL(global::OutfitToggleGenerator.AvatarWardrobeServer.Url + "v2");
+                }
             }
         }
 

@@ -697,6 +697,10 @@
           "v": "Open Wardrobe"
         },
         {
+          "k": "win.openV2",
+          "v": "Open Wardrobe V2"
+        },
+        {
           "k": "win.hint",
           "v": "Browse, search, and install from the browser. Keep this window open — installs go to the target above."
         },
@@ -2619,6 +2623,22 @@
         {
           "k": "ui.preset.shown.in.unity",
           "v": "Preset shown in Unity"
+        },
+        {
+          "k": "ui.test.in.play.mode",
+          "v": "Test in Play Mode"
+        },
+        {
+          "k": "ui.test.in.play.mode.help",
+          "v": "Enter Play Mode with only this preset, staged exactly as it uploads. Leaving Play Mode restores your scene."
+        },
+        {
+          "k": "ui.play.mode.test.started",
+          "v": "Entering Play Mode with this preset only"
+        },
+        {
+          "k": "ui.could.not.start.play.mode.test",
+          "v": "Could not start the Play Mode test."
         },
         {
           "k": "ui.id",
@@ -5435,6 +5455,10 @@
           "v": "ワードローブを開く"
         },
         {
+          "k": "win.openV2",
+          "v": "ワードローブ V2 を開く"
+        },
+        {
           "k": "win.hint",
           "v": "ブラウザから閲覧・検索・インストールします。このウィンドウは開いたままにしてください。インストール先は上記ターゲットです。"
         },
@@ -7357,6 +7381,22 @@
         {
           "k": "ui.preset.shown.in.unity",
           "v": "プリセット"
+        },
+        {
+          "k": "ui.test.in.play.mode",
+          "v": "Play Modeでテスト"
+        },
+        {
+          "k": "ui.test.in.play.mode.help",
+          "v": "このプリセットだけをアップロード時と同じ構成でPlay Modeに入ります。Play Modeを終了するとシーンは元に戻ります。"
+        },
+        {
+          "k": "ui.play.mode.test.started",
+          "v": "このプリセットのみでPlay Modeに入ります"
+        },
+        {
+          "k": "ui.could.not.start.play.mode.test",
+          "v": "Play Modeテストを開始できませんでした。"
         },
         {
           "k": "ui.id",
@@ -10173,6 +10213,10 @@
           "v": "열린 워드로브"
         },
         {
+          "k": "win.openV2",
+          "v": "워드로브 V2 열기"
+        },
+        {
           "k": "win.hint",
           "v": "브라우저에서 탐색, 검색 및 설치합니다. 이 창을 열어두세요. 설치는 위의 대상으로 이동합니다."
         },
@@ -12095,6 +12139,22 @@
         {
           "k": "ui.preset.shown.in.unity",
           "v": "Unity에 표시된 프리셋"
+        },
+        {
+          "k": "ui.test.in.play.mode",
+          "v": "Play Mode에서 테스트"
+        },
+        {
+          "k": "ui.test.in.play.mode.help",
+          "v": "이 프리셋만 업로드와 동일하게 구성하여 Play Mode에 들어갑니다. Play Mode를 종료하면 씬이 복원됩니다."
+        },
+        {
+          "k": "ui.play.mode.test.started",
+          "v": "이 프리셋만으로 Play Mode에 들어갑니다"
+        },
+        {
+          "k": "ui.could.not.start.play.mode.test",
+          "v": "Play Mode 테스트를 시작할 수 없습니다."
         },
         {
           "k": "ui.id",
@@ -14911,6 +14971,10 @@
           "v": "开放式衣橱"
         },
         {
+          "k": "win.openV2",
+          "v": "打开衣橱 V2"
+        },
+        {
           "k": "win.hint",
           "v": "从浏览器中浏览、搜索和安装。保持此窗口打开 - 安装到上面的目标。"
         },
@@ -16833,6 +16897,22 @@
         {
           "k": "ui.preset.shown.in.unity",
           "v": "Unity 中显示的预设"
+        },
+        {
+          "k": "ui.test.in.play.mode",
+          "v": "在 Play Mode 中测试"
+        },
+        {
+          "k": "ui.test.in.play.mode.help",
+          "v": "仅以此预设进入 Play Mode，构成与上传时完全相同。退出 Play Mode 后场景会恢复。"
+        },
+        {
+          "k": "ui.play.mode.test.started",
+          "v": "正在仅以此预设进入 Play Mode"
+        },
+        {
+          "k": "ui.could.not.start.play.mode.test",
+          "v": "无法开始 Play Mode 测试。"
         },
         {
           "k": "ui.id",

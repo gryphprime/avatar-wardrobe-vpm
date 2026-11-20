@@ -52,7 +52,7 @@
     delete init.timeout; delete init.binary;
     var url = new URL(path, location.href);
     var reads = new Set(["organization", "state", "families", "family", "installed", "nameResult", "shops", "diag", "thumb",
-      "write_result", "operation_context", "operation_result", "snapshot", "preset_appearance", "preset_appearance_export", "appearance_snapshot", "appearance_textures", "appearance_tools", "menu_snapshot", "scene_snapshot", "scene_upload_review", "upload_result", "upload_status", "batch_state", "batch_job", "batch_export", "presets", "prefab_presets", "batch_thumb_img", "batch_unassigned", "preset_copy_sources"]);
+      "write_result", "operation_context", "operation_result", "snapshot", "preset_appearance", "preset_appearance_export", "appearance_snapshot", "appearance_textures", "appearance_tools", "menu_snapshot", "scene_snapshot", "scene_upload_review", "upload_result", "upload_status", "batch_state", "batch_job", "batch_export", "presets", "prefab_presets", "batch_thumb_img", "batch_unassigned", "preset_copy_sources", "look_thumb", "look_thumb_original"]);
     var endpoint = url.pathname.split("/").pop(), op = url.searchParams.get("op");
     var read = reads.has(endpoint) || (["batch_blendshape", "batch_item", "batch_faceemo"].includes(endpoint) && (!op || op === "get"));
     if (endpoint === "menu_groups" && !op) read = true;

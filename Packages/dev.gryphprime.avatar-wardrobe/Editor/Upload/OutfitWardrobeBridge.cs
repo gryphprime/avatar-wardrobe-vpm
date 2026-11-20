@@ -69,7 +69,54 @@ namespace ShiroTools
                 return "Not logged in. Open the VRChat SDK Control Panel, log in, then retry the upload in Avatar Wardrobe.";
             if (!TryGetWardrobeBuilder(out _))
                 return "VRC SDK builder not available. Open the VRChat SDK Control Panel, then retry the upload in Avatar Wardrobe.";
+            if (OpenFileHandleCount() >= FileHandleUploadLimit)
+                return "Unity has too many open files, so VRChat network calls (consent, upload) will fail. Restart Unity, then retry the upload in Avatar Wardrobe. " +
+                       "On exFAT drives this is usually Library/ShaderCache.db leaking handles; move the project to an APFS drive to prevent it.";
             return null;
+        }
+
+        // Mono's socket selector on macOS rejects descriptors above ~1024; once
+        // leaked handles fill the low range, every new HTTP connection is disposed.
+        const int FileHandleUploadLimit = 960;
+        static int sHandleCount = -1;
+        static double sHandleCountAt;
+
+        static int OpenFileHandleCount()
+        {
+            if (Application.platform != RuntimePlatform.OSXEditor && Application.platform != RuntimePlatform.LinuxEditor) return 0;
+            double now = EditorApplication.timeSinceStartup;
+            if (sHandleCount >= 0 && now - sHandleCountAt < 5) return sHandleCount;
+            try { sHandleCount = System.IO.Directory.GetFileSystemEntries("/dev/fd").Length; }
+            catch { sHandleCount = 0; }
+            sHandleCountAt = now;
+            return sHandleCount;
+        }
+
+        /// <summary>Applies the same per-preset activation an upload performs
+        /// (holder tags, blendshape overrides, Items include states, FaceEmo)
+        /// to a staged avatar, without building. Used by the Play Mode test so
+        /// the emulated avatar matches what the upload would send.</summary>
+        internal static string ActivateStagedPreset(GameObject root, string outfitName)
+        {
+            if (root == null || !root.scene.IsValid() ||
+                !root.scene.path.StartsWith("Assets/Generated/WardrobeUploads/", StringComparison.Ordinal))
+                return "The staged preset avatar is not valid.";
+            var engine = CreateEmbeddedDrawer();
+            try
+            {
+                engine._avatarRoot = root;
+                engine.AutoDetectSkin();
+                engine.RebuildOutfitList();
+                var entry = engine._outfits.FirstOrDefault(o => o != null && o.Go != null && o.Name == outfitName);
+                if (entry == null) return $"Preset '{outfitName}' not found under '{root.name}/Outfits'.";
+                engine.ActivateOutfit(entry);
+                return null;
+            }
+            finally
+            {
+                engine._avatarRoot = null;
+                UnityEngine.Object.DestroyImmediate(engine);
+            }
         }
 
         /// <summary>Uploads one preset child headless (Windows only, v1).

@@ -149,29 +149,7 @@ namespace ShiroTools
 
                 EditorGUILayout.Space(4);
                 EditorGUILayout.LabelField("Thumbnail", EditorStyles.miniBoldLabel);
-                int tIdx = _draft.ThumbMode == "image" ? 2 : (_draft.ThumbMode == "sceneview" ? 1 : 0);
-                tIdx = EditorGUILayout.Popup(tIdx, new[]
-                {
-                    "Standard view (auto-framed front shot)",
-                    "Scene view camera (exactly what you see)",
-                    "Default image"
-                });
-                _draft.ThumbMode = tIdx == 2 ? "image" : (tIdx == 1 ? "sceneview" : "scene");
-                if (_draft.ThumbMode == "image")
-                {
-                    Texture2D tex = (!string.IsNullOrEmpty(_draft.ImagePath) && _draft.ImagePath.StartsWith("Assets"))
-                        ? AssetDatabase.LoadAssetAtPath<Texture2D>(_draft.ImagePath) : null;
-                    var picked = (Texture2D)EditorGUILayout.ObjectField("Image", tex, typeof(Texture2D), false);
-                    if (picked != null)
-                    {
-                        var p = AssetDatabase.GetAssetPath(picked);
-                        if (!string.IsNullOrEmpty(p)) _draft.ImagePath = p;
-                    }
-                }
-                else if (_draft.ThumbMode == "sceneview")
-                    EditorGUILayout.LabelField(
-                        "Uses your current Scene view angle — arrange the view before pressing Create & Upload.",
-                        EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.LabelField("Set per Look in Avatar Wardrobe (Upload dialog).", EditorStyles.miniLabel);
 
                 EditorGUILayout.EndScrollView();
 
