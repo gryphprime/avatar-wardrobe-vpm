@@ -44,7 +44,7 @@
     var endpoint=path.split('?')[0].split('/').pop(),query=path.split('?')[1]||'';
     var opMatch=query.match(/(?:^|&)op=([^&]*)/),op=opMatch?decodeURIComponent(opMatch[1]):'';
     var mutation=op&&op!=='get';
-    if(['batch_defaults_set','batch_config_set','batch_preset_config','preset_include','preset_save','preset_delete','preset_remove_item','preset_show','batch_preset_from_scene','batch_import','preset_copy'].includes(endpoint))return true;
+    if(['batch_defaults_set','batch_config_set','batch_preset_config','preset_include','preset_save','preset_delete','preset_remove_item','preset_show','preset_play','batch_preset_from_scene','batch_import','preset_copy'].includes(endpoint))return true;
     if(endpoint==='batch_preset_blends')return !!mutation||/(?:^|&)(bs|weight|pinned)=/.test(query);
     if(endpoint==='batch_preset_items')return !!mutation||/(?:^|&)(item|include)=/.test(query);
     if(['menu_groups','batch_preset_faceemo','batch_item'].includes(endpoint))return !!mutation;
@@ -470,7 +470,7 @@
   function presetActionsMenu(p,quick){
     var label=U('preset.actions')+': '+p.name;
     return '<details class="up-preset-menu"><summary aria-label="'+esc(label)+'" title="'+esc(label)+'">•••</summary><div>'+
-      (quick?'<button data-pact="upload">'+esc(T('upload.upload'))+'</button><button data-pact="showunity">'+esc(T('ui.show.in.unity'))+'</button>':'')+
+      (quick?'<button data-pact="upload">'+esc(T('upload.upload'))+'</button><button data-pact="showunity">'+esc(T('ui.show.in.unity'))+'</button><button data-pact="playtest" title="'+esc(T('ui.test.in.play.mode.help'))+'">'+esc(T('ui.test.in.play.mode'))+'</button>':'')+
       '<button data-pact="rename">'+esc(T('scene.rename'))+'</button><button class="danger" data-pact="removepreset">'+esc(U('preset.remove'))+'</button></div></details>';
   }
   function renderPresetWorkspace(list){
@@ -509,7 +509,7 @@
     var signature=JSON.stringify(p)+'|'+T('upload.upload');
     if(inspector._signature!==signature){
       inspector._signature=signature;inspector.dataset.preset=selected;inspector.classList.toggle('is-shared',selected==='common');
-      inspector.innerHTML='<div class="up-inspector-heading"><h2>'+esc(selected==='common'?U('preset.shared'):p.name)+'</h2>'+(selected!=='common'?presetActionsMenu(p,false):'')+'</div><div class="up-inspector-summary"><span class="up-thumb-strip">'+(p.members||[]).slice(0,selected==='common'?4:1).map(presetThumb).join('')+'</span><div><p>'+esc(U('preset.itemCount',(p.members||[]).length))+'</p><p>'+esc(selected==='common'?U('preset.commonHelp'):presetPlatforms(p))+'</p>'+(selected==='common'?'':'<span class="up-upload-status '+(p.lastUpload?'uploaded':'')+'">'+esc(presetStatus(p))+'</span>')+'</div></div>'+(selected==='common'?'':'<div class="up-inspector-actions"><button data-pact="showunity">'+esc(T('ui.show.in.unity'))+'</button><button class="primary" data-pact="upload">'+esc(T('upload.upload'))+'</button></div>')+'<div class="up-inspector-tabs" role="tablist"><button role="tab" data-detail-tab="outfit">'+esc(U('preset.outfit'))+'</button><button role="tab" data-detail-tab="toggles">'+esc(U('preset.toggles'))+'</button></div><div class="up-detail" data-inspector-body></div>';
+      inspector.innerHTML='<div class="up-inspector-heading"><h2>'+esc(selected==='common'?U('preset.shared'):p.name)+'</h2>'+(selected!=='common'?presetActionsMenu(p,false):'')+'</div><div class="up-inspector-summary"><span class="up-thumb-strip">'+(p.members||[]).slice(0,selected==='common'?4:1).map(presetThumb).join('')+'</span><div><p>'+esc(U('preset.itemCount',(p.members||[]).length))+'</p><p>'+esc(selected==='common'?U('preset.commonHelp'):presetPlatforms(p))+'</p>'+(selected==='common'?'':'<span class="up-upload-status '+(p.lastUpload?'uploaded':'')+'">'+esc(presetStatus(p))+'</span>')+'</div></div>'+(selected==='common'?'':'<div class="up-inspector-actions"><button data-pact="showunity">'+esc(T('ui.show.in.unity'))+'</button><button data-pact="playtest" title="'+esc(T('ui.test.in.play.mode.help'))+'">'+esc(T('ui.test.in.play.mode'))+'</button><button class="primary" data-pact="upload">'+esc(T('upload.upload'))+'</button></div>')+'<div class="up-inspector-tabs" role="tablist"><button role="tab" data-detail-tab="outfit">'+esc(U('preset.outfit'))+'</button><button role="tab" data-detail-tab="toggles">'+esc(U('preset.toggles'))+'</button></div><div class="up-detail" data-inspector-body></div>';
       var box=inspector.querySelector('[data-inspector-body]');
       if(selected==='common'){box.innerHTML='<section class="up-panel up-items-section" data-panel="items"><div data-itembody></div></section>';wirePresetPanels(selected,box);}
       else upFillPreset(selected,box);
@@ -692,6 +692,13 @@
       api("/api/preset_show?id="+encodeURIComponent(id)).then(function(result){
         if(!result||!result.ok) throw new Error(result&&result.message||T("ui.could.not.show.preset"));
         toast(T("ui.preset.shown.in.unity"),"ok");
+      }).catch(function(error){toast(error.message,"err");}).finally(function(){el.disabled=false;});
+    }
+    else if(act==="playtest"){
+      el.disabled=true;
+      api("/api/preset_play?id="+encodeURIComponent(id)).then(function(result){
+        if(!result||!result.ok) throw new Error(result&&result.message||T("ui.could.not.start.play.mode.test"));
+        toast(T("ui.play.mode.test.started"),"ok");
       }).catch(function(error){toast(error.message,"err");}).finally(function(){el.disabled=false;});
     }
     else if(act==="saveid"){
@@ -902,9 +909,7 @@
     upContentTags.forEach(function(t){ h += "<label><input type=" + qq("checkbox") + " data-dtag=" + qq(t) + (tagmap[t] ? " checked" : "") + "> " + esc(upTagLabels()[t] || t) + "</label> "; });
     h += ("</div><label>"+esc(U("defaults.version"))+" <select id=\"upDvmode\"><option value=\"0\"")+(d.versionMode?'':' selected')+(">"+esc(U("defaults.versionReplace"))+"</option><option value=\"1\"")+(d.versionMode?' selected':'')+(">"+esc(U("defaults.versionAppend"))+"</option></select></label></fieldset>");
     h += ("<fieldset class=\"up-default-group\"><legend>"+esc(U("defaults.thumbnail"))+"</legend>");
-    h += ("<label>"+esc(U("defaults.capture"))+" <select id=") + qq("upDthumb") + "><option value=" + qq("scene") + (d.thumbMode === "scene" ? " selected" : "") + (">"+esc(U("defaults.captureAuto"))+"</option><option value=") + qq("sceneview") + (d.thumbMode === "sceneview" ? " selected" : "") + (">"+esc(U("defaults.captureScene"))+"</option><option value=") + qq("image") + (d.thumbMode === "image" ? " selected" : "") + (">"+esc(U("defaults.captureImage"))+"</option></select></label>");
-    h += ("<div id=\"upThumbFileFields\" class=\"up-dependent\"><label>"+esc(U("defaults.imagePath"))+" <input id=\"upDthumbimg\" aria-describedby=\"upThumbFileHelp\" value=\"")+esc(d.thumbImage)+("\"></label><p id=\"upThumbFileHelp\" class=\"up-field-help\">"+esc(U("defaults.imageHelp"))+"</p></div>");
-    h += ("<div id=\"upThumbCaptureFields\" class=\"up-dependent\"><label>"+esc(U("defaults.background"))+" <input id=\"upDbg\" aria-describedby=\"upColorHelp\" value=\"")+esc(d.bgColor)+("\" size=\"10\"></label><p id=\"upColorHelp\" class=\"up-field-help\">"+esc(U("defaults.colorHelp"))+"</p></div></fieldset>");
+    h += ("<div id=\"upThumbCaptureFields\"><label>"+esc(U("defaults.background"))+" <input id=\"upDbg\" aria-describedby=\"upColorHelp\" value=\"")+esc(d.bgColor)+("\" size=\"10\"></label><p id=\"upColorHelp\" class=\"up-field-help\">"+esc(U("defaults.colorHelp"))+"</p></div></fieldset>");
     h += ("<fieldset class=\"up-default-group\"><legend>"+esc(U("defaults.automation"))+"</legend>");
     h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDautosps") + (d.autoSps ? " checked" : "") + ("> "+esc(U("defaults.sps"))+"</label><p class=\"up-field-help\">"+esc(U("defaults.spsHelp"))+"</p>");
     h += "<label><input type=" + qq("checkbox") + " id=" + qq("upDautofix") + (d.autoFix ? " checked" : "") + ("> "+esc(U("defaults.sdkFix"))+"</label><p class=\"up-field-help\">"+esc(U("defaults.sdkFixHelp"))+"</p>");
@@ -935,20 +940,18 @@
     });
     upEl("upLog").textContent = BS.logTail || "";
   }
-  function paintDefaultDependencies(){if(!upEl('upDthumb'))return;upEl('upThumbFileFields').hidden=upEl('upDthumb').value!=='image';upEl('upThumbCaptureFields').hidden=upEl('upDthumb').value==='image';upEl('upOptimizationFields').hidden=!upEl('upDopten').checked;}
+  function paintDefaultDependencies(){if(!upEl('upDopten'))return;upEl('upOptimizationFields').hidden=!upEl('upDopten').checked;}
   upEl("upDefsForm").addEventListener("input",function(){defaultsDirty=true;saveDraft();});
   upEl("upDefsForm").addEventListener("change",function(){defaultsDirty=true;paintDefaultDependencies();saveDraft();});
   upEl("upDefsSave").onclick = function(){
     var g = function(id){ var n = upEl(id); return n ? n.value : ""; };
     var c = function(id){ var n = upEl(id); return n && n.checked ? "1" : "0"; };
-    if(g('upDthumb')!=='image'&&!/^#?(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(g('upDbg'))){toast(U('defaults.invalidColor'),'err');upEl('upDbg').focus();return;}
+    if(!/^#?(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(g('upDbg'))){toast(U('defaults.invalidColor'),'err');upEl('upDbg').focus();return;}
     if(c('upDopten')==='1'&&Number(g('upDoptmin'))>Number(g('upDoptmax'))){toast(U('defaults.invalidResolution'),'err');upEl('upDoptmin').focus();return;}
     var savingValues=JSON.stringify(formValues());
     var url = "/api/batch_defaults_set?nameTemplate=" + encodeURIComponent(g("upDname"))
       + "&descTemplate=" + encodeURIComponent(g("upDdesc"))
       + "&release=" + encodeURIComponent(g("upDrel"))
-      + "&thumbMode=" + encodeURIComponent(g("upDthumb"))
-      + "&thumbImage=" + encodeURIComponent(g("upDthumbimg"))
       + "&bgColor=" + encodeURIComponent(g("upDbg"))
       + "&autoSps=" + c("upDautosps") + "&autoFix=" + c("upDautofix") + "&autoConsent=" + c("upDautoconsent")
       + "&optEnabled=" + c("upDopten") + "&optAsk=" + c("upDoptask")

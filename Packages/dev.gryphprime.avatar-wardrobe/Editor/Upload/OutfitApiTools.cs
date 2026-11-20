@@ -233,7 +233,9 @@ namespace ShiroTools
 
                 var avatar = await VRCApi.GetAvatar(entry.BlueprintId);
 
+                string thumbHash = HashThumbFile(thumbPath);
                 await VRCApi.UpdateAvatarImage(entry.BlueprintId, avatar, thumbPath);
+                RecordThumbSent(entry.Data, thumbHash, entry.BlueprintId);
 
                 LogUpload($"OK    {entry.Name} (thumbnail update) → {entry.BlueprintId}");
                 SetStatus($"✓ Thumbnail updated for '{entry.Name}'.", MessageType.Info);

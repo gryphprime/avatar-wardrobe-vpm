@@ -131,6 +131,8 @@ namespace OutfitToggleGenerator
             public string session = string.Empty;
             public int previewEpoch;
             public string epoch = string.Empty;
+            // Changes whenever /api/installed would answer differently, so idle pages can skip it.
+            public string installedKey = string.Empty;
         }
 
         [Serializable]
@@ -302,6 +304,7 @@ namespace OutfitToggleGenerator
             // base-list edit changes it, telling the page to drop cached data.
             detail.epoch = AvatarWardrobeCatalog.CatalogEpoch + "|" +
                 AvatarWardrobeCatalog.OverridesVersion + "|" + AvatarWardrobeCatalog.BaseAvatarStamp;
+            detail.installedKey = InstalledListStamp();
             return detail;
         }
 
@@ -427,13 +430,22 @@ namespace OutfitToggleGenerator
 
         private static void OnSceneSaved(UnityEngine.SceneManagement.Scene scene) => sceneEditRevision++;
 
+        private static string InstalledListKey()
+        {
+            var avatar = SceneAvatar;
+            return sceneEditRevision + "|" + serverSession + "|" + (avatar == null ? 0 : avatar.GetInstanceID()) + "|" +
+                (avatar == null ? "" : avatar.gameObject.scene.path) + "|" + EditorApplication.isPlayingOrWillChangePlaymode + "|" +
+                AvatarWardrobeCatalog.CatalogEpoch + "|" + AvatarWardrobeCatalog.OverridesVersion;
+        }
+
+        // Main thread. Cheap identity of the installed listing: the cache key plus the presets file snapshot.
+        private static string InstalledListStamp() =>
+            InstalledListKey() + "|" + System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(AvatarWardrobePresets.FileSnapshot);
+
         // Main thread. Each request gets its own usage rows, which the route annotates with hashes.
         private static InstalledListDto InstalledListSnapshot()
         {
-            var avatar = SceneAvatar;
-            var key = sceneEditRevision + "|" + serverSession + "|" + (avatar == null ? 0 : avatar.GetInstanceID()) + "|" +
-                (avatar == null ? "" : avatar.gameObject.scene.path) + "|" + EditorApplication.isPlayingOrWillChangePlaymode + "|" +
-                AvatarWardrobeCatalog.CatalogEpoch + "|" + AvatarWardrobeCatalog.OverridesVersion;
+            var key = InstalledListKey();
             var presets = AvatarWardrobePresets.FileSnapshot;
             if (installedList == null || key != installedListKey || !ReferenceEquals(presets, installedListPresets) ||
                 (DateTime.UtcNow - installedListAt).TotalSeconds >= 60)

@@ -107,12 +107,15 @@ namespace ShiroTools
             public List<WebMemberDto> members = new List<WebMemberDto>();
             public string blueprintId = ""; public string lastUpload = ""; public int include = 1;
             public int win = 1; public int and; public int ios; public int blendCount; public string faceEmo = "";
+            // Effective thumbnail plan (OutfitThumbnails.cs); thumbOriginal is a cache key, "" when none.
+            public string thumbSource = "auto"; public string thumbUpdate = "keep"; public int thumbInherited = 1;
+            public string thumbOriginal = ""; public float thumbCropX = 0.5f, thumbCropY = 0.5f, thumbCropZoom = 1f;
         }
         [Serializable]
         public class WebDefaultsDto
         {
             public string nameTemplate = ""; public string descTemplate = ""; public string release = "private";
-            public string thumbMode = "scene"; public string thumbImage = ""; public string bgColor = "1A1A1FFF";
+            public string bgColor = "1A1A1FFF";
             public int autoSps = 1; public int autoFix = 1; public int autoConsent = 1;
             public List<WebTagDto> tags = new List<WebTagDto>();
             public int optEnabled; public int optAsk = 1; public int optMaxRes = 2048; public int optMinRes; public int optItems;
@@ -225,8 +228,7 @@ namespace ShiroTools
                 st.status = _statusMessage ?? "";
                 var df = st.defaults;
                 df.nameTemplate = _nsNameTemplate ?? ""; df.descTemplate = _nsDescTemplate ?? "";
-                df.release = NormalizeUploadRelease(_nsRelease); df.thumbMode = _nsThumbMode ?? "scene";
-                df.thumbImage = _nsThumbImagePath ?? "";
+                df.release = NormalizeUploadRelease(_nsRelease);
                 try { df.bgColor = ColorUtility.ToHtmlStringRGBA(_nsBgColor); } catch { }
                 df.autoSps = _nsAutoSps ? 1 : 0; df.autoFix = _nsAutoFix ? 1 : 0; df.autoConsent = _nsAutoConsent ? 1 : 0;
                 foreach (var tag in CONTENT_TAGS) df.tags.Add(new WebTagDto { key = tag, on = (_nsTagDefaults.TryGetValue(tag, out var tb) && tb) ? 1 : 0 });
@@ -247,6 +249,10 @@ namespace ShiroTools
                         pd.win = pdata.buildWindows ? 1 : 0; pd.and = pdata.buildAndroid ? 1 : 0; pd.ios = pdata.buildIOS ? 1 : 0;
                         pd.blendCount = pdata.blendShapes != null ? pdata.blendShapes.Count : 0;
                         pd.faceEmo = pdata.faceEmoName ?? "";
+                        var plan = EffectiveThumb(pdata);
+                        pd.thumbSource = plan.source; pd.thumbUpdate = plan.update; pd.thumbInherited = plan.inherited ? 1 : 0;
+                        pd.thumbOriginal = plan.source == "image" && ThumbOriginalPath(plan.original) != null ? (Path.IsPathRooted(plan.original) ? "legacy" : plan.original) : "";
+                        pd.thumbCropX = plan.cropX; pd.thumbCropY = plan.cropY; pd.thumbCropZoom = plan.cropZoom;
                     }
                     catch { }
                     foreach (var a in OutfitToggleGenerator.AvatarWardrobePresets.AssignmentsForBase(baseKey))
@@ -449,8 +455,6 @@ namespace ShiroTools
                 if (q.TryGetValue("nameTemplate", out v)) eng._nsNameTemplate = v ?? "";
                 if (q.TryGetValue("descTemplate", out v)) eng._nsDescTemplate = v ?? "";
                 if (q.TryGetValue("release", out v)) eng._nsRelease = v == "public" ? "public" : "private";
-                if (q.TryGetValue("thumbMode", out v)) eng._nsThumbMode = (v == "image" || v == "sceneview") ? v : "scene";
-                if (q.TryGetValue("thumbImage", out v)) eng._nsThumbImagePath = v ?? "";
                 if (q.TryGetValue("bgColor", out v) && !string.IsNullOrEmpty(v))
                 {
                     Color parsed;
@@ -1051,8 +1055,6 @@ namespace ShiroTools
                 if (q.TryGetValue("avatarName", out v)) draft.Name = v ?? "";
                 if (q.TryGetValue("description", out v)) draft.Description = v ?? "";
                 if (q.TryGetValue("release", out v)) draft.Release = v == "public" ? "public" : "private";
-                if (q.TryGetValue("thumbMode", out v)) draft.ThumbMode = (v == "image" || v == "sceneview") ? v : "scene";
-                if (q.TryGetValue("imagePath", out v)) draft.ImagePath = v ?? "";
                 if (q.TryGetValue("tags", out v))
                     foreach (var t in (v ?? "").Split(","[0]))
                         if (!string.IsNullOrEmpty(t)) draft.Tags[t] = true;
@@ -1272,10 +1274,8 @@ namespace ShiroTools
                 if (!APIUser.IsLoggedIn) return new WebThumbDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.log.in.to.the.vrchat.sdk.first") };
                 eng.LoadNewSetupDefaults();
                 eng.ActivateOutfit(o);
-                AdvancedDraft draft = null;
-                if (!string.IsNullOrEmpty(mode))
-                    draft = new AdvancedDraft { ThumbMode = (mode == "image" || mode == "sceneview") ? mode : "scene", ImagePath = eng._nsThumbImagePath };
-                string path = eng.ResolveThumbnailPath(o, draft);
+                // The Look's own thumbnail plan; the legacy mode argument is ignored.
+                string path = eng.ResolveThumbnailPath(o, null);
                 if (string.IsNullOrEmpty(path) || !File.Exists(path))
                     return new WebThumbDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.could.not.capture.a.thumbnail.see.console") };
                 string token = Guid.NewGuid().ToString("N");

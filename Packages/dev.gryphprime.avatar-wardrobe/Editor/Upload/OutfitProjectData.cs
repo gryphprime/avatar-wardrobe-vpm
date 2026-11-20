@@ -63,6 +63,20 @@ namespace ShiroTools
             public bool   included;
         }
 
+        // Thumbnail plan for one Look (or the project default). An empty
+        // source on a Look means "use the default".
+        //   source: "" | auto | camera | image
+        //   update: always (send on every upload, skipped when unchanged) | keep
+        [Serializable]
+        internal class ThumbSettings
+        {
+            public string source   = "";
+            public string update   = "";
+            public string camera   = "";   // WardrobeThumbnailCamera.id
+            public string original = "";   // file name in the thumbnail store (or a legacy absolute path)
+            public float  cropX = 0.5f, cropY = 0.5f, cropZoom = 1f;
+        }
+
         [Serializable]
         internal class OutfitData
         {
@@ -80,6 +94,9 @@ namespace ShiroTools
             public string lastUploadIOS     = "";
             public List<BlendShapeOverride> blendShapes   = new List<BlendShapeOverride>();
             public List<ItemOverride>       itemOverrides = new List<ItemOverride>();
+            public ThumbSettings thumb = new ThumbSettings();
+            // Hash of the last thumbnail VRChat accepted, and for which avatar ID.
+            public string thumbSentHash = "", thumbSentBlueprint = "";
         }
 
         [Serializable]
@@ -98,6 +115,7 @@ namespace ShiroTools
         private class Root
         {
             public List<AvatarData> avatars = new List<AvatarData>();
+            public ThumbSettings thumbDefault = new ThumbSettings();
         }
 
         private static Root _root;
@@ -143,6 +161,7 @@ namespace ShiroTools
                 throw new InvalidDataException("Missing avatars collection.");
             var parsed = JsonUtility.FromJson<Root>(json);
             if (parsed?.avatars == null) throw new InvalidDataException("Invalid avatars collection.");
+            parsed.thumbDefault ??= new ThumbSettings();
             foreach (var avatar in parsed.avatars)
             {
                 if (avatar == null) throw new InvalidDataException("Invalid avatar settings.");
@@ -154,6 +173,8 @@ namespace ShiroTools
                     if (outfit == null) throw new InvalidDataException("Invalid preset settings.");
                     outfit.blendShapes ??= new List<BlendShapeOverride>();
                     outfit.itemOverrides ??= new List<ItemOverride>();
+                    outfit.thumb ??= new ThumbSettings();
+                    outfit.thumbSentHash ??= ""; outfit.thumbSentBlueprint ??= "";
                     if (outfit.blendShapes.Any(b => b == null) || outfit.itemOverrides.Any(i => i == null))
                         throw new InvalidDataException("Invalid preset overrides.");
                 }
@@ -370,6 +391,16 @@ namespace ShiroTools
             // A default change can affect every preset's effective value → drop all memos.
             _boolMemo.Clear();
             Save();
+        }
+
+        // ---- Thumbnails ----
+        internal static ThumbSettings ThumbDefault => Data.thumbDefault ??= new ThumbSettings();
+        internal static IEnumerable<ThumbSettings> AllThumbSettings()
+        {
+            yield return ThumbDefault;
+            foreach (var avatar in Data.avatars)
+                foreach (var outfit in avatar.outfits)
+                    if (outfit?.thumb != null) yield return outfit.thumb;
         }
 
         // ---- Last upload timestamps ----

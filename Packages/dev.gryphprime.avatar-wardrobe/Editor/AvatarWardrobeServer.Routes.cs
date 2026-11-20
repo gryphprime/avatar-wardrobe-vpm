@@ -52,6 +52,15 @@ namespace OutfitToggleGenerator
                 else WriteText(context, 500, "text/plain", "wardrobe.html is missing.");
                 return;
             }
+            if (path == "/v2" || path == "/v2/" || path == "/wardrobe-v2.html")
+            {
+                // V2 shell: same API, separate page. Served like the classic page.
+                var v2Path = string.IsNullOrEmpty(htmlPath) ? null : Path.Combine(Path.GetDirectoryName(htmlPath), "wardrobe-v2.html");
+                if (thumbDir != null && v2Path != null && File.Exists(v2Path))
+                    WriteBytes(context, 200, "text/html", File.ReadAllBytes(v2Path));
+                else WriteText(context, 500, "text/plain", "wardrobe-v2.html is missing.");
+                return;
+            }
             if (path == "/lang.json")
             {
                 // Same file the Unity side reads: one source of truth, and the
@@ -85,6 +94,8 @@ namespace OutfitToggleGenerator
                 case "/menu-organizer.js": uiFile = "menu-organizer.js"; uiMime = "application/javascript"; break;
                 case "/scene-editor.js": uiFile = "scene-editor.js"; uiMime = "application/javascript"; break;
                 case "/wardrobe.js": uiFile = "wardrobe.js"; uiMime = "application/javascript"; break;
+                case "/wardrobe-v2.js": uiFile = "wardrobe-v2.js"; uiMime = "application/javascript"; break;
+                case "/wardrobe-v2.css": uiFile = "wardrobe-v2.css"; uiMime = "text/css"; break;
                 case "/assets/header-portrait.webp": uiFile = "assets/header-portrait.webp"; uiMime = "image/webp"; break;
                 case "/assets/rail-landscape.webp": uiFile = "assets/rail-landscape.webp"; uiMime = "image/webp"; break;
                 case "/assets/avatar-placeholder.webp": uiFile = "assets/avatar-placeholder.webp"; uiMime = "image/webp"; break;
@@ -745,6 +756,70 @@ namespace OutfitToggleGenerator
                     }
                     catch (Exception ex) { return new ResultDto { message = ex.Message }; }
                 }, requestCode);
+                return;
+            }
+            if (path.StartsWith("/api/look_thumb", StringComparison.Ordinal))
+            {
+                // Per-Look VRChat thumbnails (Upload/OutfitThumbnails.cs).
+                var query = Query(request.Url.Query);
+                query.TryGetValue("id", out var lookId);
+                switch (path)
+                {
+                    case "/api/look_thumb":
+                        WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebLookThumb(lookId), requestCode);
+                        return;
+                    case "/api/look_thumb_original":
+                    {
+                        var file = RunOnMain(() => ShiroTools.OutfitBatchUploader.WebLookThumbOriginalPath(lookId), requestCode, true);
+                        if (file == null || !File.Exists(file)) WriteJson(context, 404, new ResultDto { message = WardrobeStrings.T("server.preview.unavailable") });
+                        else
+                        {
+                            var bytes = File.ReadAllBytes(file);
+                            WriteBytes(context, 200, ShiroTools.OutfitBatchUploader.IsPng(bytes) ? "image/png" : "image/jpeg", bytes);
+                        }
+                        return;
+                    }
+                    case "/api/look_thumb_set":
+                        WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebLookThumbSet(query), requestCode);
+                        return;
+                    case "/api/look_thumb_upload":
+                    {
+                        const int limit = 16 * 1024 * 1024;
+                        if (request.ContentLength64 < 1 || request.ContentLength64 > limit)
+                        { WriteText(context, 413, "text/plain", "Images must be at most 16 MiB."); return; }
+                        byte[] image;
+                        using (var body = new MemoryStream())
+                        {
+                            var buffer = new byte[65536]; int count;
+                            while ((count = request.InputStream.Read(buffer, 0, buffer.Length)) > 0)
+                            {
+                                if (body.Length + count > limit) { WriteText(context, 413, "text/plain", "Images must be at most 16 MiB."); return; }
+                                body.Write(buffer, 0, count);
+                            }
+                            image = body.ToArray();
+                        }
+                        WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebLookThumbUpload(lookId, image), requestCode);
+                        return;
+                    }
+                    case "/api/look_thumb_preview":
+                        WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebLookThumbPreview(lookId), requestCode);
+                        return;
+                    case "/api/look_thumb_freeze":
+                        query.TryGetValue("token", out var freezeToken);
+                        WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebLookThumbFreeze(lookId, freezeToken), requestCode);
+                        return;
+                    case "/api/look_thumb_camera":
+                        query.TryGetValue("from", out var cameraFrom);
+                        WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebLookThumbCamera(lookId, cameraFrom), requestCode);
+                        return;
+                }
+            }
+            if (path == "/api/preset_play")
+            {
+                var query = Query(request.Url.Query);
+                string id;
+                query.TryGetValue("id", out id);
+                WriteMainJson(context, () => WardrobePlayModeTest.Start(id), requestCode);
                 return;
             }
             if (path == "/api/preset_include")

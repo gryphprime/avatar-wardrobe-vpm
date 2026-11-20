@@ -41,7 +41,7 @@ namespace OutfitToggleGenerator
             "/api/menu_groups", "/api/menu_execute", "/api/scene_execute", "/api/appearance_apply",
             "/api/appearance_tool", "/api/appearance_optimizer_apply", "/api/regenerate_toggles",
             "/api/migrate_avatar", "/api/preset_save", "/api/preset_delete", "/api/preset_assign",
-            "/api/preset_show", "/api/preset_include", "/api/avatar_base", "/api/workflow",
+            "/api/preset_show", "/api/preset_play", "/api/preset_include", "/api/avatar_base", "/api/workflow",
             "/api/preset_appearance_save", "/api/preset_appearance_apply",
             "/api/batch_preset_config", "/api/batch_preset_blends", "/api/batch_preset_items",
             "/api/batch_preset_faceemo", "/api/batch_preset_from_scene", "/api/batch_outfit_set",

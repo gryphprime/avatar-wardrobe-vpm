@@ -87,6 +87,13 @@ namespace OutfitToggleGenerator
                     else
                         Application.OpenURL(AvatarWardrobeServer.Url);
                 }
+                if (GUILayout.Button(WardrobeStrings.T("win.openV2")))
+                {
+                    if (!AvatarWardrobeServer.Running && !AvatarWardrobeServer.Start())
+                        ShowNotification(new GUIContent(WardrobeStrings.T("win.servefail")));
+                    else
+                        Application.OpenURL(AvatarWardrobeServer.Url + "v2");
+                }
                 using (new EditorGUI.DisabledScope(!AvatarWardrobeServer.Running))
                 {
                     if (GUILayout.Button(WardrobeStrings.T("win.stop"))) AvatarWardrobeServer.Stop();

@@ -1218,6 +1218,8 @@ namespace ShiroTools
             { SetStatus("VRC SDK builder not available — open the VRChat SDK window first.", MessageType.Error); return; }
             if (!APIUser.IsLoggedIn)
             { SetStatus("Not logged in. Please open the VRChat SDK Control Panel and log in first.", MessageType.Error); return; }
+            var readinessError = WardrobeUploadReadinessError();
+            if (readinessError != null) { SetStatus(readinessError, MessageType.Error); return; }
 
             bool consented = await PreConsentAllAsync(valid.Select(f => f.id).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct());
             if (!consented)
@@ -1507,6 +1509,13 @@ namespace ShiroTools
                 return;
             }
 
+            var readinessError = WardrobeUploadReadinessError();
+            if (readinessError != null)
+            {
+                SetStatus(readinessError, MessageType.Error);
+                return;
+            }
+
             // Validate blueprint IDs before doing anything
             var badIds = targetOutfits
                 .Where(o => !string.IsNullOrWhiteSpace(o.BlueprintId) && !IsValidBlueprintId(o.BlueprintId))
@@ -1725,11 +1734,22 @@ namespace ShiroTools
                     LoadNewSetupDefaults();
                     if (WardrobeHeadless || _nsAutoConsent)
                         StartConsentWatcher(_cts?.Token ?? CancellationToken.None);
+                    // Thumbnail per the Look's plan (OutfitThumbnails.cs). Captured from the
+                    // PC pass so mobile shader fallbacks never replace it; Quest-only Looks
+                    // capture on their own platform. null keeps VRChat's current image.
+                    string thumbPath = null, thumbHash = null;
+                    if (platform == VRCPlatform.Windows || !outfit.BuildWindows)
+                    {
+                        SetStatus($"[{currentIndex + 1}/{total}] Rendering thumbnail for {outfitName}...", MessageType.Info);
+                        thumbPath = ResolveUploadThumbnail(outfit, false, blueprintId, out thumbHash);
+                        SetStatus($"[{currentIndex + 1}/{total}] Building & Uploading {outfitName} ({platform})...", MessageType.Info);
+                    }
                     try
                     {
-                        await builder.BuildAndUpload(_avatarRoot, avatar, cancellationToken: _cts.Token);
+                        await builder.BuildAndUpload(_avatarRoot, avatar, thumbPath, cancellationToken: _cts.Token);
                     }
-                    finally { StopConsentWatcher(); }
+                    finally { StopConsentWatcher(); CleanupTempThumb(thumbPath); }
+                    if (thumbPath != null) RecordThumbSent(outfit.Data, thumbHash, blueprintId);
 
                     // Successful upload! Pop from queue
                     LogUpload($"OK    {outfit.Name} ({platform}) → {blueprintId}" +

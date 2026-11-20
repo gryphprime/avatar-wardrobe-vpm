@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avatar Wardrobe</title>
+<link rel="stylesheet" href="/appearance-editor.css">
+<link rel="stylesheet" href="/wardrobe-v2.css">
+</head>
+<body>
+<svg class="defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="icon-wardrobe" viewBox="0 0 24 24"><path d="M9 3 3 6l2 5 3-1v11h8V10l3 1 2-5-6-3a3 3 0 0 1-6 0Z"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+<symbol id="i-looks" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.5 5.5"/></symbol>
+<symbol id="i-editor" viewBox="0 0 24 24"><path d="M4 5h6v5H4zM14 14h6v5h-6zM14 5h6v5h-6zM7 10v7h7M7 10h7"/></symbol>
+<symbol id="i-hanger" viewBox="0 0 24 24"><path d="M12 7a2 2 0 1 1 2-2c0 1.2-2 1.6-2 3v1l8 6.5a1.5 1.5 0 0 1-1 2.5H5a1.5 1.5 0 0 1-1-2.5L12 9"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4M12 17h.01"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+<symbol id="i-portrait" viewBox="0 0 24 24"><circle cx="12" cy="9" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1.5"/><circle cx="9" cy="10" r="1.5"/><path d="M5 18l5-5 3 3 2.5-2.5L19 17"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="6" y="11" width="12" height="9" rx="1.5"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></symbol>
+<symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="7" r="1"/><circle cx="15" cy="7" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="17" r="1"/><circle cx="15" cy="17" r="1"/></symbol>
+</defs></svg>
+
+<div class="app" id="app">
+  <nav class="rail" id="rail" aria-label="Avatar and looks">
+    <button type="button" class="avatar-switch" id="avatarSwitch" aria-haspopup="true" aria-expanded="false">
+      <span class="av-copy"><span class="av-name" id="avName">—</span><span class="av-sub" id="avSub"></span></span>
+      <svg class="i" aria-hidden="true"><use href="#i-down"/></svg>
+    </button>
+    <div class="rail-scroll">
+      <div class="rail-sec" id="looksSec" hidden>
+        <div class="sec looks-head"><label class="sec-all"><input type="checkbox" id="lookAll" data-t-aria="selectAll" aria-label="Select all"><span data-t="looks">Looks</span></label><span class="sec-n" id="lookSelN"></span><button type="button" class="btn btn-ghost icon-btn sm" id="newLook" data-t-title="newLook" title="New look"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></button></div>
+        <div id="lookList" role="list"></div>
+      </div>
+      <div class="rail-sec" id="singleSec">
+        <button type="button" class="rail-row on" data-view="wardrobe"><svg class="i" aria-hidden="true"><use href="#i-hanger"/></svg><span data-t="wardrobe">Wardrobe</span></button>
+      </div>
+      <div class="rail-sec" id="toolsSec" hidden>
+        <div class="sec"><span data-t="tools">Tools</span></div>
+        <button type="button" class="rail-row" data-view="menu" id="toolMenu" hidden><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg><span data-t="menuLayout">Menu layout</span></button>
+        <button type="button" class="rail-row" data-view="editor" id="toolEditor" hidden><svg class="i" aria-hidden="true"><use href="#i-editor"/></svg><span data-t="avatarEditor">Avatar editor</span></button>
+      </div>
+    </div>
+    <div class="rail-foot">
+      <button type="button" class="status-btn" id="statusBtn" aria-haspopup="dialog" aria-expanded="false"><span class="dot" id="statusDot"></span><span id="statusText" data-t="connecting">Connecting…</span></button>
+      <button type="button" class="btn btn-ghost icon-btn" id="settingsBtn" data-t-title="settings" title="Settings"><svg class="i" aria-hidden="true"><use href="#i-gear"/></svg><span class="upd-dot" id="updDot" hidden></span></button>
+    </div>
+  </nav>
+
+  <main id="main">
+    <section class="view" id="viewWardrobe" aria-labelledby="catalogHeading">
+      <h1 class="vh" id="catalogHeading" data-t="wardrobe">Wardrobe</h1>
+      <div class="toolbar" role="search">
+        <label class="search"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="search" type="search" autocomplete="off" data-t-ph="search" placeholder="Search" data-t-aria="search" aria-label="Search"><kbd aria-hidden="true">⌘K</kbd></label>
+        <div class="seg" role="group" id="compatSeg">
+          <button type="button" data-f="compatible" class="on" aria-pressed="true" data-t="compatible">Compatible</button>
+          <button type="button" data-f="all" aria-pressed="false" data-t="all">All</button>
+        </div>
+        <div class="pop-anchor">
+          <button type="button" class="btn" id="filterBtn" aria-haspopup="true" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-filter"/></svg><span data-t="filter">Filter</span><span class="badge" id="filterCount" hidden></span></button>
+          <div class="pop filter-pop" id="filterPop" hidden>
+            <div class="pop-row"><span data-t="show">Show</span>
+              <select id="showSel"><option value="" data-t="showDefault">Catalog</option><option value="installed" data-t="showWorn">Worn</option><option value="unknown" data-t="showReview">Review</option><option value="hidden" data-t="showHidden">Hidden</option></select></div>
+            <div class="pop-row"><span data-t="creator">Creator</span><select id="shopSel"></select></div>
+            <div class="pop-row"><span data-t="tag">Tag</span><select id="tagSel"></select></div>
+            <div class="pop-row"><span data-t="sort">Sort</span>
+              <select id="sortSel"><option value="added" data-t="sortNewest">Newest</option><option value="used" data-t="sortUsed">Recently used</option><option value="name" data-t="sortName">Name</option></select></div>
+            <label class="pop-row"><span data-t="hideNoPreview">Hide no-preview</span><input type="checkbox" class="sw" id="hideEmptySw"></label>
+            <div class="pop-foot"><button type="button" class="btn btn-ghost" id="editTags" data-t="editTags">Edit tags</button><button type="button" class="btn btn-ghost" id="resetFilters" data-t="reset">Reset</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="tabs" role="tablist" id="typeTabs">
+        <button type="button" role="tab" class="tab on" data-cat="" aria-selected="true"><span data-t="typeAll">All</span><span class="c" id="catalogCount"></span></button>
+        <button type="button" role="tab" class="tab" data-cat="outfit" aria-selected="false" data-t="typeOutfits">Outfits</button>
+        <button type="button" role="tab" class="tab" data-cat="hair" aria-selected="false" data-t="typeHair">Hair</button>
+        <button type="button" role="tab" class="tab" data-cat="gimmick" aria-selected="false" data-t="typeGimmicks">Gimmicks</button>
+      </div>
+      <div class="grid-scroll" id="gridScroll">
+        <div class="grid" id="grid"></div>
+        <div class="grid-empty" id="gridEmpty" role="status" aria-live="polite" hidden></div>
+        <div class="sentinel" id="sentinel"></div>
+      </div>
+    </section>
+
+
+    <section class="view tool-view" id="viewMenu" hidden><div id="menuOrganizer" class="scene-editor menu-organizer"></div></section>
+
+    <section class="view tool-view" id="viewEditor" hidden>
+      <div class="tabs editor-tabs" role="tablist">
+        <button type="button" role="tab" class="tab on" data-etab="objects" aria-selected="true" data-t="objects">Objects</button>
+        <button type="button" role="tab" class="tab" data-etab="materials" aria-selected="false" data-t="materials">Materials</button>
+      </div>
+      <div id="advancedScene" class="scene-editor"></div>
+      <div id="appearanceEditor" class="scene-editor appearance-editor" hidden></div>
+    </section>
+  </main>
+
+  <aside id="aside" aria-label="Wearing">
+    <div class="panel" id="wearingPanel">
+      <header class="panel-head"><span id="wearTitle"></span><span class="sub" id="wearCount"></span></header>
+      <div class="panel-body" id="wearBody">
+        <div id="notices"></div>
+        <div id="wearList"></div>
+      </div>
+      <footer class="panel-foot"><button type="button" class="btn btn-primary wide" id="uploadBtn" data-t="upload">Upload</button></footer>
+    </div>
+  </aside>
+</div>
+
+<section class="fit" id="fit" hidden aria-label="Fit"></section>
+<dialog class="dlg item-dlg" id="itemDlg" aria-labelledby="itTitle"></dialog>
+
+<div class="pop avatar-pop" id="avatarPop" hidden role="dialog" aria-label="Avatar"></div>
+<div class="pop activity-pop" id="activityPop" hidden role="dialog" aria-labelledby="activityHeading"></div>
+
+<dialog class="dlg settings" id="settingsDlg" aria-labelledby="settingsHeading"></dialog>
+<dialog class="dlg upload" id="uploadDlg" aria-labelledby="uploadHeading"></dialog>
+<dialog class="dlg scene-up" id="sceneDlg" aria-labelledby="sceneHeading"></dialog>
+<dialog class="dlg thumb-dlg" id="thumbDlg" aria-labelledby="thumbHeading"></dialog>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script src="/runtime.js" defer></script>
+<script src="/previews.js" defer></script>
+<script src="/reporting.js" defer></script>
+<script src="/organize.js" defer></script>
+<script src="/operations.js" defer></script>
+<script src="/upload.js" defer></script>
+<script src="/preset-appearance.js" defer></script>
+<script src="/appearance-editor.js" defer></script>
+<script src="/menu-organizer.js" defer></script>
+<script src="/scene-editor.js" defer></script>
+<script src="/wardrobe-v2.js" defer></script>
+</body>
+</html>
