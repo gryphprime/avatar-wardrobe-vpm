@@ -8,7 +8,8 @@ from zipfile import ZipFile
 IGNORED_PARTS = {'.git', '__pycache__'}
 
 def ignored(path: Path) -> bool:
-    return any(part in IGNORED_PARTS or part == '.DS_Store' or part.startswith('._') or part.endswith('.pyc') for part in path.parts)
+    # Unity skips folders ending in '~'; they hold dev-only tooling and are not shipped.
+    return any(part in IGNORED_PARTS or part.endswith('~') or part == '.DS_Store' or part.startswith('._') or part.endswith('.pyc') for part in path.parts)
 
 
 def check_package(root: Path):
