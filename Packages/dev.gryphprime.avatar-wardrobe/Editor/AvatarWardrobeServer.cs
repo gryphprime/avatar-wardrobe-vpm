@@ -198,7 +198,7 @@ namespace OutfitToggleGenerator
             langPath = WardrobePackagePaths.File("Web/lang.json");
             thumbDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "AvatarWardrobe", "thumbs"));
             hiDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "AvatarWardrobe", "thumbs512"));
-            // Pipeline v5 (fingerprinted previews and explicit sRGB capture), v6 (matted 512px renders):
+            // Pipeline v5 (fingerprinted previews and explicit sRGB capture), v6/v7 (matted, re-framed 512px renders):
             // any older cache stock is wrong pixels, so wipe once and stamp.
             var stamp = Path.Combine(serverProjectPath, "Library", "AvatarWardrobe", ".thumbpipe");
             var lowDirectory = thumbDir; var highDirectory = hiDir;
@@ -207,14 +207,14 @@ namespace OutfitToggleGenerator
                 try
                 {
                 var pipe = (File.Exists(stamp) ? File.ReadAllText(stamp) : string.Empty).Trim();
-                if (pipe != "v6")
+                if (pipe != "v7")
                 {
-                    // v6 changed only the 512px renders (black/white matte, zoom onto small content);
-                    // the low-res Unity previews from v5 are still right.
-                    foreach (var dir in pipe == "v5" ? new[] { highDirectory } : new[] { lowDirectory, highDirectory })
+                    // v6/v7 changed only the 512px renders (black/white matte, zoom onto small content,
+                    // widen when cut off); the low-res Unity previews from v5 are still right.
+                    foreach (var dir in pipe == "v5" || pipe == "v6" ? new[] { highDirectory } : new[] { lowDirectory, highDirectory })
                         if (Directory.Exists(dir)) Directory.Delete(dir, true);
                     Directory.CreateDirectory(Path.GetDirectoryName(stamp));
-                    WardrobeAtomicFile.WriteText(stamp, "v6");
+                    WardrobeAtomicFile.WriteText(stamp, "v7");
                 }
             }
                 catch (Exception error) { WardrobeLog.Write("preview", "Cache initialization: " + error.Message); }

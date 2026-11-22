@@ -320,6 +320,12 @@ namespace OutfitToggleGenerator
             return result;
         }
 
+        private static bool TouchesEdge(RectInt content, int size)
+        {
+            return content.width > 0 && content.height > 0 &&
+                   (content.xMin <= 0 || content.yMin <= 0 || content.xMax >= size || content.yMax >= size);
+        }
+
         private static Matrix4x4 SubFrustum(Camera camera, Rect region)
         {
             var near = camera.nearClipPlane;
@@ -356,9 +362,23 @@ namespace OutfitToggleGenerator
                 }
             }
 
+            // Mesh bounds can be wrong for skinned outfits and leave parts outside the frame.
+            // Content touching an edge was cut off: widen the view (the zoom below restores detail).
+            var content = ContentBounds(best.GetPixels32(), size, size);
+            for (var widen = 0; widen < 2 && TouchesEdge(content, size); widen++)
+            {
+                bounds.Expand(bounds.size.magnitude);
+                ConfigurePreview(preview, avatarRoot, bestYaw);
+                var wider = Capture(preview, bounds, size);
+                var widerContent = ContentBounds(wider.GetPixels32(), size, size);
+                if (widerContent.width == 0 || widerContent.height == 0) { UnityEngine.Object.DestroyImmediate(wider); break; }
+                UnityEngine.Object.DestroyImmediate(best);
+                best = wider;
+                content = widerContent;
+            }
+
             // Bounds bigger than what draws (stray or oversized renderers) leave the item as a
             // small patch, and enlarging that blurs it. Render again aimed at just that patch.
-            var content = ContentBounds(best.GetPixels32(), size, size);
             var side = Mathf.Max(content.width, content.height) / 0.875f;
             if (content.width > 0 && content.height > 0 && side < size / 1.5f)
             {
