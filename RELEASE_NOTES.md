@@ -1,13 +1,13 @@
-Organize your catalog, customize worn items, and add in-game sliders.
+Wardrobe V2: a new web UI that never waits on Unity, with Looks, per-Look thumbnails and Play Mode tests.
 
-- Tags: color-coded tags on any item, a tag filter (including Untagged), and search that matches tag names. Tags are saved in the Unity project.
-- Hide from catalog: hide shader helpers, props and other non-wearable prefabs, or a whole folder. The Hidden filter brings them back.
-- Select several items with Ctrl/Cmd-click, Shift-click or the check circle on a card, then wear, tag, hide or show them all at once.
-- Right-click any item to open it, wear it, tag it, show it in Unity's Project window, or hide it or its folder.
-- Customize a worn item: choose which parts are worn, shrink or hide the body under an item or one part, and add in-game radial sliders for body or outfit blendshapes.
-- Follow body shape (Modular Avatar Blendshape Sync) is now on by default when wearing an item, so clothes follow body sliders like chest or hips. It can be turned off per item.
-- The page stays responsive while Unity is busy, shows "Unity busy" instead of disconnecting, and applies tag changes instantly.
-- Copy presets, organize outfit folders by drag and drop, and confirm before uploading.
-- Fixed dragging an outfit onto the Wearing panel or a preset.
+- Wardrobe V2: open it with "Open Wardrobe V2" in the Wardrobe window. Browse the Library, switch Looks from the right-hand panel, and manage every Look on the Looks page. Wardrobe V1 stays available.
+- Nothing waits on Unity: wearing, removing, changing settings and switching Looks show at once and apply in order. A busy, compiling or reloading Unity shows as a status instead of an error, and changes are sent again by themselves. Activity lists every change, with Retry if Unity refuses one.
+- Create a Look from an item: the "+" next to the Look picker makes a new Look, and you can wear the item into it straight away.
+- Show in Unity and Test in Play Mode are in each Look's "…" menu.
+- Per-Look thumbnails for uploads: Auto, a camera shot, or your own image, with cropping.
+- Item size slider in the Library toolbar. Items are larger by default.
+- Sharper item previews: parts that used lilToon cutout shaders no longer disappear, small items are no longer blurry, and outfits are no longer cut off at the edge.
+- The item window opens without flicker, and switching items right after applying a change no longer waits on Unity.
+- Fixed wearing two variants of the same item: Wear adds the variant, and Replace swaps it.
 
 View-only license; see LICENSE and THIRD_PARTY_NOTICES.md.
