@@ -129,6 +129,84 @@ namespace OutfitToggleGenerator
             catch { lock (writeGate) { receipt.state = "failed"; receipt.error = global::OutfitToggleGenerator.WardrobeStrings.T("server.write.could.not.be.scheduled"); SaveWrite(id, receipt); } throw; }
             WriteText(context, 202, "application/json", "{\"writeJob\":" + JsonString(id) + ",\"state\":\"queued\"}");
         }
+        // ---- Reads that never wait on a busy Unity ----
+        // Reads that need the main thread (state, worn list, family, memberships, menu groups)
+        // answer from their last result when Unity has not served them within a moment, while
+        // the fresh read keeps running in the background and replaces the cached copy. The page
+        // never blocks on an import, compile, long edit or preview bake.
+        private sealed class StaleCapture { internal string key; internal int state; } // 0 open, 1 handler wrote, 2 stale served
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HttpListenerContext, StaleCapture> staleCaptures =
+            new System.Runtime.CompilerServices.ConditionalWeakTable<HttpListenerContext, StaleCapture>();
+        private static readonly Dictionary<string, KeyValuePair<DateTime, string>> staleReads = new Dictionary<string, KeyValuePair<DateTime, string>>(StringComparer.Ordinal);
+        private static readonly HashSet<string> staleRefreshing = new HashSet<string>(StringComparer.Ordinal);
+        private static readonly object staleGate = new object();
+        private static readonly HashSet<string> staleRoutes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "/api/state", "/api/installed", "/api/family", "/api/families", "/api/prefab_presets", "/api/menu_groups",
+            "/api/batch_state", "/api/presets", "/api/shops", "/api/item_parts"
+        };
+        private const int StaleWaitMs = 350;
+        private static bool StaleEligible(HttpListenerRequest request) =>
+            request.HttpMethod == "GET" && staleRoutes.Contains(request.Url.AbsolutePath);
+
+        private static void HandleFreshOrStale(HttpListenerContext context, string session)
+        {
+            // Same host/origin checks as Handle before any cached answer leaves the server.
+            if (!ValidateRequest(context)) return;
+            var key = context.Request.RawUrl;
+            KeyValuePair<DateTime, string> cached;
+            bool have, refreshing;
+            lock (staleGate)
+            {
+                have = staleReads.TryGetValue(key, out cached) && DateTime.UtcNow - cached.Key < TimeSpan.FromMinutes(10);
+                refreshing = staleRefreshing.Contains(key);
+                if (!refreshing) staleRefreshing.Add(key);
+            }
+            // One fresh read per URL at a time; everyone else gets the last answer.
+            if (refreshing && have) { WriteStale(context, cached.Value); return; }
+            var capture = new StaleCapture { key = key };
+            staleCaptures.Add(context, capture);
+            var task = Task.Run(() =>
+            {
+                requestSession = session; requestAvatarId = 0; requestWritesAvatar = false; requestMainMs = 0; requestFailure = null;
+                try { Handle(context); }
+                finally { if (!refreshing) lock (staleGate) staleRefreshing.Remove(key); }
+            });
+            if (!have || task.Wait(StaleWaitMs) || Interlocked.CompareExchange(ref capture.state, 2, 0) != 0)
+            {
+                task.GetAwaiter().GetResult();
+                return;
+            }
+            WriteStale(context, cached.Value);
+            // The fresh read finishes later and only refreshes the cache.
+            task.ContinueWith(t => { var ignored = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+        }
+        // Called from WriteText: true when the body should be written to the response.
+        private static bool CaptureRead(HttpListenerContext context, int status, string mime, string body)
+        {
+            if (!staleCaptures.TryGetValue(context, out var capture)) return true;
+            var write = Interlocked.CompareExchange(ref capture.state, 1, 0) != 2;
+            if (status == 200 && mime == "application/json" && body != null && body.Length < 4 * 1024 * 1024)
+                lock (staleGate)
+                {
+                    staleReads[capture.key] = new KeyValuePair<DateTime, string>(DateTime.UtcNow, body);
+                    if (staleReads.Count > 256)
+                    {
+                        string oldest = null; var when = DateTime.MaxValue;
+                        foreach (var entry in staleReads) if (entry.Value.Key < when) { when = entry.Value.Key; oldest = entry.Key; }
+                        if (oldest != null) staleReads.Remove(oldest);
+                    }
+                }
+            return write;
+        }
+        private static void WriteStale(HttpListenerContext context, string body)
+        {
+            context.Response.Headers["X-Wardrobe-Stale"] = "1";
+            WriteTextDirect(context, 200, "application/json", body);
+        }
+        // A new session (Unity reload) or avatar invalidates every cached answer.
+        private static void ForgetStaleReads() { lock (staleGate) staleReads.Clear(); }
+
         private static string JsonString(string value)
         {
             var text = new System.Text.StringBuilder("\"");

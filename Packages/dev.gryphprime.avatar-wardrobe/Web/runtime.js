@@ -71,7 +71,7 @@
       }
     } else if (!init.method) init.method = "GET";
     var writeId = queuedWrites.has(endpoint) && !read && init.headers && init.headers["X-Wardrobe-Write-Id"];
-    if (writeId) { rememberWrite(writeId, true); pendingWriteRequests++; }
+    if (writeId) { rememberWrite(writeId, true); pendingWriteRequests++; inflightWrites.add(writeId); }
     try {
       var response, body;
       try { response = await fetch(url.href, init); if (!options.binary) body = await response.text(); }
@@ -86,28 +86,51 @@
       var value;
       try { value = body ? JSON.parse(body) : null; }
       catch (_) {
-        if (response.status === 202 && writeId) { clearTimeout(timer); return await waitForWrite(writeId); }
+        if (response.status === 202 && writeId) { clearTimeout(timer); if (options.onAccepted) try { options.onAccepted(writeId); } catch (_) {} return await waitForWrite(writeId); }
         var malformed = new Error(response.ok ? "Invalid server response" : body.slice(0, 240));
         malformed.status = response.status; throw malformed;
       }
       if (!response.ok) {
         var failure = new Error((value && (value.message || value.error)) || "Request failed (" + response.status + ")");
         failure.status = response.status;
-        if (value && value.accepted === false) { failure.accepted = false; if (writeId) rememberWrite(writeId, false); }
+        if (value && value.code) failure.code = value.code;
+        // Any error status means Unity did not accept this write: never recover it later.
+        if (writeId) rememberWrite(writeId, false);
+        if (value && value.accepted === false) failure.accepted = false;
+        // Unity reloaded (new session). Same avatar: re-sign and resend once, silently.
+        if (!read && value && value.code === "session-changed" && value.session && !options._resent) {
+          if (avatarId && value.avatarInstanceId && Number(value.avatarInstanceId) !== Number(avatarId)) { failure.code = "target-changed"; throw failure; }
+          setSession(value.session);
+          clearTimeout(timer);
+          var again = Object.assign({}, options, {_resent:true, headers:Object.assign({}, options.headers)});
+          if (writeId) again.headers["X-Wardrobe-Write-Id"] = global.crypto.randomUUID();
+          return await request(path, again);
+        }
         throw failure;
       }
       if (response.status === 202 && value && value.writeJob) {
         // Acceptance has its own timeout. Do not abort an accepted write after 45s.
         clearTimeout(timer);
+        if (options.onAccepted) try { options.onAccepted(value.writeJob); } catch (_) {}
         return await waitForWrite(value.writeJob);
       }
+      // The server answered from its last result because Unity was busy.
+      if (value && typeof value === "object" && response.headers && response.headers.get("X-Wardrobe-Stale") === "1")
+        try { Object.defineProperty(value, "stale", {value:true}); } catch (_) {}
       if (writeId) rememberWrite(writeId, false);
       return value;
     } finally {
-      if (writeId) pendingWriteRequests--;
+      if (writeId) { pendingWriteRequests--; inflightWrites.delete(writeId); }
       clearTimeout(timer);
       if (upstream) upstream.removeEventListener("abort", relay);
     }
+  }
+  var sessionListeners = [], inflightWrites = new Set();
+  function setSession(value) {
+    if (!value || value === session) return;
+    session = value;
+    recoverWrites();
+    sessionListeners.forEach(function(fn){try{fn(value);}catch(_){}});
   }
   var pendingWrites = 0, pendingWriteRequests = 0, writePolls = new Map();
   function rememberWrite(id, pending) {
@@ -121,7 +144,7 @@
   function recoverWrites() {
     try {
       var ids = JSON.parse(global.localStorage.getItem('wardrobe.pendingWrites') || '[]');
-      ids.forEach(function(id){waitForWrite(id).catch(function(error){global.dispatchEvent(new CustomEvent('wardrobe-write-status', {detail:{pending:pendingWrites, error:error.message, id:id}}));});});
+      ids.forEach(function(id){if(inflightWrites.has(id))return;waitForWrite(id).catch(function(error){global.dispatchEvent(new CustomEvent('wardrobe-write-status', {detail:{pending:pendingWrites, error:error.message, id:id, recovered:true}}));});});
     } catch (_) {}
   }
   function waitForWrite(id) {
@@ -133,13 +156,18 @@
   async function pollWrite(id) {
     pendingWrites++;
     global.dispatchEvent(new CustomEvent('wardrobe-write-status', {detail:{pending:pendingWrites}}));
-    var deadline = Date.now() + 30 * 60 * 1000;
+    var started = Date.now(), deadline = started + 30 * 60 * 1000, polls = 0;
     try {
       while (Date.now() < deadline) {
-        await new Promise(function(resolve){setTimeout(resolve, 500);});
+        // Most edits finish in well under a second: check early, then settle at 500 ms.
+        await new Promise(function(resolve){setTimeout(resolve, [120, 200, 300, 400][polls++] || 500);});
         var receipt;
         try { receipt = await request('/api/write_result?id=' + encodeURIComponent(id), {method:'GET',timeout:8000}); }
-        catch (error) { if (error.status === 409 && Date.now() > deadline - 30 * 60 * 1000 + 10000) throw error; continue; }
+        catch (error) {
+          // Receipts are saved before Unity accepts a write, so a missing one means it was never accepted.
+          if (error.status === 409 && Date.now() - started > 10000) { rememberWrite(id, false); error.code = "not-accepted"; throw error; }
+          continue;
+        }
         if (receipt.state === 'completed') { rememberWrite(id, false); return receipt.result; }
         if (receipt.state === 'failed' || receipt.state === 'needs-review') { rememberWrite(id, false); throw new Error(receipt.error || 'Unity could not confirm the change.'); }
       }
@@ -209,7 +237,7 @@
     if (event.shiftKey && index <= 0) { event.preventDefault(); targets[targets.length-1].focus(); }
     else if (!event.shiftKey && (index < 0 || index === targets.length-1)) { event.preventDefault(); targets[0].focus(); }
   });
-  global.WardrobeRuntime = {localize:function(key,fallback){var value=translate(key);return value===key?fallback:value;},setLanguage:function(code,t){language=code||"en";translate=t||translate;},text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,pendingWrites:function(){return pendingWriteRequests+pendingWrites;},setContext:function(value,id){var previous=session;session=value||"";avatarId=id||0;if(session&&previous!==session)recoverWrites();},openDialog:openDialog,closeDialog:closeDialog};
+  global.WardrobeRuntime = {localize:function(key,fallback){var value=translate(key);return value===key?fallback:value;},setLanguage:function(code,t){language=code||"en";translate=t||translate;},text:text,escape:escape,stored:stored,store:store,reconcile:reconcile,request:request,pendingWrites:function(){return pendingWriteRequests+pendingWrites;},onSession:function(fn){sessionListeners.push(fn);},setContext:function(value,id){var previous=session;session=value||"";avatarId=id||0;if(session&&previous!==session)recoverWrites();},openDialog:openDialog,closeDialog:closeDialog};
 })(window);
 
 /* Update checks run in the browser, never on Unity's editor thread. */

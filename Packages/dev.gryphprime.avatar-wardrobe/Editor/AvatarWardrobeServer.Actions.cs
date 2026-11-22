@@ -388,11 +388,12 @@ namespace OutfitToggleGenerator
             return new ResultDto { ok = 1 };
         }
 
-        internal static ResultDto SavePreset(string id, string name)
+        // select=false creates a Look without switching to it (the item panel's "New look").
+        internal static ResultDto SavePreset(string id, string name, bool select = true)
         {
             var saved = AvatarWardrobePresets.SavePreset(id ?? string.Empty, name ?? string.Empty);
             if (!saved.ok) return new ResultDto { message = saved.message };
-            if (string.IsNullOrEmpty(id) && ReadWorkflow().wardrobeMode == "multi-avatar")
+            if (select && string.IsNullOrEmpty(id) && ReadWorkflow().wardrobeMode == "multi-avatar")
             {
                 AvatarWardrobePresets.ShowInUnity(saved.preset.id, SceneAvatar);
                 SaveWorkflow(null, saved.preset.id);
@@ -464,7 +465,7 @@ namespace OutfitToggleGenerator
             return new ResultDto { ok = 1, message = WardrobeStrings.T("preset.assigned") };
         }
 
-        private static ResultDto Install(string guid, bool allow, bool createToggles, bool switchVariant, string target, string menuGroup = "", string replaceId = "", bool addCopy = false, bool followBody = false)
+        private static ResultDto Install(string guid, bool allow, bool createToggles, bool switchVariant, string target, string menuGroup = "", string replaceId = "", bool addCopy = false, bool followBody = false, string replaceGuid = "")
         {
             if (SceneAvatar == null)
                 return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
@@ -492,10 +493,17 @@ namespace OutfitToggleGenerator
             if (switchVariant)
             {
                 var family = CachedFamilies().FirstOrDefault(candidate => candidate.variants.Any(v => v.guid == guid));
-                if (family != null)
+                if (family != null && !string.IsNullOrEmpty(replaceId))
                     replaced = family.variants.SelectMany(v => AvatarWardrobePresets.PrefabInstances(SceneAvatar, v.guid))
                         .FirstOrDefault(item => item.GetInstanceID().ToString() == replaceId && AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == cleanTarget);
-                if (replaced == null) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.choose.the.exact.worn.variant.to.replace.refresh.if.it") };
+                // Queued pages describe the intent ("replace the worn variant X"), resolved now:
+                // the instance may not have existed yet when the change was queued.
+                if (replaced == null && family != null && !string.IsNullOrEmpty(replaceGuid) && family.variants.Any(v => v.guid == replaceGuid))
+                    replaced = AvatarWardrobePresets.PrefabInstances(SceneAvatar, replaceGuid)
+                        .FirstOrDefault(item => AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == cleanTarget);
+                // Nothing left to replace: wearing the new variant is still what was asked for.
+                if (replaced == null && !string.IsNullOrEmpty(replaceGuid)) switchVariant = false;
+                else if (replaced == null) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.choose.the.exact.worn.variant.to.replace.refresh.if.it") };
             }
             return EditAvatar("Wear wardrobe outfit", () =>
             {
@@ -602,14 +610,23 @@ namespace OutfitToggleGenerator
             });
         }
 
-        private static ResultDto RemovePresetItem(string guid, string target, string itemPath, string instanceId)
+        private static ResultDto RemovePresetItem(string guid, string target, string itemPath, string instanceId, bool latest = false)
         {
             if (SceneAvatar == null) return new ResultDto { message = WardrobeStrings.T("install.noavatar") };
             if (string.IsNullOrEmpty(target)) return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.select.a.preset.to.remove.the.item.from") };
             var instances = AvatarWardrobePresets.PrefabInstances(SceneAvatar, guid)
                 .Where(item => AvatarWardrobePresets.ItemPreset(item, SceneAvatar) == target).ToList();
-            if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(itemPath))
+            var exact = !string.IsNullOrEmpty(instanceId) && !string.IsNullOrEmpty(itemPath);
+            // Queued pages may remove a copy that was still being worn when they asked:
+            // "latest" resolves to the most recently added copy of this variant in the look.
+            if (exact && latest && WardrobeEditPolicy.ExactInstance(instances, instanceId, candidate => candidate.GetInstanceID()) == null) exact = false;
+            if (!exact && !latest)
                 return new ResultDto { message = global::OutfitToggleGenerator.WardrobeStrings.T("server.choose.the.exact.worn.copy.before.removing.it") };
+            if (!exact)
+            {
+                if (instances.Count > 1) instances = new List<GameObject> { instances[instances.Count - 1] };
+            }
+            else
             {
                 var item = WardrobeEditPolicy.ExactInstance(instances, instanceId, candidate => candidate.GetInstanceID())?.transform;
                 if (item != null && AnimationUtility.CalculateTransformPath(item, SceneAvatar.transform) != itemPath)

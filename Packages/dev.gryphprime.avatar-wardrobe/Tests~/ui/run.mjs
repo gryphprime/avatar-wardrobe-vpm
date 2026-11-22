@@ -121,6 +121,11 @@ const PAGE_HELPERS = `(() => {
     if (!wt.marks.firstThumb && grid.querySelector(".well img")) wt.marks.firstThumb = performance.now();
     if (wt.watchGrid && grid.children.length === 0) wt.gridCleared++;
   }).observe(document, { childList: true, subtree: true });
+  // Every red toast is recorded: queued work should never produce one on a healthy run.
+  wt.errToasts = [];
+  new MutationObserver((list) => {
+    for (const m of list) for (const n of m.addedNodes) if (n.nodeType === 1 && n.classList.contains("toast") && n.classList.contains("err")) wt.errToasts.push(n.textContent);
+  }).observe(document, { childList: true, subtree: true });
 })();`;
 
 // Layout rules, evaluated in the page. Returns a list of { rule, message, detail }.
@@ -132,9 +137,9 @@ function audit() {
   const vis = (el) => window.__wt.visible(el);
   const doc = document.documentElement;
   if (doc.scrollWidth > vw + 1) add("page-hscroll", `The page scrolls sideways (${doc.scrollWidth}px content in a ${vw}px window).`);
-  const rail = document.querySelector(".rail"), main = document.querySelector("main"), aside = document.querySelector("aside");
+  const top = document.querySelector(".top"), main = document.querySelector("main"), aside = document.querySelector("aside");
   // Fixed columns must keep their CSS width whatever their content is.
-  for (const [el, label] of [[aside, "side panel"], [rail, "left rail"]]) {
+  for (const [el, label] of [[aside, "side panel"]]) {
     if (!desktop || !el || !vis(el)) continue;
     const w = el.getBoundingClientRect().width, want = parseFloat(getComputedStyle(el).flexBasis);
     if (want && Math.abs(w - want) > 2) add("column-width", `The ${label} is ${Math.round(w)}px wide; its CSS width is ${want}px.`, describe(el));
@@ -142,7 +147,7 @@ function audit() {
   if (desktop && main && vis(main) && main.getBoundingClientRect().width < 380) add("main-too-narrow", `The catalog is only ${Math.round(main.getBoundingClientRect().width)}px wide.`);
   // Content poking out of its column, unless something on the way clips or scrolls it.
   const clipped = (el, stop) => { for (let p = el.parentElement; p && p !== stop; p = p.parentElement) { const s = getComputedStyle(p); if (s.overflowX !== "visible") return true; } return false; };
-  for (const region of [rail, main, aside].filter((r) => r && vis(r))) {
+  for (const region of [top, main, aside].filter((r) => r && vis(r))) {
     const rr = region.getBoundingClientRect(); let n = 0;
     for (const el of region.querySelectorAll("*")) {
       if (n >= 3) break;
@@ -161,7 +166,7 @@ function audit() {
   // Headings and labels must be visible, not painted over by something else in the same layer.
   const layer = [...document.querySelectorAll("dialog[open]")].pop() || document;
   let covered = 0;
-  for (const el of layer.querySelectorAll("h1, h2, h3, .item-title, .item-meta, .lbl, .vlabel, .card .nm, .rail-row .nm, .worn .t")) {
+  for (const el of layer.querySelectorAll("h1, h2, h3, .item-title, .item-meta, .lbl, .vlabel, .card .nm, .look .nm, .opt .nm, .top-tab, #wearTitle, .worn .t")) {
     if (covered >= 3 || !vis(el)) continue;
     const r = el.getBoundingClientRect(), x = r.left + Math.min(r.width / 2, 24), y = r.top + r.height / 2;
     if (x < 0 || y < 0 || x > vw || y > vh) continue;
@@ -178,7 +183,7 @@ function audit() {
     const top = document.elementFromPoint(x, y);
     if (top && top !== el && !el.contains(top) && !top.contains(el)) {
       // Ignore things that merely scroll under a sticky header of the same scroller.
-      if (getComputedStyle(top).position === "sticky" || top.closest(".toolbar, .tabs, .panel-head, .dlg-head, .fit-head")) continue;
+      if (getComputedStyle(top).position === "sticky" || top.closest(".toolbar, .tabs, .panel-head, .dlg-head, .fit-head, .selbar")) continue;
       // Overlays (Fit screen, popovers, menus, toasts) sit above the page on purpose.
       const overlay = top.closest(".fit, .pop, .menu, #toasts");
       if (overlay && !overlay.contains(el)) continue;
@@ -193,7 +198,7 @@ function audit() {
   for (const t of document.querySelectorAll("#toasts .toast")) if (vis(t) && /err/.test(t.className)) add("error-toast", "An error toast is showing.", t.textContent.trim().slice(0, 120));
   // Lines of text cut off with no ellipsis (single-line labels in rows and cards).
   let cut = 0;
-  for (const el of document.querySelectorAll(".rail-row .nm, .card .nm, .card .cr, .worn .t, .worn .s, .look-foot *, .item-title, .btn")) {
+  for (const el of document.querySelectorAll(".top-tab, .av-name, .opt .nm, .lname > span, .card .nm, .card .cr, .worn .t, .worn .s, .look-foot .nm, .item-title, .btn")) {
     if (cut >= 3 || !vis(el)) continue;
     const s = getComputedStyle(el);
     if (el.scrollWidth > el.clientWidth + 1 && s.textOverflow !== "ellipsis" && s.overflowX !== "visible" && s.whiteSpace === "nowrap") { cut++; add("text-cut", "A label is cut off without an ellipsis.", describe(el)); }
@@ -214,7 +219,10 @@ function audit() {
       }
     }
   }
-  if (!desktop) for (const el of controls) { const r = el.getBoundingClientRect(); if (r.height < 24 && r.width < 24 && el.closest("main, aside, .rail")) { add("small-target", "A control is smaller than 24px on a phone.", describe(el)); break; } }
+  if (!desktop) for (const el of controls) { const r = el.getBoundingClientRect(); if (r.height < 24 && r.width < 24 && el.closest("main, aside, .top")) { add("small-target", "A control is smaller than 24px on a phone.", describe(el)); break; } }
+  // Look cards are square.
+  let skew = 0;
+  for (const m of document.querySelectorAll("#viewLooks:not([hidden]) .mosaic")) { const r = m.getBoundingClientRect(); if (skew < 1 && r.width && Math.abs(r.width - r.height) > 2) { skew++; add("look-not-square", `A look card is ${Math.round(r.width)}×${Math.round(r.height)}px instead of square.`, describe(m)); } }
   return out;
 }
 
@@ -310,6 +318,8 @@ async function runViewport(name) {
     const found = await page.ev(`(${audit.toString()})()`);
     found.forEach((f) => issue(step, "fail", f.rule, f.message, f.detail));
     while (consoleErrors.length) issue(step, "fail", "console-error", consoleErrors.shift());
+    const toasts = await page.ev(`__wt.errToasts.splice(0)`);
+    toasts.forEach((t) => issue(step, live ? "warn" : "fail", "error-toast", `A red toast appeared: "${t}"`));
     result.steps.push({ step, file });
   };
   const step = async (label, fn) => { try { await fn(); } catch (e) { issue(label, "fail", "step-failed", e.message.split("\n")[0]); } };
@@ -358,44 +368,53 @@ async function runViewport(name) {
 
   await step("look-switch", async () => {
     const before = await page.ev(`(async () => {
-      const rows = [...document.querySelectorAll("#lookList .look-row:not(.shared)")];
-      if (rows.length < 2 || document.getElementById("looksSec").hidden) return { skip: "fewer than two looks" };
-      const all = [...document.querySelectorAll("#lookList .look-row")];
+      const pick = document.getElementById("lookPick");
+      if (!pick || pick.disabled) return { skip: "single-look mode" };
       const gs = document.getElementById("gridScroll");
       gs.scrollTop = Math.min(500, gs.scrollHeight - gs.clientHeight);
       await new Promise((r) => setTimeout(r, 300));
-      const cur = all.findIndex((r) => r.classList.contains("on"));
-      // Prefer a look that wears something, so the pinned section has work to do.
-      const next = rows.find((r) => !r.classList.contains("on") && +r.querySelector(".n").textContent > 0) || rows.find((r) => !r.classList.contains("on"));
-      return { cur, next: all.indexOf(next) };
+      // On a phone the Wearing panel sits below the catalog.
+      if (innerWidth <= 760) { pick.scrollIntoView({ block: "start" }); await new Promise((r) => setTimeout(r, 200)); }
+      pick.click();
+      await __wt.at(() => __wt.visible(document.getElementById("lookPop")) && document.querySelector("#lookOpts .opt"), 3000);
+      const opts = [...document.querySelectorAll("#lookOpts .opt")];
+      const looks = opts.filter((o) => !o.classList.contains("shared"));
+      if (looks.length < 2) return { skip: "fewer than two looks" };
+      const cur = opts.findIndex((o) => o.getAttribute("aria-selected") === "true");
+      // Prefer a look that wears something, so the outlines have work to do.
+      const next = looks.find((o) => o.getAttribute("aria-selected") !== "true" && +o.querySelector(".n").textContent > 0) || looks.find((o) => o.getAttribute("aria-selected") !== "true");
+      return { cur, next: opts.indexOf(next), scroll: Math.round(gs.scrollTop) };
     })()`);
     if (before.skip) return issue("look-switch", "warn", "skipped", before.skip);
     await settle(300);
+    await check("look-picker");
     const mark = net_.length;
     const r = await page.ev(`(async () => {
-      const target = document.querySelectorAll("#lookList .look-row")[${before.next}], name = target.querySelector(".nm").textContent;
+      const target = document.querySelectorAll("#lookOpts .opt")[${before.next}], name = target.querySelector(".nm").textContent;
       __wt.gridCleared = 0; __wt.watchGrid = true;
-      const t0 = performance.now(); target.querySelector(".lk-main").click();
-      const ui = await __wt.at(() => target.classList.contains("on") && document.getElementById("wearTitle").textContent.includes(name));
+      const t0 = performance.now(); target.click();
+      const ui = await __wt.at(() => document.getElementById("lookPop").hidden && document.getElementById("wearTitle").textContent.includes(name));
       return { name, uiMs: ui < 0 ? -1 : Math.round(ui - t0) };
     })()`);
     await settle();
     const after = await page.ev(`(() => {
       __wt.watchGrid = false;
-      const gs = document.getElementById("gridScroll"), first = document.querySelector("#grid .card:not([hidden])");
-      return { scroll: Math.round(gs.scrollTop), cleared: __wt.gridCleared, worn: document.querySelectorAll("#wearList .worn").length,
-        firstPinned: !!(first && first.classList.contains("pin")), pinned: document.querySelectorAll("#grid .card.pin").length };
+      const gs = document.getElementById("gridScroll");
+      return { scroll: Math.round(gs.scrollTop), cleared: __wt.gridCleared, worn: document.querySelectorAll("#wearList .worn").length, outlined: document.querySelectorAll("#grid .card.cur").length };
     })()`);
-    const reqs = apiSince(mark), catalog = reqs.filter((x) => x.path === "/api/families" && !/[?&]filter=installed/.test(x.url));
-    Object.assign(result.perf, { lookUiMs: r.uiMs, lookRequests: countBy(reqs), lookFamiliesRequests: catalog.length, lookGridCleared: after.cleared > 0, lookPinned: after.pinned });
+    const reqs = apiSince(mark), catalog = reqs.filter((x) => x.path === "/api/families");
+    Object.assign(result.perf, { lookUiMs: r.uiMs, lookRequests: countBy(reqs), lookFamiliesRequests: catalog.length, lookGridCleared: after.cleared > 0, lookOutlined: after.outlined });
     if (r.uiMs < 0 || r.uiMs > BUDGET.lookUiMs) issue("look-switch", "fail", "slow-look-switch", `Choosing "${r.name}" took ${r.uiMs < 0 ? ">8000" : r.uiMs}ms to show (budget ${BUDGET.lookUiMs}ms).`);
     if (after.cleared) issue("look-switch", "fail", "catalog-reloaded", "Choosing a look emptied and reloaded the catalog.");
-    if (catalog.length) issue("look-switch", "fail", "catalog-refetched", `Choosing a look refetched catalog pages (${catalog.length}); only the look's own items may be read.`);
-    if (after.worn && !after.firstPinned) issue("look-switch", "fail", "look-items-first", `"${r.name}" wears ${after.worn} item(s) but the grid does not start with them.`);
-    if (after.scroll > 4) issue("look-switch", "fail", "look-not-at-top", `After choosing a look the catalog stayed scrolled at ${after.scroll}px instead of showing the look's items.`);
+    if (catalog.length) issue("look-switch", "fail", "catalog-refetched", `Choosing a look refetched the catalog (${catalog.length} request(s)).`);
+    if (Math.abs(after.scroll - before.scroll) > 4) issue("look-switch", "fail", "look-scroll-jump", `Choosing a look moved the catalog from ${before.scroll}px to ${after.scroll}px.`);
     await check("look-switch");
     // Put the original look back (this also restores the editor's selection when running live).
-    await page.ev(`(() => { const row = document.querySelectorAll("#lookList .look-row")[${before.cur < 0 ? 1 : before.cur}]; if (row) row.querySelector(".lk-main").click(); })()`);
+    await page.ev(`(async () => {
+      document.getElementById("lookPick").click();
+      await __wt.at(() => document.querySelector("#lookOpts .opt"), 3000);
+      const opt = document.querySelectorAll("#lookOpts .opt")[${before.cur < 0 ? 1 : before.cur}]; if (opt) opt.click();
+    })()`);
     await settle();
   });
 
@@ -415,26 +434,44 @@ async function runViewport(name) {
     await page.ev(`(async () => { const b = document.getElementById("fitBack"); if (b) b.click(); await __wt.at(() => !__wt.visible(document.getElementById("fit")), 3000); await __wt.at(() => document.getElementById("itemDlg").open, 3000); const c = document.getElementById("itClose"); if (c) c.click(); })()`);
   });
 
+  await step("looks", async () => {
+    const r = await page.ev(`(async () => {
+      const tab = document.getElementById("looksTab");
+      if (!tab || tab.hidden) return { skip: "single-look mode" };
+      tab.click();
+      const ok = await __wt.at(() => document.querySelector("#looksGrid .look") && !document.getElementById("viewLooks").hidden, 5000);
+      return { ok: ok > 0, cards: document.querySelectorAll("#looksGrid .look").length };
+    })()`);
+    if (r.skip) return issue("looks", "warn", "skipped", r.skip);
+    if (!r.ok) return issue("looks", "fail", "looks-page", "The Looks page did not open.");
+    await settle();
+    await check("looks");
+  });
+
   await step("pick-looks", async () => {
     const r = await page.ev(`(async () => {
-      const boxes = [...document.querySelectorAll("#lookList .look-row:not(.shared) .lk-ck")].filter((b) => !b.disabled).slice(0, 2);
+      if (document.getElementById("viewLooks").hidden) return { skip: "Looks page not open" };
+      const boxes = [...document.querySelectorAll("#looksGrid .look .ck:not([hidden]) input")].slice(0, 2);
       if (boxes.length < 2) return { skip: "fewer than two looks" };
       boxes.forEach((b) => { b.checked = true; b.dispatchEvent(new Event("change", { bubbles: true })); });
       await new Promise((r) => setTimeout(r, 150));
-      return { label: document.getElementById("uploadBtn").textContent.trim(), all: document.getElementById("lookAll").indeterminate };
+      return { label: document.getElementById("selUpload").textContent.trim(), bar: __wt.visible(document.getElementById("selbar")) };
     })()`);
     if (r.skip) return issue("pick-looks", "warn", "skipped", r.skip);
+    if (!r.bar) issue("pick-looks", "fail", "selection-bar", "Checking looks does not show the selection bar.");
     if (!/2/.test(r.label)) issue("pick-looks", "fail", "upload-label", `With two looks checked the upload button reads "${r.label}".`);
-    if (!r.all) issue("pick-looks", "fail", "select-all-state", "The select-all checkbox is not shown as partially checked.");
     await check("pick-looks");
   });
 
   await step("upload-review", async () => {
     const r = await page.ev(`(async () => {
-      document.getElementById("uploadBtn").click();
+      const go = document.getElementById("selUpload");
+      if (document.getElementById("viewLooks").hidden || document.getElementById("selbar").hidden) return { skip: true };
+      go.click();
       const ok = await __wt.at(() => document.getElementById("uploadDlg").open && document.querySelector("#uploadDlg .up-row, #uploadDlg .up-msg"), 10000);
       return { ok: ok > 0, rows: document.querySelectorAll("#uploadDlg .up-row").length };
     })()`);
+    if (r.skip) return issue("upload-review", "warn", "skipped", "no looks checked");
     if (!r.ok) return issue("upload-review", "fail", "upload-dialog", "The upload dialog did not open.");
     if (r.rows !== 2) issue("upload-review", "fail", "upload-rows", `The upload review lists ${r.rows} look(s) instead of the 2 checked.`);
     await settle();
@@ -459,7 +496,122 @@ async function runViewport(name) {
       if (index === 0 && !live && !thumbEdited) { thumbEdited = true; await thumbInteractions(issue); }
       await page.ev(`document.getElementById("thumbDlg").close()`);
     }
-    await page.ev(`(() => { const d = document.getElementById("uploadDlg"); if (d.open) d.close(); const all = document.getElementById("lookAll"); all.checked = false; all.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+    await page.ev(`(() => { const d = document.getElementById("uploadDlg"); if (d.open) d.close(); const c = document.getElementById("selClear"); if (c && !document.getElementById("selbar").hidden) c.click(); })()`);
+  });
+
+  // Mock only (it edits the scene): changes never block, show at once, and survive a Unity reload or a busy Unity.
+  if (mock && name === names[0]) await step("queue", async () => {
+    const base = new URL(url).origin;
+    const wearOne = `async (card) => {
+      card.scrollIntoView({ block: "center" }); card.click();
+      if (await __wt.at(() => document.getElementById("itWear"), 8000) < 0) return null;
+      const t0 = performance.now(); document.getElementById("itWear").click();
+      return { ms: Math.round(performance.now() - t0), shown: !!document.querySelector("#itActs .q-state") && !!document.querySelector("#wearList .worn.queued") };
+    }`;
+    const free = `() => [...document.querySelectorAll("#grid .card")].filter((c) => !c.hidden && !c.classList.contains("cur") && !c.classList.contains("pending"))`;
+    const synced = `() => !document.querySelector("#wearList .worn.queued, #wearList .worn.removing") && /Synced/.test(document.getElementById("statusText").textContent)`;
+    const r = await page.ev(`(async () => {
+      const wear = ${wearOne}, free = ${free}, out = { clicks: [] };
+      for (const c of free().slice(0, 3)) {
+        const w = await wear(c); if (!w) continue; out.clicks.push(w);
+        document.getElementById("itClose").click(); if (document.getElementById("itemDlg").open) out.locked = true;
+      }
+      out.status = document.getElementById("statusText").textContent;
+      out.queued = document.querySelectorAll("#wearList .worn.queued").length;
+      out.settled = await __wt.at(${synced}, 15000) > 0;
+      return out;
+    })()`, 40000);
+    if (!r.clicks.length) return issue("queue", "warn", "skipped", "no free cards to wear");
+    if (r.clicks.some((c) => !c.shown)) issue("queue", "fail", "queue-not-shown", "Clicking Wear did not show the queued item in the modal and the Wearing list at once.");
+    if (r.clicks.some((c) => c.ms > 50)) issue("queue", "fail", "queue-blocked", `Clicking Wear blocked the page for ${Math.max(...r.clicks.map((c) => c.ms))}ms.`);
+    if (r.locked) issue("queue", "fail", "modal-locked", "The item modal would not close while a change was queued.");
+    if (!/Saving/.test(r.status)) issue("queue", "fail", "queue-status", `With ${r.clicks.length} changes queued the status read "${r.status}".`);
+    if (!r.settled) issue("queue", "fail", "queue-stuck", "Queued changes did not settle within 15s.");
+    // Unity reloads (new session): the next change re-signs itself, no error.
+    await fetch(base + "/mock/reload", { method: "POST" });
+    const r2 = await page.ev(`(async () => { const w = await (${wearOne})((${free})()[0]); document.getElementById("itClose").click(); return { w, settled: await __wt.at(${synced}, 15000) > 0 }; })()`, 30000);
+    if (!r2.w || !r2.settled) issue("queue", "fail", "reload-resend", "A change made after a Unity reload did not apply by itself.");
+    // The first attempt after a reload is Unity's 409 by design (the page re-signs and resends); Chrome logs it.
+    for (let i = consoleErrors.length - 1; i >= 0; i--) if (/409 \(Conflict\)/.test(consoleErrors[i])) consoleErrors.splice(i, 1);
+    // Busy Unity (import or compile): the change waits visibly, the page stays usable.
+    const r3a = await page.ev(`(async () => { const c = (${free})()[0]; c.scrollIntoView({ block: "center" }); c.click(); return await __wt.at(() => document.getElementById("itWear"), 8000) > 0; })()`, 15000);
+    await fetch(base + "/mock/busy?ms=2500", { method: "POST" });
+    const r3 = await page.ev(`(async () => {
+      document.getElementById("itWear").click();
+      await new Promise((r) => setTimeout(r, 600));
+      const waiting = !!document.querySelector("#itActs .q-state");
+      document.getElementById("itClose").click();
+      const other = (${free})()[1]; other.click();
+      const usable = await __wt.at(() => document.getElementById("itemDlg").open && document.querySelector("#itActs button"), 5000) > 0;
+      return { waiting, usable };
+    })()`, 20000);
+    if (!r3a || !r3.waiting) issue("queue", "fail", "busy-hidden", "While Unity was busy the queued change was not shown as waiting.");
+    if (!r3.usable) issue("queue", "fail", "busy-blocked", "While Unity was busy another item could not be opened.");
+    await check("queue");
+    const done = await page.ev(`(async () => { const c = document.getElementById("itClose"); if (c) c.click(); return await __wt.at(${synced}, 15000) > 0; })()`, 20000);
+    if (!done) issue("queue", "fail", "queue-stuck", "The change queued while Unity was busy did not apply afterwards.");
+    // Change a worn item's part toggles, then open another item while Unity is busy: the panel is usable at once
+    // (cached status), and going back shows the change.
+    const r5a = await page.ev(`(async () => {
+      const row = document.querySelector("#wearList .worn:not(.queued):not(.removing)"); if (!row) return null;
+      row.click();
+      if (await __wt.at(() => document.getElementById("itemDlg").open && document.getElementById("itBody") && !document.getElementById("itBody").dataset.loading && !document.getElementById("itToggles").disabled, 8000) < 0) return null;
+      const t = document.getElementById("itToggles"); const want = !t.checked; t.click();
+      await __wt.at(() => !document.getElementById("itSettle").hidden, 2000);
+      document.getElementById("itApply").click();
+      return { want, name: document.getElementById("itTitle").textContent };
+    })()`, 20000);
+    if (!r5a) issue("queue", "warn", "skipped", "no worn item to change part toggles on");
+    else {
+      await fetch(base + "/mock/busy?ms=3000", { method: "POST" });
+      const r5 = await page.ev(`(async () => {
+        document.getElementById("itClose").click();
+        const other = [...document.querySelectorAll("#grid .card")].find((c) => !c.hidden && c.querySelector(".nm")?.textContent !== ${JSON.stringify(r5a.name)});
+        const t0 = performance.now(); other.click();
+        const ready = () => document.getElementById("itBody") && !document.getElementById("itBody").dataset.loading && !document.getElementById("itGroup").disabled;
+        const ms = await __wt.at(ready, 6000) > 0 ? Math.round(performance.now() - t0) : -1;
+        document.getElementById("itClose").click();
+        const back = [...document.querySelectorAll("#wearList .worn")].find((b) => b.textContent.includes(${JSON.stringify(r5a.name)}));
+        back?.click();
+        const t1 = performance.now();
+        await __wt.at(ready, 6000);
+        const backMs = Math.round(performance.now() - t1);
+        const kept = document.getElementById("itToggles").checked === ${r5a.want};
+        document.getElementById("itClose").click();
+        return { ms, backMs, kept };
+      })()`, 30000);
+      if (r5.ms < 0 || r5.ms > 400) issue("queue", "fail", "item-status-blocked", `With a change applying, opening another item took ${r5.ms < 0 ? "over 6000" : r5.ms}ms to become usable.`);
+      if (r5.backMs > 400) issue("queue", "fail", "item-status-blocked", `Reopening the changed item took ${r5.backMs}ms to become usable.`);
+      if (!r5.kept) issue("queue", "fail", "item-status-lost", "Reopening the item did not show the part-toggle change that was just applied.");
+      await page.ev(`__wt.at(${synced}, 15000)`, 20000);
+    }
+    // New look from the item panel: Wear can be clicked before Unity has made the look, and the current look stays.
+    const selectedBefore = (await (await fetch(base + "/api/state")).json()).selectedPreset;
+    const r4 = await page.ev(`(async () => {
+      const c = (${free})()[0]; if (!c) return null;
+      c.scrollIntoView({ block: "center" }); c.click();
+      if (await __wt.at(() => document.getElementById("itWear"), 8000) < 0 || !document.getElementById("itNewLook")) return null;
+      const prompt0 = window.prompt; window.prompt = () => "Queue test look";
+      document.getElementById("itNewLook").click(); window.prompt = prompt0;
+      const stand = document.getElementById("itLook").value;
+      document.getElementById("itWear").click();
+      const shown = !!document.querySelector("#itActs .q-state");
+      const settled = await __wt.at(${synced}, 15000) > 0 && await __wt.at(() => !/^new~/.test(document.getElementById("itLook").value), 5000) > 0;
+      const id = document.getElementById("itLook").value;
+      await __wt.at(() => document.getElementById("itRemove"), 5000);
+      const worn = !!document.getElementById("itRemove");
+      document.getElementById("itClose").click();
+      return { stand, id, shown, settled, worn };
+    })()`, 40000);
+    if (!r4) issue("queue", "warn", "skipped", "no item panel with a Look picker for New look");
+    else {
+      if (!/^new~/.test(r4.stand) || !r4.shown) issue("queue", "fail", "newlook-not-shown", "New look in the item panel did not select the queued look and queue Wear at once.");
+      if (!r4.settled || !r4.worn) issue("queue", "fail", "newlook-wear", `Wearing into a look created from the item panel did not apply (look ${r4.id}).`);
+      const st = await (await fetch(base + "/api/state")).json();
+      if (st.selectedPreset !== selectedBefore) issue("queue", "fail", "newlook-switched", "Creating a look from the item panel switched the current look.");
+      if (!(st.workflowPresets || []).some((p) => p.id === r4.id && p.name === "Queue test look")) issue("queue", "fail", "newlook-missing", "The look created from the item panel is not in Unity's list.");
+      await fetch(base + "/mock/forget_look?id=" + encodeURIComponent(r4.id), { method: "POST" });
+    }
   });
 
   await step("settings", async () => {
@@ -477,7 +629,7 @@ async function runViewport(name) {
   });
 
   // Back to the catalog so the next viewport (or the idle check) starts from the main screen.
-  await page.ev(`(() => { const on = document.querySelector("#lookList .lk-main[aria-current]") || document.querySelector('.rail [data-view="wardrobe"]'); if (on) on.click(); })()`).catch(() => {});
+  await page.ev(`(() => { const b = document.querySelector('#sections [data-view="wardrobe"]'); if (b) b.click(); })()`).catch(() => {});
   return result;
 }
 
@@ -527,7 +679,7 @@ process.exit(report.failures ? 1 : 0);
 
 function renderHtml(r) {
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const perfKeys = [["firstCardMs", "First card", "ms"], ["firstThumbMs", "First thumbnail", "ms"], ["itemHeadMs", "Item opens", "ms"], ["itemFullMs", "Item ready", "ms"], ["lookUiMs", "Look switch", "ms"], ["lookFamiliesRequests", "Catalog refetches on look switch", ""], ["lookPinned", "Look items pinned first", ""]];
+  const perfKeys = [["firstCardMs", "First card", "ms"], ["firstThumbMs", "First thumbnail", "ms"], ["itemHeadMs", "Item opens", "ms"], ["itemFullMs", "Item ready", "ms"], ["lookUiMs", "Look switch", "ms"], ["lookFamiliesRequests", "Catalog refetches on look switch", ""], ["lookOutlined", "Cards outlined for the look", ""]];
   const perf = `<table><tr><th></th>${r.viewports.map((v) => `<th>${esc(v.name)}<br><span>${esc(v.size)}</span></th>`).join("")}</tr>${perfKeys.map(([k, label, unit]) => `<tr><td>${label}</td>${r.viewports.map((v) => `<td>${v.perf[k] == null ? "—" : esc(v.perf[k]) + unit}</td>`).join("")}</tr>`).join("")}</table>`;
   const idle = r.idle ? `<p class="sub">Idle ${r.idle.seconds}s: ${Object.entries(r.idle.requests).map(([p, n]) => `${esc(p)} ×${n}`).join(", ") || "no requests"} · ${r.idle.totalMs}ms of server time</p>` : "";
   const issues = (list) => list.length ? `<ul>${list.map((i) => `<li class="${i.severity}"><b>${esc(i.rule)}</b> <span>${esc(i.step)}</span> ${esc(i.message)}${i.detail ? `<code>${esc(i.detail)}</code>` : ""}</li>`).join("")}</ul>` : `<p class="ok">No issues.</p>`;

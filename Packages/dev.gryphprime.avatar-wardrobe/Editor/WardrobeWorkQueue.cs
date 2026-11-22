@@ -57,7 +57,8 @@ namespace OutfitToggleGenerator
             lock (gate)
             {
                 if (closed) throw new OperationCanceledException("Wardrobe server stopped.");
-                if (Count >= 128) throw new InvalidOperationException("Wardrobe queue is full.");
+                // Each lane has its own cap: a flood of preview bakes never refuses edits or state reads.
+                if (operations.Count >= 128) throw new InvalidOperationException("Wardrobe queue is full.");
                 operations.Enqueue(work);
             }
             return work.Completion;
@@ -77,7 +78,7 @@ namespace OutfitToggleGenerator
             lock (gate)
             {
                 if (closed) throw new OperationCanceledException("Wardrobe server stopped.");
-                if (interactive.Count + operations.Count + background.Count >= 128)
+                if (operations.Count >= 128)
                     throw new InvalidOperationException("Wardrobe is busy. Keep the operation in the desktop queue.");
                 operations.Enqueue(work);
             }
@@ -91,9 +92,10 @@ namespace OutfitToggleGenerator
             lock (gate)
             {
                 if (closed) throw new OperationCanceledException("Wardrobe server stopped.");
-                if (interactive.Count + operations.Count + background.Count >= 128)
+                var lane = isOperation ? operations : isBackground ? background : interactive;
+                if (lane.Count >= (isBackground && !isOperation ? 64 : 128))
                     throw new InvalidOperationException("Wardrobe is busy. Try again after current work finishes.");
-                (isOperation ? operations : isBackground ? background : interactive).Enqueue(work);
+                lane.Enqueue(work);
             }
             // Expire only work that has NOT started. A running edit cannot be cancelled safely
             // by an HTTP timeout. Exceptions are propagated to the request, never converted to null.

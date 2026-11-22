@@ -352,7 +352,16 @@ namespace OutfitToggleGenerator
                 // Bakes are background: instant metadata first, pixels when idle.
                 // Starved past 30s the wait times out and the client falls
                 // back to low-res, which already heals on the next render.
-                var outcome = RunOnMain(() => hi ? BakeThumbHi(guid) : BakeThumb(guid), requestCode, true);
+                // Bakes wait on the main thread while holding a request slot. Cap them so
+                // edits and state reads always find a free slot; the page retries a 202.
+                if (!thumbBakeSlots.Wait(0))
+                {
+                    WriteJson(context, 202, new ResultDto { ok = 0, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.pending") });
+                    return;
+                }
+                byte[] outcome;
+                try { outcome = RunOnMain(() => hi ? BakeThumbHi(guid) : BakeThumb(guid), requestCode, true); }
+                finally { thumbBakeSlots.Release(); }
                 if (outcome == null) WriteJson(context, 202, new ResultDto { ok = 0, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.pending") });
                 else if (outcome.Length == 0) WriteJson(context, 404, new ResultDto { ok = 0, message = global::OutfitToggleGenerator.WardrobeStrings.T("server.unavailable") });
                 else WriteThumbnailBytes(context, 200, ThumbPath(guid, hi), outcome, currentEpoch && retryFlag != "1");
@@ -401,7 +410,8 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("sync", out var sync);
                 // Missing toggles means enabled for clients from before this option; missing sync means off.
                 WriteMainJson(context, () => Install(
-                    guid, allow == "1", toggles != "0", switchVariant == "1", target ?? string.Empty, group ?? string.Empty, query.ContainsKey("replaceId") ? query["replaceId"] : "", query.ContainsKey("copy") && query["copy"] == "1", sync == "1"), requestCode);
+                    guid, allow == "1", toggles != "0", switchVariant == "1", target ?? string.Empty, group ?? string.Empty, query.ContainsKey("replaceId") ? query["replaceId"] : "", query.ContainsKey("copy") && query["copy"] == "1", sync == "1",
+                    query.ContainsKey("replaceGuid") ? query["replaceGuid"] : ""), requestCode);
                 return;
             }
             if (path == "/api/scene_upload_thumbnail")
@@ -941,7 +951,9 @@ namespace OutfitToggleGenerator
                 query.TryGetValue("id", out id);
                 string name;
                 query.TryGetValue("name", out name);
-                WriteMainJson(context, () => EditAvatar("Save wardrobe preset", () => SavePreset(id, name)), requestCode);
+                string select;
+                query.TryGetValue("select", out select);
+                WriteMainJson(context, () => EditAvatar("Save wardrobe preset", () => SavePreset(id, name, select != "0")), requestCode);
                 return;
             }
             if (path == "/api/preset_copy")
@@ -1002,7 +1014,7 @@ namespace OutfitToggleGenerator
                 var query = Query(request.Url.Query);
                 string guid, target, item;
                 query.TryGetValue("guid", out guid); query.TryGetValue("target", out target); query.TryGetValue("item", out item);
-                WriteMainJson(context, () => RemovePresetItem(guid, target, item, query.ContainsKey("instanceId") ? query["instanceId"] : null), requestCode);
+                WriteMainJson(context, () => RemovePresetItem(guid, target, item, query.ContainsKey("instanceId") ? query["instanceId"] : null, query.ContainsKey("latest") && query["latest"] == "1"), requestCode);
                 return;
             }
             if (path == "/api/remove")
@@ -1083,7 +1095,7 @@ namespace OutfitToggleGenerator
             var suppliedSession = r.Headers["X-Wardrobe-Session"];
             if (!legacyReadPost && !string.IsNullOrEmpty(suppliedSession) && suppliedSession != serverSession)
             {
-                WriteText(context, 409, "text/plain", "The Unity session changed. Refresh the wardrobe before editing.");
+                WriteContextConflict(context, "session-changed", "The Unity session changed. Refresh the wardrobe before editing.");
                 return false;
             }
             requestWritesAvatar = !read && !r.Url.AbsolutePath.StartsWith("/api/library_import_", StringComparison.Ordinal) &&
@@ -1093,8 +1105,19 @@ namespace OutfitToggleGenerator
             int.TryParse(r.Headers["X-Wardrobe-Avatar"], out requestAvatarId);
             if (requestWritesAvatar && (suppliedSession != serverSession ||
                 (requestAvatarId == 0 && r.Url.AbsolutePath != "/api/target")))
-            { WriteText(context, 409, "text/plain", "Choose an avatar and refresh Wardrobe before editing."); return false; }
+            {
+                WriteContextConflict(context, suppliedSession != serverSession ? "session-changed" : "no-avatar", "Choose an avatar and refresh Wardrobe before editing.");
+                return false;
+            }
             return true;
+        }
+        // Machine-readable so the page can re-sign and resend a change after a Unity
+        // reload instead of failing it. Only same-origin pages can read this (writes
+        // require X-Wardrobe-Request, and cross-origin preflights are refused).
+        private static void WriteContextConflict(HttpListenerContext context, string code, string message)
+        {
+            WriteText(context, 409, "application/json", "{\"code\":" + JsonString(code) + ",\"message\":" + JsonString(message) +
+                ",\"session\":" + JsonString(serverSession) + ",\"avatarInstanceId\":" + Volatile.Read(ref publishedAvatarId) + "}");
         }
         private static bool IsAssetGuid(string guid)
         {

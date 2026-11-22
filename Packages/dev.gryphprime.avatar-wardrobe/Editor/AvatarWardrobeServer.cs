@@ -27,6 +27,9 @@ namespace OutfitToggleGenerator
         private static Thread listenerThread;
         private static WardrobeWorkQueue dispatcher;
         private static readonly SemaphoreSlim requestSlots = new SemaphoreSlim(24);
+        private static readonly SemaphoreSlim thumbBakeSlots = new SemaphoreSlim(8);
+        // The pinned avatar's instance ID, published every editor update for pool threads.
+        private static int publishedAvatarId;
         private static string serverSession = Guid.NewGuid().ToString("N");
         private static readonly Dictionary<string, WardrobeCompatibility> compatCache =
             new Dictionary<string, WardrobeCompatibility>();
@@ -131,6 +134,7 @@ namespace OutfitToggleGenerator
                     SessionState.SetString(PinnedTargetGlobalIdKey, string.Empty);
                 }
                 sceneAvatar = value;
+                ForgetStaleReads();
                 InvalidateInstalled();
                 WardrobeLog.Write("avatar", value == null ? "Selected none" : "Selected " + value.name + " instance=" + value.GetInstanceID());
             }
@@ -168,6 +172,7 @@ namespace OutfitToggleGenerator
             WardrobeStrings.EnsureInitialized();
             dispatcher = new WardrobeWorkQueue();
             serverSession = Guid.NewGuid().ToString("N");
+            ForgetStaleReads();
             for (var port = 8909; port <= 8929; port++)
             {
                 var candidate = new HttpListener();
@@ -193,7 +198,7 @@ namespace OutfitToggleGenerator
             langPath = WardrobePackagePaths.File("Web/lang.json");
             thumbDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "AvatarWardrobe", "thumbs"));
             hiDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "AvatarWardrobe", "thumbs512"));
-            // Pipeline v5 (fingerprinted previews and explicit sRGB capture):
+            // Pipeline v5 (fingerprinted previews and explicit sRGB capture), v6 (matted 512px renders):
             // any older cache stock is wrong pixels, so wipe once and stamp.
             var stamp = Path.Combine(serverProjectPath, "Library", "AvatarWardrobe", ".thumbpipe");
             var lowDirectory = thumbDir; var highDirectory = hiDir;
@@ -201,13 +206,15 @@ namespace OutfitToggleGenerator
             {
                 try
                 {
-                var pipe = File.Exists(stamp) ? File.ReadAllText(stamp) : string.Empty;
-                if (pipe.Trim() != "v5")
+                var pipe = (File.Exists(stamp) ? File.ReadAllText(stamp) : string.Empty).Trim();
+                if (pipe != "v6")
                 {
-                    foreach (var dir in new[] { lowDirectory, highDirectory })
+                    // v6 changed only the 512px renders (black/white matte, zoom onto small content);
+                    // the low-res Unity previews from v5 are still right.
+                    foreach (var dir in pipe == "v5" ? new[] { highDirectory } : new[] { lowDirectory, highDirectory })
                         if (Directory.Exists(dir)) Directory.Delete(dir, true);
                     Directory.CreateDirectory(Path.GetDirectoryName(stamp));
-                    WardrobeAtomicFile.WriteText(stamp, "v5");
+                    WardrobeAtomicFile.WriteText(stamp, "v6");
                 }
             }
                 catch (Exception error) { WardrobeLog.Write("preview", "Cache initialization: " + error.Message); }
@@ -336,6 +343,7 @@ namespace OutfitToggleGenerator
 
         private static void Pump()
         {
+            Volatile.Write(ref publishedAvatarId, sceneAvatar != null ? sceneAvatar.GetInstanceID() : 0);
             if (operationLedger == null && operationInitialization != null && operationInitialization.IsCompleted && !operationInitialization.IsFaulted)
                 operationLedger = operationInitialization.Result;
             PumpPreviewEncoding();
@@ -419,7 +427,8 @@ namespace OutfitToggleGenerator
                         requestSession = acceptedSession;
                         requestAvatarId = 0;
                         requestWritesAvatar = false;
-                        Handle(accepted);
+                        if (StaleEligible(accepted.Request)) HandleFreshOrStale(accepted, acceptedSession);
+                        else Handle(accepted);
                     }
                     catch (Exception exception)
                     {
@@ -487,6 +496,12 @@ namespace OutfitToggleGenerator
         }
 
         private static void WriteText(HttpListenerContext context, int status, string mime, string body)
+        {
+            if (!CaptureRead(context, status, mime, body)) return;
+            WriteTextDirect(context, status, mime, body);
+        }
+        // Bypasses the stale-read capture: the cached answer itself must reach the browser.
+        private static void WriteTextDirect(HttpListenerContext context, int status, string mime, string body)
         {
             var bytes = Encoding.UTF8.GetBytes(body ?? string.Empty);
             context.Response.StatusCode = status;
