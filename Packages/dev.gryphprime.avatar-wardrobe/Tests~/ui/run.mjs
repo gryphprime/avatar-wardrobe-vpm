@@ -499,6 +499,60 @@ async function runViewport(name) {
     await page.ev(`(() => { const d = document.getElementById("uploadDlg"); if (d.open) d.close(); const c = document.getElementById("selClear"); if (c && !document.getElementById("selbar").hidden) c.click(); })()`);
   });
 
+  // Mock only (it uploads): one of two looks fails. Only that look is marked failed, the toast counts
+  // failures instead of repeating the summary, and Retry uploads just the failed look again.
+  if (mock && name === names[0]) await step("upload-result", async () => {
+    const result = `async (ms) => {
+      const ok = await __wt.at(() => document.getElementById("upClose"), ms);
+      const rows = [...document.querySelectorAll("#uploadDlg .up-row")];
+      return { ok: ok > 0, rows: rows.length, done: rows.filter((r) => r.querySelector(".st.ok-t")).length,
+        failed: rows.filter((r) => r.querySelector(".st.warn-t")).map((r) => r.querySelector(".st.warn-t").title || ""),
+        retry: !!document.getElementById("upRetry") };
+    }`;
+    const first = await page.ev(`(async () => {
+      if (document.getElementById("viewLooks").hidden) return { skip: "Looks page not open" };
+      const boxes = [...document.querySelectorAll("#looksGrid .look .ck:not([hidden]) input")].slice(0, 2);
+      if (boxes.length < 2) return { skip: "fewer than two looks" };
+      boxes.forEach((b) => { b.checked = true; b.dispatchEvent(new Event("change", { bubbles: true })); });
+      await new Promise((r) => setTimeout(r, 150));
+      document.getElementById("selUpload").click();
+      if (await __wt.at(() => document.getElementById("uploadDlg").open && document.getElementById("upConsent"), 10000) < 0) return { skip: "no upload review" };
+      const consent = document.getElementById("upConsent"); consent.checked = true; consent.dispatchEvent(new Event("change", { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      document.getElementById("upGo").click();
+      return (${result})(30000);
+    })()`);
+    if (first.skip) return issue("upload-result", "warn", "skipped", first.skip);
+    if (!first.ok) return issue("upload-result", "fail", "upload-finish", "The upload never reached its result screen.");
+    if (first.done !== 1 || first.failed.length !== 1)
+      issue("upload-result", "fail", "per-look-result", `One of two looks failed, but the result shows ${first.done} done and ${first.failed.length} failed.`);
+    if (first.failed.length === 1 && !/Failed to upload file/.test(first.failed[0]))
+      issue("upload-result", "fail", "failure-reason", "The failed look does not show why it failed.");
+    if (!first.retry) issue("upload-result", "fail", "retry", "There is no Retry button after a failed look.");
+    // The expected toast is checked here, then cleared so the layout rules don't flag it.
+    const toasts = await page.ev(`(() => { document.querySelectorAll("#toasts .toast").forEach((t) => t.remove()); return __wt.errToasts.splice(0); })()`);
+    if (toasts.length !== 1 || !/^1 failed$/.test(toasts[0].trim()))
+      issue("upload-result", "fail", "failure-toast", `Expected one "1 failed" toast, got: ${JSON.stringify(toasts)}`);
+    await settle();
+    await check("upload-result");
+    const net0 = net_.length;
+    const again = await page.ev(`(async () => {
+      const b = document.getElementById("upRetry"); if (!b) return { ok: false };
+      b.click();
+      await __wt.at(() => !document.getElementById("upClose"), 3000);
+      return (${result})(20000);
+    })()`);
+    const later = net_.slice(net0), sent = later.filter((r) => r.path === "/api/batch_upload_presets");
+    if (sent.length !== 1 || (new URL(sent[0].url).searchParams.get("ids") || "").split("\n").length !== 1)
+      issue("upload-retry", "fail", "retry-request", `Retry sent ${sent.length} upload request(s); it should re-upload only the failed look.`);
+    if (later.some((r) => r.path === "/api/batch_retry")) issue("upload-retry", "fail", "retry-route", "Retry used the scene uploader's retry.");
+    if (!again.ok || again.rows !== 1 || again.done !== 1)
+      issue("upload-retry", "fail", "retry-result", `Retry result: ${JSON.stringify(again)}`);
+    await settle();
+    await check("upload-retry");
+    await page.ev(`(() => { const c = document.getElementById("upClose"); if (c) c.click(); const d = document.getElementById("uploadDlg"); if (d.open) d.close(); const s = document.getElementById("selClear"); if (s && !document.getElementById("selbar").hidden) s.click(); })()`);
+  });
+
   // Mock only (it edits the scene): changes never block, show at once, and survive a Unity reload or a busy Unity.
   if (mock && name === names[0]) await step("queue", async () => {
     const base = new URL(url).origin;

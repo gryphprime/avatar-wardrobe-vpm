@@ -280,7 +280,16 @@ class H(BaseHTTPRequestHandler):
             j = STATE['job']
             if not j: return self.send(200, {'done': 1, 'job': ''})
             t = time.time() - j['start']; idx = int(t // 6); total = len(j['ids'])
-            if idx >= total: j['done'] = 1; return self.send(200, {'job': 'j1', 'done': 1, 'ok': 1, 'index': total, 'total': total, 'message': 'Uploaded %d looks.' % total})
+            if idx >= total:
+                # A multi-look upload fails its last look once (like a VRChat storage hiccup); the retry succeeds.
+                j['done'] = 1; names = dict(LOOKS)
+                failed = [j['ids'][-1]] if total > 1 and not STATE.get('uploadFailedOnce') else []
+                if failed: STATE['uploadFailedOnce'] = 1
+                uploaded = [i for i in j['ids'] if i not in failed]
+                message = 'Uploaded %d preset%s: %s.' % (len(uploaded), '' if len(uploaded) == 1 else 's', ', '.join(names.get(i, i) for i in uploaded))
+                if failed: message += '\nCould not upload:\n' + '\n'.join('%s: New-avatar upload failed: Failed to upload file' % names.get(i, i) for i in failed)
+                return self.send(200, {'job': 'j1', 'done': 1, 'ok': 0 if failed else 1, 'index': total, 'total': total, 'message': message,
+                                       'perLook': 1, 'uploadedIds': uploaded, 'failedIds': failed})
             return self.send(200, {'job': 'j1', 'done': 0, 'index': idx, 'total': total, 'current': j['ids'][idx], 'stage': 'Uploading', 'uploadProgress': (t % 6) / 6})
         if p == '/api/batch_cancel': STATE['job'] = None; return self.send(200, {'ok': 1, 'message': 'Cancelled'})
         if p.startswith('/api/'): return self.send(200, {'ok': 1, 'message': 'ok'})

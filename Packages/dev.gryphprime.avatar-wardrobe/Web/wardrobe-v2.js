@@ -1539,7 +1539,7 @@
       html='<div class="dlg-head"><h2 id="uploadHeading">'+esc(doneAll?T("resultN",okCount,rows.length):T("uploadingN",Math.min(index+1,total),total))+'</h2></div><div class="dlg-body">'+
         rows.map(function(r,i){
           var st,right;
-          if(doneAll){var failed=u.results?u.results[r.id]==="failed":!q.ok;st=failed?T("failed"):T("done");right='<span class="st'+(failed?" warn-t":" ok-t")+'">'+esc(st)+'</span>';}
+          if(doneAll){var failed=u.results?u.results[r.id]==="failed":!q.ok,why=failed&&u.reasons&&u.reasons[r.name];st=failed?T("failed"):T("done");right='<span class="st'+(failed?" warn-t":" ok-t")+'"'+(why?' title="'+esc(why)+'"':'')+'>'+esc(st)+'</span>';}
           else if(i<index)right='<span class="st ok-t">'+esc(T("done"))+'</span>';
           else if(i===index){var p=Number(q.uploadProgress),known=Number.isFinite(p)&&p>=0;right='<span class="st">'+esc(q.stage||T("working"))+'</span><div class="bar'+(known?"":" indet")+'"><div style="width:'+(known?Math.round(Math.min(1,p)*100):0)+'%"></div></div>';}
           else right='<span class="st">'+esc(T("queued"))+'</span>';
@@ -1567,8 +1567,9 @@
       if($("upCancelAll"))$("upCancelAll").onclick=function(){var b=this;b.disabled=true;api("/api/batch_cancel").then(function(r){if(r&&r.message)toast(r.message,r.ok?"ok":"err");}).catch(function(e){toast(e.message,"err");b.disabled=false;});};
       if($("upRetry"))$("upRetry").onclick=function(){
         var b=this;b.disabled=true;
-        api("/api/batch_retry",{timeout:120000}).then(function(r){if(!r||!r.ok||!r.job)throw new Error(r&&r.message||T("failed"));followJob(r.job,u.order.filter(function(x){return !u.results||u.results[x.id]==="failed";}));})
-          .catch(function(e){toast(e.message,"err");b.disabled=false;});
+        var again=u.order.filter(function(x){return !u.results||u.results[x.id]==="failed";});
+        if(!again.length){b.disabled=false;return;}
+        startLookUpload(again);
       };
     }
   }
@@ -1592,7 +1593,6 @@
       u.message="";paintUploadMessage();
       if(!$("uploadDlg").open||u.step!=="review"){busyButton(button,false);return;}
     }
-    var ids=u.ids.filter(function(id){return u.picked.has(id);});
     var before=JSON.stringify(u.rows.filter(function(r){return u.picked.has(r.id);}));
     // Read again at commitment: never upload a changed Look using an old review.
     var state=await loadBatchState(true);
@@ -1601,8 +1601,11 @@
     var rows=reviewRows(state,u.ids),now=JSON.stringify(rows.filter(function(r){return u.picked.has(r.id);}));
     if(now!==before){u.rows=rows;rows.forEach(function(r){if(r.error)u.picked.delete(r.id);});u.message=T("changedReview");paintUpload();return;}
     var order=rows.filter(function(r){return u.picked.has(r.id);}).map(function(r){return {id:r.id,name:r.name};});
-    var requestId=crypto.randomUUID().replace(/-/g,"");
-    u.order=order;u.step="queue";u.q={index:0,total:order.length};u.running=true;u.results=null;paintUpload();paintWearing();paintStatus();
+    startLookUpload(order);
+  }
+  function startLookUpload(order){
+    var u=upload,ids=order.map(function(r){return r.id;}),requestId=crypto.randomUUID().replace(/-/g,"");
+    u.order=order;u.step="queue";u.q={index:0,total:order.length};u.running=true;u.results=null;u.reasons=null;paintUpload();paintWearing();paintStatus();
     api("/api/batch_upload_presets?ids="+encodeURIComponent(ids.join("\n"))+"&requestId="+encodeURIComponent(requestId),{timeout:120000}).then(function(r){
       if(!r||!r.ok||!r.job)throw new Error(r&&r.message||T("failed"));
       picked.clear();savePicked();paintRail();
@@ -1633,10 +1636,21 @@
   async function finishJob(q){
     var u=upload;clearInterval(u.timer);u.running=false;u.q=Object.assign({},q,{done:1});
     var state=await loadBatchState(true),failed=new Set(((state&&state.failed)||[]).map(function(f){return f.outfit;}));
-    u.results={};(u.order||[]).forEach(function(r){u.results[r.id]=failed.has(r.name)||(!q.ok&&!failed.size)?"failed":"done";});
-    toast(q.ok?LT("upload.complete"):(q.message||LT("upload.finishedErrors")),q.ok?"ok":"err");
+    u.results={};u.reasons=failureReasons(q.message);
+    // Look uploads report each Look; a Look that never finished (cancel, reload) did not upload.
+    var perLook=q.perLook&&Array.isArray(q.uploadedIds),uploaded=new Set(perLook?q.uploadedIds:[]);
+    (u.order||[]).forEach(function(r){u.results[r.id]=perLook?(uploaded.has(r.id)?"done":"failed"):(failed.has(r.name)||(!q.ok&&!failed.size)?"failed":"done");});
+    var failedCount=Object.values(u.results).filter(function(v){return v==="failed";}).length;
+    toast(q.ok?LT("upload.complete"):perLook&&failedCount?T("failedN",failedCount):(q.message||LT("upload.finishedErrors")),q.ok?"ok":"err");
     u.step="result";if($("uploadDlg").open)paintUpload();
     paintWearing();paintStatus();refreshState();
+  }
+  // "Could not upload:\nName: reason" lines from the job summary, by Look name.
+  function failureReasons(message){
+    var out={},text=String(message||""),at=text.indexOf("\nCould not upload:\n");
+    if(at<0)return out;
+    text.slice(at+19).split("\n").forEach(function(line){var i=line.indexOf(": ");if(i>0)out[line.slice(0,i)]=line.slice(i+2);});
+    return out;
   }
   // Reattach to a server-owned upload after a reload.
   function reconnectUpload(){

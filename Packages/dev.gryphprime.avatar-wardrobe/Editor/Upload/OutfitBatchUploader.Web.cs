@@ -148,6 +148,8 @@ namespace ShiroTools
             public int done; public int ok; public string job = ""; public string message = "";
             public int index; public int total; public string current = "";
             public string blueprintId = ""; public List<WebAvatarDto> avatars = new List<WebAvatarDto>();
+            // Look uploads only: per-Look outcome, so one failure doesn't mark the whole batch failed.
+            public int perLook; public List<string> uploadedIds = new List<string>(); public List<string> failedIds = new List<string>();
         }
         [Serializable]
         public class WebReportDto { public int ok; public string message = ""; public int problems; public int warnings; public string report = ""; }
@@ -767,6 +769,7 @@ namespace ShiroTools
             public bool done; public bool ok; public string message = "";
             public int index; public int total; public string current = "";
             public string blueprintId = ""; public List<WebAvatarDto> avatars;
+            public bool perLook; public List<string> uploadedIds = new List<string>(); public List<string> failedIds = new List<string>();
         }
         private static readonly Dictionary<string, WebJobState> _webJobs = new Dictionary<string, WebJobState>();
         private static readonly object _webJobsLock = new object();
@@ -885,6 +888,18 @@ namespace ShiroTools
             lock (_webJobsLock)
                 if (_webJobs.TryGetValue(job, out var st)) { st.index = index; st.total = total; st.current = current ?? ""; SaveWebJobs(); }
         }
+        private static void WebJobLookOutcome(string job, string id, bool ok)
+        {
+            lock (_webJobsLock)
+                if (_webJobs.TryGetValue(job, out var st))
+                {
+                    st.perLook = true;
+                    if (st.uploadedIds == null) st.uploadedIds = new List<string>();
+                    if (st.failedIds == null) st.failedIds = new List<string>();
+                    (ok ? st.uploadedIds : st.failedIds).Add(id);
+                    SaveWebJobs();
+                }
+        }
         private static void WebJobFinish(string job, bool ok, string message, string blueprintId)
         {
             lock (_webJobsLock)
@@ -911,6 +926,9 @@ namespace ShiroTools
                 r.presetSeconds = st.presetStarted == 0 ? 0 : Math.Max(0, (now - st.presetStarted) / (double)TimeSpan.TicksPerSecond);
                 r.quietSeconds = st.lastProgress == 0 ? 0 : Math.Max(0, (now - st.lastProgress) / (double)TimeSpan.TicksPerSecond);
                 if (st.avatars != null) r.avatars = st.avatars;
+                r.perLook = st.perLook ? 1 : 0;
+                r.uploadedIds = new List<string>(st.uploadedIds ?? new List<string>());
+                r.failedIds = new List<string>(st.failedIds ?? new List<string>());
             }
             return r;
         }
@@ -1020,13 +1038,14 @@ namespace ShiroTools
                     var preset = OutfitToggleGenerator.AvatarWardrobePresets.GetPreset(id);
                     string nm = preset != null && !string.IsNullOrEmpty(preset.name) ? preset.name : id;
                     WebJobProgress(jobId, i++, ids.Count, nm);
-                    if (preset == null) { lines.Add(nm + ": preset not found."); allOk = false; continue; }
+                    if (preset == null) { lines.Add(nm + ": preset not found."); allOk = false; WebJobLookOutcome(jobId, id, false); continue; }
                     if (!TryGetWardrobeBuilder(out var progressBuilder)) throw new InvalidOperationException("VRChat SDK builder is unavailable.");
                     using var presetProgress = new WebPresetProgress(jobId, progressBuilder);
                     var outcome = await OutfitToggleGenerator.AvatarWardrobePresets.UploadPresetAsync(id);
                     if (outcome.ok) uploaded.Add(nm);
                     else lines.Add(nm + ": " + (outcome.message ?? "Upload failed."));
                     if (!outcome.ok) allOk = false;
+                    WebJobLookOutcome(jobId, id, outcome.ok);
                     cancellation.Token.ThrowIfCancellationRequested();
                 }
                 WebJobProgress(jobId, ids.Count, ids.Count, "");
