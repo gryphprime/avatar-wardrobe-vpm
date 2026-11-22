@@ -1452,8 +1452,18 @@
     if(!force&&batchState&&Date.now()-batchStateAt<8000)return Promise.resolve(batchState);
     return api("/api/batch_state",{method:"GET",timeout:30000}).then(function(d){if(d&&d.ok){batchState=d;batchStateAt=Date.now();if(multi)paintRail();}return batchState;}).catch(function(){return batchState;});
   }
+  // Shows a look on the scene avatar. Another look is switched to (that shows it); the current one is shown
+  // again, e.g. after the scene was changed by hand.
+  function showInUnity(id){
+    if(multi&&id!==scope){selectLook(id);return;}
+    enqueue({key:"show",label:LT("ui.show.in.unity")+" · "+lookName(id),url:"/api/preset_show?id="+encodeURIComponent(realLook(id))});
+  }
+  function playTest(id){
+    enqueue({key:"play",label:LT("ui.test.in.play.mode")+" · "+lookName(id),url:"/api/preset_play?id="+encodeURIComponent(realLook(id))});
+  }
   function lookMenu(anchor,id){
-    showMenu(anchor,[{label:T("thumbnail"),act:function(){loadBatchState(true).then(function(){openThumb(id);});}},{label:T("rename"),act:function(){
+    var unity=id==="common"?[]:[{label:LT("ui.show.in.unity"),act:function(){showInUnity(id);}},{label:LT("ui.test.in.play.mode"),act:function(){playTest(id);}},"hr"];
+    showMenu(anchor,unity.concat([{label:T("thumbnail"),act:function(){loadBatchState(true).then(function(){openThumb(id);});}},{label:T("rename"),act:function(){
       var name=prompt(T("lookName"),lookName(id));if(name==null||!name.trim())return;
       enqueue({key:"rename:"+id,label:T("renameQ",lookName(id)),look:{id:id,rename:name.trim()},scope:id,
         url:"/api/preset_save?id="+encodeURIComponent(id)+"&name="+encodeURIComponent(name.trim()),onDone:function(){refreshState();}});
@@ -1463,7 +1473,7 @@
       enqueue({label:label,look:{id:id,del:true},url:"/api/preset_delete?id="+encodeURIComponent(id),onDone:function(){refreshState();}});
       picked.delete(id);savePicked();
       if(scope===id){scope="common";workflowRevision++;closeItem(true);scopeChanged();}
-    }}]);
+    }}]));
   }
 
   /* ---------- Upload looks: review, queue, result ---------- */
