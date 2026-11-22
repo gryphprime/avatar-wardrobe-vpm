@@ -5,7 +5,13 @@ Serves the real files from Web/ and fakes the API. Requests that Unity would ans
 editor main thread are serialized through one lock with timings measured on a real project,
 so redundant requests queue up the same way they do in the editor.
 
-  python3 -I mock_server.py --web ../../Web [--img DIR] [--port 8791] [--latency 1.0]
+  python3 -I mock_server.py --web ../../Web [--img DIR] [--port 8791] [--latency 1.0] [--write-ms 400]
+
+Queued writes behave like Unity's: 202 + a receipt id, applied one at a time on a worker
+(--write-ms each), polled through /api/write_result. Test hooks:
+  POST /mock/reload       new session (writes signed with the old one get the 409 Unity sends)
+  POST /mock/busy?ms=N    writes and main-thread reads stall for N ms (Unity importing, compiling or applying)
+  POST /mock/forget_look?id=X  drops a look and what it wears (test cleanup)
 """
 import argparse, hashlib, json, threading, time, urllib.parse
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -16,6 +22,7 @@ ap.add_argument('--web', required=True)
 ap.add_argument('--img', default='')
 ap.add_argument('--port', type=int, default=8791)
 ap.add_argument('--latency', type=float, default=1.0, help='scale for simulated main-thread time (0 disables)')
+ap.add_argument('--write-ms', type=int, default=400, help='time Unity spends applying each queued write')
 args = ap.parse_args()
 WEB = Path(args.web).resolve()
 IMG = Path(args.img) if args.img else None
@@ -27,7 +34,10 @@ MAIN = threading.Lock()
 def main_thread(path):
     cost = COST.get(path, .015 if path.startswith('/api/') and path not in ('/api/thumb', '/api/active') else 0) * args.latency
     if cost:
-        with MAIN: time.sleep(cost)
+        with MAIN:
+            # Like Unity: while a change is being applied, main-thread reads wait for it.
+            while time.time() < STATE['busyUntil']: time.sleep(.05)
+            time.sleep(cost)
 
 def gid(name): return hashlib.md5(name.encode()).hexdigest()
 IMGS = sorted(p.stem for p in IMG.glob('*.webp') if not p.name.startswith('._')) if IMG and IMG.is_dir() else []
@@ -50,11 +60,11 @@ LOOK_NAMES = ['First', 'Frost Maid', 'Urban Dolly', 'Nascent', "Lily's Whisper",
               'black cat', 'everafter', 'Combo2', 'astraea', 'umbra', 'lounge', 'ace bunny', 'street chic', 'salt line', 'amakoi', 'qingtian',
               'marquise', 'cyborg']
 LOOKS = [(gid(n)[:6], n) for n in LOOK_NAMES]
-STATE = {'mode': 'multi-avatar', 'selected': LOOKS[0][0], 'installed': [], 'job': None, 'rev': 0}
+STATE = {'mode': 'multi-avatar', 'selected': LOOKS[0][0], 'installed': [], 'job': None, 'rev': 0, 'session': 's1', 'busyUntil': 0, 'nextId': 1000}
 
 def wear(fi, k, target):
-    f = FAMILIES[fi]; v = f['variants'][k]
-    STATE['installed'].append({'instanceId': 1000 + len(STATE['installed']), 'setupWarning': '', 'path': 'Outfits/%s/%s' % (target, f['name']),
+    f = FAMILIES[fi]; v = f['variants'][k]; STATE['nextId'] += 1
+    STATE['installed'].append({'instanceId': STATE['nextId'], 'setupWarning': '', 'path': 'Outfits/%s/%s' % (target, f['name']),
                                'guid': v['guid'], 'family': f['name'], 'variant': v['variant'], 'familyId': f['id'], 'target': target, 'targetName': ''})
     STATE['rev'] += 1
 for idx, (lid, _) in enumerate(LOOKS):
@@ -62,6 +72,56 @@ for idx, (lid, _) in enumerate(LOOKS):
         fi = (idx * 7 + j * 3 + 3) % len(FAMILIES); wear(fi, j % len(FAMILIES[fi]['variants']), lid)
 wear(1, 5, LOOKS[1][0])
 for j in range(3): wear(40 + j, 0, 'common')
+
+# Unity's queued writes: receipt saved on acceptance, applied in order on one worker.
+QUEUED = {'/api/install', '/api/preset_remove_item', '/api/workflow', '/api/item_settings', '/api/preset_save', '/api/preset_delete',
+          '/api/menu_groups', '/api/item_parts', '/api/preset_show', '/api/preset_include'}
+RECEIPTS = {}; WRITES = []; WRITE_CV = threading.Condition()
+def write_worker():
+    while True:
+        with WRITE_CV:
+            while not WRITES: WRITE_CV.wait()
+            wid, p, q = WRITES.pop(0)
+        while time.time() < STATE['busyUntil']: time.sleep(.05)
+        RECEIPTS[wid]['state'] = 'running'
+        time.sleep(args.write_ms / 1000)
+        with MAIN:
+            try: RECEIPTS[wid].update(state='completed', result=apply_write(p, q))
+            except Exception as e: RECEIPTS[wid].update(state='failed', error=str(e))
+threading.Thread(target=write_worker, daemon=True).start()
+
+def apply_write(p, q):
+    target = q.get('target') or 'common'
+    if p == '/api/install':
+        f, v = VARIANT[q['guid']]
+        if q.get('switch') == '1':
+            worn = [x for x in STATE['installed'] if x['target'] == target]
+            old = next((x for x in worn if str(x['instanceId']) == q.get('replaceId')), None) or next((x for x in worn if x['guid'] == q.get('replaceGuid')), None)
+            if old: STATE['installed'].remove(old)
+        wear(FAMILIES.index(f), f['variants'].index(v), target)
+        return {'ok': 1, 'message': 'Wearing ' + f['name']}
+    if p == '/api/preset_remove_item':
+        worn = [x for x in STATE['installed'] if x['guid'] == q.get('guid') and x['target'] == target]
+        it = next((x for x in worn if str(x['instanceId']) == q.get('instanceId')), None) or (worn[-1] if worn and q.get('latest') == '1' else None)
+        if not it: return {'ok': 0, 'message': 'This prefab is not installed in the selected preset.'}
+        STATE['installed'].remove(it); STATE['rev'] += 1
+        return {'ok': 1, 'message': 'Removed'}
+    if p == '/api/workflow':
+        if 'selected' in q: STATE['selected'] = q['selected']
+        if 'mode' in q: STATE['mode'] = q['mode']
+        return {'ok': 1}
+    if p == '/api/preset_save' and q.get('op') != 'save':
+        if q.get('id'):
+            for i, (a, b) in enumerate(LOOKS):
+                if a == q['id']: LOOKS[i] = (a, q.get('name', b))
+            return {'ok': 1}
+        nid = gid(q.get('name', '') + str(time.time()))[:6]; LOOKS.append((nid, q.get('name', 'Look')))
+        if q.get('select') != '0': STATE['selected'] = nid  # like Unity in multi-avatar mode
+        return {'ok': 1, 'id': nid}
+    if p == '/api/preset_delete':
+        LOOKS[:] = [x for x in LOOKS if x[0] != q.get('id')]; return {'ok': 1, 'message': 'Deleted'}
+    if p == '/api/menu_groups' and q.get('op') == 'save': return {'ok': 1, 'id': 'g%d' % int(time.time() * 1000)}
+    return {'ok': 1, 'message': 'ok'}
 
 def installed_in(target): return [x for x in STATE['installed'] if (x['target'] or 'common') == target]
 def fam_row(f, target):
@@ -101,6 +161,22 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get('Content-Length') or 0)
         if n: self.rfile.read(n)
+        u = urllib.parse.urlsplit(self.path); q = {k: v[-1] for k, v in urllib.parse.parse_qs(u.query, keep_blank_values=True).items()}; p = u.path
+        if p == '/mock/reload': STATE['session'] = 's%d' % (int(STATE['session'][1:]) + 1); return self.send(200, {'ok': 1, 'session': STATE['session']})
+        if p == '/mock/forget_look':
+            LOOKS[:] = [x for x in LOOKS if x[0] != q.get('id')]
+            STATE['installed'] = [x for x in STATE['installed'] if x['target'] != q.get('id')]; STATE['rev'] += 1
+            return self.send(200, {'ok': 1})
+        if p == '/mock/busy': STATE['busyUntil'] = time.time() + int(q.get('ms', '3000')) / 1000; return self.send(200, {'ok': 1})
+        session = self.headers.get('X-Wardrobe-Session')
+        if p.startswith('/api/') and session and session != STATE['session'] and p != '/api/active':
+            return self.send(409, {'code': 'session-changed', 'message': 'The Unity session changed. Refresh the wardrobe before editing.', 'session': STATE['session'], 'avatarInstanceId': 123})
+        wid = self.headers.get('X-Wardrobe-Write-Id')
+        if p in QUEUED and wid and self.headers.get('X-Wardrobe-Queue') == '1' and not (p == '/api/menu_groups' and not q.get('op')):
+            with WRITE_CV:
+                if wid not in RECEIPTS:
+                    RECEIPTS[wid] = {'state': 'queued', 'result': None, 'error': ''}; WRITES.append((wid, p, q)); WRITE_CV.notify()
+            return self.send(202, {'writeJob': wid, 'state': 'queued'})
         self.do_GET()
     def do_GET(self):
         u = urllib.parse.urlsplit(self.path); q = {k: v[-1] for k, v in urllib.parse.parse_qs(u.query, keep_blank_values=True).items()}; p = u.path
@@ -108,13 +184,17 @@ class H(BaseHTTPRequestHandler):
         if p in static or (p.endswith(('.js', '.css')) and '..' not in p and (WEB / p[1:]).is_file()):
             f = WEB / (static.get(p) or p[1:])
             return self.send(200, f.read_bytes(), {'.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json'}[f.suffix])
+        if p == '/api/write_result':
+            r = RECEIPTS.get(q.get('id', ''))
+            if not r: return self.send(409, b'Write receipt unavailable after a restart or expiry.', 'text/plain')
+            return self.send(200, {'state': r['state'], 'result': r['result'], 'error': r['error']})
         main_thread(p)
         target = q.get('target') or 'common'
         if p == '/api/state':
             return self.send(200, {'ok': 1, 'wardrobeMode': STATE['mode'], 'selectedPreset': STATE['selected'], 'workflowPresets': [{'id': a, 'name': b} for a, b in LOOKS],
                 'sdkLoggedIn': True, 'sdkUploadReady': True, 'wardrobeVersion': '1.0.29', 'avatarInstanceId': 123, 'projectPath': '/x/Mayo', 'scenePath': 'Assets/mayo.unity',
                 'sceneTargets': [{'id': 123, 'name': 'MAYO_Kaihen (2)', 'scene': 'Assets/mayo.unity'}, {'id': 456, 'name': 'Mayo Summer', 'scene': 'Assets/summer.unity'}],
-                'avatarName': 'MAYO_Kaihen (2)', 'avatarLabel': 'MAYO_Kaihen (2)', 'avatarGuid': 'g1', 'session': 's1', 'epoch': 'e1', 'previewEpoch': 1,
+                'avatarName': 'MAYO_Kaihen (2)', 'avatarLabel': 'MAYO_Kaihen (2)', 'avatarGuid': 'g1', 'session': STATE['session'], 'epoch': 'e1', 'previewEpoch': 1,
                 'installedKey': 'i%d' % STATE['rev'], 'outfits': 7059, 'families': len(FAMILIES), 'indexing': 0, 'dirty': 0, 'hiBaked': 6936, 'hiTotal': 7059,
                 'baseAvatars': [{'guid': 'b1', 'name': 'Mayo', 'path': 'Assets/Mayo.prefab'}], 'avatarBaseEditable': True, 'ai': 0})
         if p == '/api/installed': return self.send(200, {'items': STATE['installed'], 'projectId': 'p1', 'avatarId': 'a1', 'avatarName': 'Mayo'})
@@ -149,24 +229,15 @@ class H(BaseHTTPRequestHandler):
                 {'key': 'dress', 'name': 'Dress', 'worn': 1, 'toggle': 1, 'shapes': [{'mesh': 'Body', 'shape': 'Hide_Belly', 'value': 0, 'delete': 1}]},
                 {'key': 'shoes', 'name': 'Shoes', 'worn': 1, 'toggle': 1, 'shapes': []}, {'key': 'gloves', 'name': 'Gloves', 'worn': 0, 'toggle': 1, 'shapes': []}],
                 'sliders': [], 'meshes': [{'path': 'Body', 'name': 'Body', 'shapes': ['Shrink_Chest', 'Hide_Belly', 'Foot_Heel']}], 'itemMeshes': [], 'sync': 1, 'syncCandidates': 12, 'copies': 1})
-        if p == '/api/workflow':
-            if 'selected' in q: STATE['selected'] = q['selected']
-            if 'mode' in q: STATE['mode'] = q['mode']
-            return self.send(200, {'ok': 1})
+        if p == '/api/workflow': return self.send(200, apply_write(p, q))
         if p == '/api/shops': return self.send(200, {'items': [{'name': s, 'count': 12} for s in SHOPS]})
         if p == '/api/organization': return self.send(200, {'ok': 1, 'tags': [{'id': 't1', 'name': 'Gothic', 'color': '#a487de', 'count': 4}], 'hiddenPaths': [], 'hiddenCount': 0})
         if p == '/api/thumb':
             g = q.get('guid', ''); img = THUMBS.get(g)
             if img and IMGS: return self.send(200, (IMG / (img + '.webp')).read_bytes(), 'image/webp')
             return self.send(200, placeholder(g), 'image/svg+xml') if img else self.send(404, {'ok': 0})
-        if p == '/api/install':
-            f, v = VARIANT[q['guid']]
-            if q.get('switch') == '1': STATE['installed'] = [x for x in STATE['installed'] if str(x['instanceId']) != q.get('replaceId')]
-            wear(FAMILIES.index(f), f['variants'].index(v), q.get('target', 'common'))
-            return self.send(200, {'ok': 1, 'message': 'Wearing ' + f['name']})
-        if p == '/api/preset_remove_item':
-            STATE['installed'] = [x for x in STATE['installed'] if str(x['instanceId']) != q.get('instanceId')]; STATE['rev'] += 1
-            return self.send(200, {'ok': 1, 'message': 'Removed'})
+        if p in ('/api/install', '/api/preset_remove_item', '/api/preset_save', '/api/preset_delete') and self.command == 'POST':
+            return self.send(200, apply_write(p, q))
         if p == '/api/look_thumb':
             plan = thumb_plan(q.get('id', ''))
             return self.send(200, dict(plan, ok=1, id=q.get('id', ''), name=dict(LOOKS).get(q.get('id'), ''), isNew=0,

@@ -240,35 +240,99 @@ namespace OutfitToggleGenerator
             preview.lights[1].intensity = 1.0f;
         }
 
-        private static Texture2D Capture(PreviewRenderUtility preview, Bounds bounds, int size = IconSize)
+        // Renders on black and on white and takes alpha from the difference. Some
+        // shaders (lilToon cutout, alpha-to-coverage) write their own alpha into
+        // the target, which made solid parts vanish on a transparent background;
+        // solid pixels look the same on both backgrounds, so they come out opaque.
+        // region: a sub-square of the frame (0-1 viewport units) rendered at full size.
+        private static Texture2D Capture(PreviewRenderUtility preview, Bounds bounds, int size = IconSize, Rect? region = null)
         {
             var camera = preview.camera;
             camera.aspect = 1f;
             camera.transform.position = bounds.center - camera.transform.forward * (CameraDistance(camera, bounds) * 1.05f);
+            if (region.HasValue) camera.projectionMatrix = SubFrustum(camera, region.Value);
+            try
+            {
+                var onBlack = RenderPixels(camera, size, new Color(0f, 0f, 0f, 0f));
+                var onWhite = RenderPixels(camera, size, new Color(1f, 1f, 1f, 0f));
+                var icon = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                icon.SetPixels32(Matte(onBlack, onWhite));
+                icon.Apply();
+                return icon;
+            }
+            finally
+            {
+                if (region.HasValue) camera.ResetProjectionMatrix();
+                camera.backgroundColor = Color.clear;
+            }
+        }
+
+        private static Color32[] RenderPixels(Camera camera, int size, Color background)
+        {
+            camera.backgroundColor = background;
             var renderTexture = RenderTexture.GetTemporary(size, size, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
             var previousTarget = camera.targetTexture;
             var previousActive = RenderTexture.active;
+            var read = new Texture2D(size, size, TextureFormat.RGBA32, false);
             try
             {
                 camera.targetTexture = renderTexture;
                 camera.Render();
                 RenderTexture.active = renderTexture;
-                var icon = new Texture2D(size, size, TextureFormat.RGBA32, false);
-                try
-                {
-                    icon.ReadPixels(new Rect(0, 0, size, size), 0, 0);
-                    icon.Apply();
-                    // The sRGB render target already performs the display conversion.
-                    return icon;
-                }
-                catch { UnityEngine.Object.DestroyImmediate(icon); throw; }
+                read.ReadPixels(new Rect(0, 0, size, size), 0, 0);
+                // The sRGB render target already performs the display conversion.
+                return read.GetPixels32();
             }
             finally
             {
                 camera.targetTexture = previousTarget;
                 RenderTexture.active = previousActive;
                 RenderTexture.ReleaseTemporary(renderTexture);
+                UnityEngine.Object.DestroyImmediate(read);
             }
+        }
+
+        private static float[] srgbToLinear;
+        // Blending happens in linear space, so the difference is taken there.
+        private static Color32[] Matte(Color32[] onBlack, Color32[] onWhite)
+        {
+            if (srgbToLinear == null)
+            {
+                srgbToLinear = new float[256];
+                for (var i = 0; i < 256; i++) srgbToLinear[i] = Mathf.GammaToLinearSpace(i / 255f);
+            }
+            var lut = srgbToLinear;
+            var result = new Color32[onBlack.Length];
+            for (var i = 0; i < onBlack.Length; i++)
+            {
+                Color32 b = onBlack[i], w = onWhite[i];
+                float br = lut[b.r], bg = lut[b.g], bb = lut[b.b];
+                var spread = Mathf.Max(lut[w.r] - br, Mathf.Max(lut[w.g] - bg, lut[w.b] - bb));
+                var alpha = Mathf.Clamp01(1f - spread);
+                if (alpha < 0.004f) { result[i] = new Color32(0, 0, 0, 0); continue; }
+                // On black the pixel is colour x alpha: divide it back out.
+                result[i] = new Color32(
+                    (byte)Mathf.RoundToInt(Mathf.LinearToGammaSpace(Mathf.Min(1f, br / alpha)) * 255f),
+                    (byte)Mathf.RoundToInt(Mathf.LinearToGammaSpace(Mathf.Min(1f, bg / alpha)) * 255f),
+                    (byte)Mathf.RoundToInt(Mathf.LinearToGammaSpace(Mathf.Min(1f, bb / alpha)) * 255f),
+                    (byte)Mathf.RoundToInt(alpha * 255f));
+            }
+            return result;
+        }
+
+        private static bool TouchesEdge(RectInt content, int size)
+        {
+            return content.width > 0 && content.height > 0 &&
+                   (content.xMin <= 0 || content.yMin <= 0 || content.xMax >= size || content.yMax >= size);
+        }
+
+        private static Matrix4x4 SubFrustum(Camera camera, Rect region)
+        {
+            var near = camera.nearClipPlane;
+            var top = near * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            var right = top * camera.aspect;
+            return Matrix4x4.Frustum(-right + 2f * right * region.xMin, -right + 2f * right * region.xMax,
+                -top + 2f * top * region.yMin, -top + 2f * top * region.yMax, near, camera.farClipPlane);
         }
 
         private static Texture2D CaptureIcon(PreviewRenderUtility preview, Transform avatarRoot, Bounds bounds, int size = IconSize)
@@ -276,6 +340,7 @@ namespace OutfitToggleGenerator
             ConfigurePreview(preview, avatarRoot);
             var best = Capture(preview, bounds, size);
             var bestPixels = ContentPixelCount(best);
+            var bestYaw = 180f;
             if (bestPixels < size * size / 50)
             {
                 foreach (var yaw in new[] { 90f, -90f })
@@ -288,12 +353,45 @@ namespace OutfitToggleGenerator
                         UnityEngine.Object.DestroyImmediate(best);
                         best = candidate;
                         bestPixels = candidatePixels;
+                        bestYaw = yaw;
                     }
                     else
                     {
                         UnityEngine.Object.DestroyImmediate(candidate);
                     }
                 }
+            }
+
+            // Mesh bounds can be wrong for skinned outfits and leave parts outside the frame.
+            // Content touching an edge was cut off: widen the view (the zoom below restores detail).
+            var content = ContentBounds(best.GetPixels32(), size, size);
+            for (var widen = 0; widen < 2 && TouchesEdge(content, size); widen++)
+            {
+                bounds.Expand(bounds.size.magnitude);
+                ConfigurePreview(preview, avatarRoot, bestYaw);
+                var wider = Capture(preview, bounds, size);
+                var widerContent = ContentBounds(wider.GetPixels32(), size, size);
+                if (widerContent.width == 0 || widerContent.height == 0) { UnityEngine.Object.DestroyImmediate(wider); break; }
+                UnityEngine.Object.DestroyImmediate(best);
+                best = wider;
+                content = widerContent;
+            }
+
+            // Bounds bigger than what draws (stray or oversized renderers) leave the item as a
+            // small patch, and enlarging that blurs it. Render again aimed at just that patch.
+            var side = Mathf.Max(content.width, content.height) / 0.875f;
+            if (content.width > 0 && content.height > 0 && side < size / 1.5f)
+            {
+                ConfigurePreview(preview, avatarRoot, bestYaw);
+                var scale = side / size;
+                var region = new Rect(content.center.x / size - scale / 2f, content.center.y / size - scale / 2f, scale, scale);
+                var zoomed = Capture(preview, bounds, size, region);
+                if (ContentPixelCount(zoomed) > 0)
+                {
+                    UnityEngine.Object.DestroyImmediate(best);
+                    best = zoomed;
+                }
+                else UnityEngine.Object.DestroyImmediate(zoomed);
             }
 
             return FitIconToContent(best);

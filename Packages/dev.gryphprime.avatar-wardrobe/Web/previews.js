@@ -217,7 +217,10 @@
         // A prefetched card may become visible while still queued: promote that same job.
         var pending = jobs.get(key(guid));
         if (pending) { pending.requireHi = pending.requireHi || !!config.requireHi; pending.priority = Math.min(pending.priority, config.priority || 0); pump(); }
-        return;
+        // Remember the stronger request, so later upgrades of this node also ask for 512px.
+        if (config.requireHi && node._wardrobePreview) node._wardrobePreview.config.requireHi = true;
+        // A low-res job that already finished (its image still decoding) cannot be promoted: bind again.
+        if (pending || !config.requireHi || previous.hi || !previous.loading) return;
       }
       var binding = {guid: guid, epoch: epoch, loading: true, ready: false, hi: false, blob: config.upgrade && previous ? previous.blob : null, checkedAt: Date.now()};
       bindings.set(node, binding);
