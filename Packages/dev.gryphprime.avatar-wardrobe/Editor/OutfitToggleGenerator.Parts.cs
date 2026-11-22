@@ -40,8 +40,6 @@ namespace OutfitToggleGenerator
     {
         private const string ShapeChangesKind = "shape-changes";
         private const string ShapeChangesName = "Avatar Wardrobe Shape Changes";
-        private const string BlendshapeSyncKind = "blendshape-sync";
-        private const string BlendshapeSyncName = "Avatar Wardrobe Blendshape Sync";
 
         // The same children GeneratePartToggles turns into controls.
         internal static List<GameObject> ItemParts(GameObject item)
@@ -119,11 +117,6 @@ namespace OutfitToggleGenerator
             }).ToList();
         }
 
-        internal static bool HasBlendshapeSync(GameObject item)
-        {
-            return item != null && FindGeneratedHost(item.transform, BlendshapeSyncKind, BlendshapeSyncName) != null;
-        }
-
         // Validates the whole edit before any scene change so a bad row fails cleanly.
         internal static void ValidatePartsEdit(VRCAvatarDescriptor avatar, GameObject item, WardrobePartsEdit edit)
         {
@@ -168,11 +161,10 @@ namespace OutfitToggleGenerator
                     Value = Mathf.Clamp(shape.value, 0f, 100f),
                 }).ToList());
             }
-            SkinnedMeshRenderer syncSource = null;
-            if (edit.sync == 1)
-                syncSource = !string.IsNullOrEmpty(edit.syncMesh) ? meshes[edit.syncMesh] : meshes.Values.FirstOrDefault();
-            SetBlendshapeSync(avatar, item, syncSource);
+            // Sliders first: shapes an item slider drives are never synced.
             SetSliders(avatar, item, edit.sliders);
+            var syncSource = edit.sync == 1 && !string.IsNullOrEmpty(edit.syncMesh) ? meshes[edit.syncMesh] : null;
+            SetBlendshapeSync(avatar, item, edit.sync == 1, syncSource);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(item.scene);
         }
 
@@ -215,71 +207,6 @@ namespace OutfitToggleGenerator
             Undo.RecordObject(changer, "Set wardrobe shape changes");
             changer.Shapes = shapes;
             EditorUtility.SetDirty(changer);
-        }
-
-        // Adds MA Blendshape Sync to item meshes for every shape name they share with the
-        // body, so outfits follow body-shape sliders. Creator-made sync components are kept.
-        private static void SetBlendshapeSync(VRCAvatarDescriptor avatar, GameObject item, SkinnedMeshRenderer source)
-        {
-            var host = FindGeneratedHost(item.transform, BlendshapeSyncKind, BlendshapeSyncName);
-            if (host != null)
-            {
-                var marker = host.GetComponent<OutfitToggleGeneratedMenu>();
-                foreach (var path in marker.outfitPaths ?? new string[0])
-                {
-                    var target = string.IsNullOrEmpty(path) ? item.transform : item.transform.Find(path);
-                    var sync = target == null ? null : target.GetComponent<ModularAvatarBlendshapeSync>();
-                    if (sync != null) Undo.DestroyObjectImmediate(sync);
-                }
-                Undo.DestroyObjectImmediate(host.gameObject);
-            }
-            if (source == null) return;
-            var sourceShapes = new HashSet<string>(Enumerable.Range(0, source.sharedMesh.blendShapeCount)
-                .Select(index => source.sharedMesh.GetBlendShapeName(index)), StringComparer.Ordinal);
-            var synced = new List<string>();
-            foreach (var renderer in item.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-            {
-                if (renderer.sharedMesh == null || renderer.GetComponent<ModularAvatarBlendshapeSync>() != null) continue;
-                var names = Enumerable.Range(0, renderer.sharedMesh.blendShapeCount)
-                    .Select(index => renderer.sharedMesh.GetBlendShapeName(index))
-                    .Where(sourceShapes.Contains).ToList();
-                if (names.Count == 0) continue;
-                var sync = Undo.AddComponent<ModularAvatarBlendshapeSync>(renderer.gameObject);
-                sync.Bindings = names.Select(name => new BlendshapeBinding
-                {
-                    ReferenceMesh = new AvatarObjectReference(source.gameObject),
-                    Blendshape = name,
-                    LocalBlendshape = name,
-                }).ToList();
-                EditorUtility.SetDirty(sync);
-                synced.Add(AnimationUtility.CalculateTransformPath(renderer.transform, item.transform));
-            }
-            if (synced.Count == 0) return;
-            var record = new GameObject(BlendshapeSyncName);
-            Undo.RegisterCreatedObjectUndo(record, "Record wardrobe blendshape sync");
-            record.transform.SetParent(item.transform, false);
-            var generated = TagGenerated(record, BlendshapeSyncKind);
-            generated.outfitPaths = synced.ToArray();
-            EditorUtility.SetDirty(generated);
-        }
-
-        // Used when wearing an item: follow the main body mesh unless the item already
-        // follows one, so a later Customize choice is never overwritten.
-        internal static void EnsureBlendshapeSync(VRCAvatarDescriptor avatar, GameObject item)
-        {
-            if (avatar == null || item == null || HasBlendshapeSync(item)) return;
-            SetBlendshapeSync(avatar, item, BodyMeshes(avatar, item).FirstOrDefault());
-        }
-
-        internal static int BlendshapeSyncCandidates(GameObject item, SkinnedMeshRenderer source)
-        {
-            if (item == null || source == null) return 0;
-            var sourceShapes = new HashSet<string>(Enumerable.Range(0, source.sharedMesh.blendShapeCount)
-                .Select(index => source.sharedMesh.GetBlendShapeName(index)), StringComparer.Ordinal);
-            return item.GetComponentsInChildren<SkinnedMeshRenderer>(true)
-                .Where(renderer => renderer.sharedMesh != null)
-                .Sum(renderer => Enumerable.Range(0, renderer.sharedMesh.blendShapeCount)
-                    .Count(index => sourceShapes.Contains(renderer.sharedMesh.GetBlendShapeName(index))));
         }
     }
 }

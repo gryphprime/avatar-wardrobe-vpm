@@ -9,6 +9,8 @@ namespace OutfitToggleGenerator
         [HideInInspector] public string[] outfitPaths;
         [HideInInspector] public string generatedKind;
         [HideInInspector] public string ownerId;
+        // Blendshape Sync only: creator bindings Avatar Wardrobe retargeted, so they can be put back.
+        [HideInInspector] public string[] restoreBindings;
         // Zero identifies older menu-group organizers that need relocation.
         [HideInInspector] public int menuGroupsLayoutVersion;
     }

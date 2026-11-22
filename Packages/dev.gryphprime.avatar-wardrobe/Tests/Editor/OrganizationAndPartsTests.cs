@@ -215,6 +215,78 @@ namespace OutfitToggleGenerator
             Assert.IsFalse(OutfitToggleGenerator.HasBlendshapeSync(item), "Customize can turn wear-time sync off again.");
         }
 
+        [Test] public void SyncFollowsTheMeshWithTheBodyShapesNotTheOneNamedBody()
+        {
+            // Common avatar layout: "Body" is the face/head with hundreds of shapes, the body-shape keys are on "Body_2".
+            body.sharedMesh = MeshWith("vrc.v_aa", "Blink", "Smile");
+            var body2 = Child("Body_2", root).AddComponent<SkinnedMeshRenderer>();
+            body2.sharedMesh = MeshWith("Breast_Big", "Hip_Big");
+            top.GetComponent<SkinnedMeshRenderer>().sharedMesh = MeshWith("Breast_Big", "Hip_Big", "vrc.v_aa", "----Size----");
+
+            Assert.AreEqual(2, OutfitToggleGenerator.BlendshapeSyncCandidates(avatar, item));
+            OutfitToggleGenerator.EnsureBlendshapeSync(avatar, item);
+            var sync = top.GetComponent<ModularAvatarBlendshapeSync>();
+            Assert.IsNotNull(sync);
+            CollectionAssert.AreEquivalent(new[] { "Breast_Big", "Hip_Big" }, sync.Bindings.Select(binding => binding.Blendshape));
+            Assert.IsTrue(sync.Bindings.All(binding => binding.ReferenceMesh.Get(top.transform) == body2.gameObject));
+        }
+
+        [Test] public void SyncMatchesNamesThatDifferOnlyInSpelling()
+        {
+            body.sharedMesh = MeshWith("Breast_Big", "Hip_Big", "Legs_Slim");
+            top.GetComponent<SkinnedMeshRenderer>().sharedMesh = MeshWith("Breasts_big", "Big Hip", "LegSlim", "Top_Only");
+            OutfitToggleGenerator.EnsureBlendshapeSync(avatar, item);
+            var sync = top.GetComponent<ModularAvatarBlendshapeSync>();
+            CollectionAssert.AreEquivalent(new[] { "Breasts_big|Breast_Big", "Big Hip|Hip_Big", "LegSlim|Legs_Slim" },
+                sync.Bindings.Select(binding => binding.LocalBlendshape + "|" + binding.Blendshape));
+        }
+
+        [Test] public void ShapeKeysIgnoreCaseSeparatorsOrderAndPlurals()
+        {
+            Assert.AreEqual(OutfitToggleGenerator.ShapeKey("Breast_Big"), OutfitToggleGenerator.ShapeKey("breasts big"));
+            Assert.AreEqual(OutfitToggleGenerator.ShapeKey("Breast_Big"), OutfitToggleGenerator.ShapeKey("Big_Chest"));
+            Assert.AreEqual(OutfitToggleGenerator.ShapeKey("Shrink_Hip_1"), OutfitToggleGenerator.ShapeKey("ShrinkHip1"));
+            Assert.AreNotEqual(OutfitToggleGenerator.ShapeKey("Breast_Big"), OutfitToggleGenerator.ShapeKey("Breast_Small"));
+            Assert.IsFalse(OutfitToggleGenerator.IsSyncableShape("vrc.v_aa"));
+            Assert.IsFalse(OutfitToggleGenerator.IsSyncableShape("-----------"));
+        }
+
+        [Test] public void BrokenCreatorSyncIsRetargetedAndRestored()
+        {
+            // An outfit made for another avatar: its sync points at "Body_base", which this avatar lacks.
+            var creator = top.AddComponent<ModularAvatarBlendshapeSync>();
+            creator.Bindings = new List<BlendshapeBinding>
+            {
+                new BlendshapeBinding { ReferenceMesh = new AvatarObjectReference { referencePath = "Body_base" }, Blendshape = "Chest_Big", LocalBlendshape = "" },
+            };
+            Assert.AreEqual(1, OutfitToggleGenerator.BlendshapeSyncCandidates(avatar, item));
+
+            OutfitToggleGenerator.ApplyPartsEdit(avatar, item, Edit(1, true));
+            Assert.AreSame(creator, top.GetComponent<ModularAvatarBlendshapeSync>());
+            var repaired = creator.Bindings.Single();
+            Assert.AreSame(body.gameObject, repaired.ReferenceMesh.Get(top.transform));
+            Assert.AreEqual("Chest_Big", repaired.LocalBlendshape);
+            Assert.IsTrue(OutfitToggleGenerator.HasBlendshapeSync(item));
+
+            OutfitToggleGenerator.ApplyPartsEdit(avatar, item, Edit(0, true));
+            var restored = creator.Bindings.Single();
+            Assert.AreEqual("Body_base", restored.ReferenceMesh.referencePath);
+            Assert.AreEqual("", restored.LocalBlendshape);
+            Assert.IsFalse(OutfitToggleGenerator.HasBlendshapeSync(item));
+        }
+
+        [Test] public void WorkingCreatorSyncIsLeftAlone()
+        {
+            var creator = top.AddComponent<ModularAvatarBlendshapeSync>();
+            creator.Bindings = new List<BlendshapeBinding>
+            {
+                new BlendshapeBinding { ReferenceMesh = new AvatarObjectReference(body.gameObject), Blendshape = "Chest_Big", LocalBlendshape = "Chest_Big" },
+            };
+            Assert.AreEqual(0, OutfitToggleGenerator.BlendshapeSyncCandidates(avatar, item));
+            OutfitToggleGenerator.EnsureBlendshapeSync(avatar, item);
+            Assert.IsFalse(OutfitToggleGenerator.HasBlendshapeSync(item));
+        }
+
         [Test] public void ValidationRejectsUnknownShapesAndParts()
         {
             Assert.Throws<ArgumentException>(() => OutfitToggleGenerator.ValidatePartsEdit(avatar, item,

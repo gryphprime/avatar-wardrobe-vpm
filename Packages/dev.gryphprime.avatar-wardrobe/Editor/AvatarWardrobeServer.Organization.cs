@@ -143,7 +143,7 @@ namespace OutfitToggleGenerator
                 copies = instances.Count,
                 partToggles = OutfitToggleGenerator.HasPartToggles(item) ? 1 : 0,
                 sync = OutfitToggleGenerator.HasBlendshapeSync(item) ? 1 : 0,
-                syncCandidates = OutfitToggleGenerator.BlendshapeSyncCandidates(item, meshes.FirstOrDefault()),
+                syncCandidates = OutfitToggleGenerator.BlendshapeSyncCandidates(SceneAvatar, item),
                 meshes = meshes.Select(renderer => new MeshDto
                 {
                     path = OutfitToggleGenerator.AvatarPath(SceneAvatar, renderer.transform),
