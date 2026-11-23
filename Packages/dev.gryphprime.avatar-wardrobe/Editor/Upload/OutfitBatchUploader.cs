@@ -462,7 +462,7 @@ namespace ShiroTools
         /// </summary>
         private bool UsesGeneratedPresetKeys => _avatarRoot != null &&
             _avatarRoot.scene.path.StartsWith("Assets/Generated/WardrobeUploads/", StringComparison.Ordinal);
-        private string UploadAvatarKey => _avatarRoot == null ? "" : UsesGeneratedPresetKeys ? _avatarRoot.name : OutfitProjectData.SceneAvatarKey(_avatarRoot);
+        private string UploadAvatarKey => _avatarRoot == null ? "" : UsesGeneratedPresetKeys ? global::OutfitToggleGenerator.AvatarWardrobePresets.StagedAvatarKey(_avatarRoot) : OutfitProjectData.SceneAvatarKey(_avatarRoot);
         private string UploadOutfitKey(string name)
         {
             var matches = _outfits.Where(o => o.Go != null && o.Name == name).ToArray();

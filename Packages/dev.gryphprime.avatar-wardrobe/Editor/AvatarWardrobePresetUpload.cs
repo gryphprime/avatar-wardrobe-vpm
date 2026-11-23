@@ -56,7 +56,7 @@ namespace OutfitToggleGenerator
             try
             {
                 spare = (GameObject)UnityEngine.Object.Instantiate(baseAvatar.gameObject);
-                spare.name = preset.avatarRootName;
+                spare.name = baseAvatar.gameObject.name;
                 spare.SetActive(false);
                 stagingScene = SceneManager.GetSceneByPath(preset.scenePath);
                 if (stagingScene.IsValid() && stagingScene.isLoaded)
@@ -139,15 +139,18 @@ namespace OutfitToggleGenerator
         {
             if (baseAvatar == null) throw new ArgumentNullException("baseAvatar");
             if (preset == null) throw new ArgumentNullException("preset");
+            // The clone keeps the source avatar's own name: avatar-locked assets
+            // (edition locks, name-matched tools) check the root name, and
+            // non-ASCII names must survive. preset.avatarRootName stays the
+            // upload settings key, resolved through StagedAvatarKey.
             string avatarRootName = preset.avatarRootName;
-            baseAvatar.name = avatarRootName;
             var scene = EditorSceneManager.GetActiveScene();
-            GameObject existing = null;
-            foreach (var top in scene.GetRootGameObjects())
-                if (top != null && top != baseAvatar && top.name == avatarRootName) { existing = top; break; }
             // Always use the fresh source clone. Reusing a saved build copy can
             // retain previously generated objects and stale outfit contents.
-            if (existing != null) UnityEngine.Object.DestroyImmediate(existing);
+            foreach (var top in scene.GetRootGameObjects())
+                if (top != null && top != baseAvatar &&
+                    (top.name == avatarRootName || top.GetComponent<VRCAvatarDescriptor>() != null))
+                    UnityEngine.Object.DestroyImmediate(top);
             var root = baseAvatar;
             root.SetActive(true);
             var desc = root.GetComponent<VRCAvatarDescriptor>();
@@ -270,6 +273,26 @@ namespace OutfitToggleGenerator
                 avatarRootName = avatarRootName,
                 outfitName = preset.outfitName,
             };
+        }
+
+        // Upload settings for a generated staging scene are keyed by the
+        // preset's frozen avatarRootName, not by the root's display name.
+        internal static string StagedAvatarKey(GameObject root)
+        {
+            if (root == null) return "";
+            string path = root.scene.IsValid() ? root.scene.path : "";
+            if (!string.IsNullOrEmpty(path))
+            {
+                var preset = LoadFile().presets.FirstOrDefault(p => p != null && p.scenePath == path);
+                if (preset != null && !string.IsNullOrEmpty(preset.avatarRootName)) return preset.avatarRootName;
+            }
+            return root.name;
+        }
+
+        internal static GameObject FindStagedRoot(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded) return null;
+            return scene.GetRootGameObjects().FirstOrDefault(g => g != null && g.GetComponent<VRCAvatarDescriptor>() != null);
         }
 
         internal static PresetStatus GetPresetStatus(string presetId)

@@ -684,7 +684,7 @@ namespace ShiroTools
                     try
                     {
                         var staging = SceneManager.GetSceneByPath(preset.scenePath);
-                        var root = staging.IsValid() ? staging.GetRootGameObjects().FirstOrDefault(g => g.name == preset.avatarRootName) : null;
+                        var root = global::OutfitToggleGenerator.AvatarWardrobePresets.FindStagedRoot(staging);
                         if (root == null) return new WebLookThumbPreviewDto { message = "Could not stage the look." };
                         path = RenderThumbnail(root, plan, eng._nsBgColor, true, out used, out warning);
                     }

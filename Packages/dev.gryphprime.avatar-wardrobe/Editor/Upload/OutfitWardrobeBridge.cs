@@ -125,7 +125,7 @@ namespace ShiroTools
         public static async Task<WardrobeBridgeResult> UploadOutfitHeadless(GameObject root, string outfitName)
         {
             var result = new WardrobeBridgeResult();
-            string avatarRootName = root != null ? root.name : "";
+            string avatarRootName = root != null ? global::OutfitToggleGenerator.AvatarWardrobePresets.StagedAvatarKey(root) : "";
             try
             {
                 if (string.IsNullOrEmpty(avatarRootName) || string.IsNullOrEmpty(outfitName))
@@ -149,7 +149,7 @@ namespace ShiroTools
 
                 var entry = win._outfits.FirstOrDefault(o => o != null && o.Go != null && o.Name == outfitName);
                 if (entry == null)
-                    return Fail(result, $"Preset '{outfitName}' not found under '{avatarRootName}/Outfits'.");
+                    return Fail(result, $"Preset '{outfitName}' not found under '{root.name}/Outfits'.");
 
                 string runBefore = SessionState.GetString(SESSION_BATCH_RUN_ID, "");
                 string runId = null;

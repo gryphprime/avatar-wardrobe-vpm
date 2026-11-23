@@ -81,7 +81,8 @@ namespace OutfitToggleGenerator
             Assert.IsTrue(WardrobePlayModeTest.Active);
             Assert.IsFalse(avatar.gameObject.activeSelf, "The source avatar is hidden during the test.");
             var staged = StagedRoot(stagingPath);
-            Assert.AreEqual("PlayTest_Wardrobe_first", staged.name);
+            Assert.AreEqual("PlayTest avatar", staged.name, "The staged root keeps the source avatar's name.");
+            Assert.AreEqual("PlayTest_Wardrobe_first", AvatarWardrobePresets.StagedAvatarKey(staged), "Upload settings stay keyed by the preset.");
             Assert.IsTrue(staged.activeSelf);
             var outfits = staged.transform.Find("Outfits");
             Assert.AreEqual(new[] { "First" }, outfits.Cast<Transform>().Select(t => t.name).ToArray());

@@ -81,7 +81,7 @@ namespace OutfitToggleGenerator
             try
             {
                 spare = UnityEngine.Object.Instantiate(source.gameObject);
-                spare.name = preset.avatarRootName;
+                spare.name = source.gameObject.name;
                 spare.SetActive(false);
                 Scene staging;
                 if (AssetDatabase.LoadAssetAtPath<SceneAsset>(preset.scenePath) != null)
