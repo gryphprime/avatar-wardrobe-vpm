@@ -26,51 +26,78 @@ namespace ShiroTools
         {
             var fixedPaths = new List<string>();
             if (root == null) return fixedPaths;
-            // Renderer materials plus every material the avatar references
-            // (MA Material Setter/Swap, animations, controllers): NDMF applies
-            // those during the build, and the SDK validates the result.
-            var materials = new HashSet<Material>();
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            // Asset paths whose texture dependencies the SDK may validate:
+            // renderer materials, plus assets referenced by the avatar's
+            // components (MA Material Setter/Swap, merged controllers and their
+            // clips), which NDMF applies during the build. Paths only:
+            // AssetDatabase.GetDependencies reads the dependency cache and
+            // doesn't load meshes, clips or textures.
+            var roots = new HashSet<string>(StringComparer.Ordinal);
+            void AddAsset(UnityEngine.Object asset)
+            {
+                if (asset == null) return;
+                string path = AssetDatabase.GetAssetPath(asset);
+                if (!string.IsNullOrEmpty(path)) roots.Add(path);
+            }
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
                 if (!IsEditorOnly(renderer.transform, root.transform))
-                    foreach (var material in renderer.sharedMaterials)
-                        if (material != null) materials.Add(material);
-            foreach (var dependency in EditorUtility.CollectDependencies(new UnityEngine.Object[] { root }))
-                if (dependency is Material material) materials.Add(material);
-            var importers = new Dictionary<string, TextureImporter>(StringComparer.Ordinal);
-            foreach (var material in materials)
-                foreach (int id in material.GetTexturePropertyNameIDs() ?? Array.Empty<int>())
-                {
-                    var texture = material.GetTexture(id);
-                    if (texture == null) continue;
-                    string path = AssetDatabase.GetAssetPath(texture);
-                    if (string.IsNullOrEmpty(path) || importers.ContainsKey(path)) continue;
-                    if (AssetImporter.GetAtPath(path) is TextureImporter importer) importers[path] = importer;
-                }
-            foreach (var pair in importers)
+                    foreach (var material in renderer.sharedMaterials) AddAsset(material);
+            foreach (var animator in root.GetComponentsInChildren<Animator>(true)) AddAsset(animator.runtimeAnimatorController);
+            foreach (var behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
             {
-                var importer = pair.Value;
-                bool changed = false;
+                if (behaviour == null || IsEditorOnly(behaviour.transform, root.transform)) continue;
+                using (var serialized = new SerializedObject(behaviour))
+                {
+                    var property = serialized.GetIterator();
+                    while (property.Next(true))
+                    {
+                        if (property.propertyType != SerializedPropertyType.ObjectReference) continue;
+                        var value = property.objectReferenceValue;
+                        if (value != null && !(value is Component) && !(value is GameObject) && !(value is MonoScript))
+                            AddAsset(value);
+                    }
+                }
+            }
+            var candidates = AssetDatabase.GetDependencies(roots.ToArray(), true);
+            var changed = new List<TextureImporter>();
+            foreach (var path in candidates)
+            {
+                if (!(AssetImporter.GetAtPath(path) is TextureImporter importer)) continue;
+                bool dirty = false;
                 if (importer.mipmapEnabled && !importer.streamingMipmaps)
                 {
                     importer.streamingMipmaps = true;
                     importer.streamingMipmapsPriority = 0;
-                    changed = true;
+                    dirty = true;
                 }
                 if (importer.maxTextureSize > VRCSdkControlPanel.MAX_SDK_TEXTURE_SIZE)
                 {
                     importer.maxTextureSize = VRCSdkControlPanel.MAX_SDK_TEXTURE_SIZE;
-                    changed = true;
+                    dirty = true;
                 }
-                if (!changed) continue;
-                EditorUtility.SetDirty(importer);
-                importer.SaveAndReimport();
-                fixedPaths.Add(pair.Key);
+                if (!dirty) continue;
+                changed.Add(importer);
+                fixedPaths.Add(path);
             }
-            if (fixedPaths.Count > 0)
+            if (changed.Count > 0)
             {
+                // One import pass for all changed textures instead of one each.
+                AssetDatabase.StartAssetEditing();
+                try
+                {
+                    foreach (var importer in changed)
+                    {
+                        EditorUtility.SetDirty(importer);
+                        importer.SaveAndReimport();
+                    }
+                }
+                finally { AssetDatabase.StopAssetEditing(); }
                 Debug.Log("[OutfitBatchUploader] Auto-fixed texture import settings for upload: " + string.Join(", ", fixedPaths));
-                OutfitToggleGenerator.WardrobeLog.Write("upload", "Auto-fixed textures: " + string.Join(", ", fixedPaths));
             }
+            OutfitToggleGenerator.WardrobeLog.Write("upload", "Texture check: " + candidates.Length + " dependencies, "
+                + fixedPaths.Count + " fixed in " + timer.ElapsedMilliseconds + " ms"
+                + (fixedPaths.Count > 0 ? " (" + string.Join(", ", fixedPaths) + ")" : ""));
             return fixedPaths;
         }
 
