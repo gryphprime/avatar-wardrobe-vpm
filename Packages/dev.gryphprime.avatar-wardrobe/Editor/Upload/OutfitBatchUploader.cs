@@ -125,6 +125,7 @@ namespace ShiroTools
             public string avatarKey, holderKey;
             public string id;
             public string platform;
+            public string reason;
         }
 
         [Serializable]
@@ -1744,11 +1745,13 @@ namespace ShiroTools
                         thumbPath = ResolveUploadThumbnail(outfit, false, blueprintId, out thumbHash);
                         SetStatus($"[{currentIndex + 1}/{total}] Building & Uploading {outfitName} ({platform})...", MessageType.Info);
                     }
+                    AutoFixUploadTextures(_avatarRoot);
+                    BeginSdkValidationCapture();
                     try
                     {
                         await builder.BuildAndUpload(_avatarRoot, avatar, thumbPath, cancellationToken: _cts.Token);
                     }
-                    finally { StopConsentWatcher(); CleanupTempThumb(thumbPath); }
+                    finally { EndSdkValidationCapture(); StopConsentWatcher(); CleanupTempThumb(thumbPath); }
                     if (thumbPath != null) RecordThumbSent(outfit.Data, thumbHash, blueprintId);
 
                     // Successful upload! Pop from queue
@@ -1789,7 +1792,15 @@ namespace ShiroTools
                                 ex.Message.Contains("rig") || ex.Message.Contains("humanoid") ||
                                 ex.Message.Contains("Chest") || ex.Message.Contains("validation");
 
-            string shortMsg = ex.Message.Length > 120 ? ex.Message.Substring(0, 120) + "…" : ex.Message;
+            // The SDK's "Avatar validation failed" carries the real reasons
+            // in Errors; surface them instead of the generic message.
+            var sdkErrors = ex is ValidationException validation && validation.Errors != null && validation.Errors.Count > 0
+                ? validation.Errors : _sdkValidationErrors;
+            string reason = sdkErrors != null && sdkErrors.Count > 0
+                ? string.Join(" ", sdkErrors.Where(e => !string.IsNullOrEmpty(e)).Distinct())
+                : ex.Message;
+            failed.reason = reason;
+            string shortMsg = reason.Length > 240 ? reason.Substring(0, 240) + "…" : reason;
             string logMsg   = $"[OutfitBatchUploader] '{outfitName}' ({platform}) failed: {shortMsg}";
 
             // Remember the failed item so it can be retried after the batch
@@ -1846,7 +1857,7 @@ namespace ShiroTools
             if (failedList.Count > 0)
             {
                 summary += $"\n\nFailed/skipped ({failedList.Count}):\n• " +
-                           string.Join("\n• ", failedList.Select(f => $"{f.outfit} ({f.platform})")) +
+                           string.Join("\n• ", failedList.Select(f => $"{f.outfit} ({f.platform})" + (string.IsNullOrEmpty(f.reason) ? "" : ": " + f.reason))) +
                            "\n\nUse \"Retry failed\" below, or fix the issues and upload them separately.";
             }
 

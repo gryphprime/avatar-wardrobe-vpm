@@ -527,8 +527,14 @@ namespace ShiroTools
             try
             {
                 ValidateWardrobeBuildTarget();
+                AutoFixUploadTextures(_avatarRoot);
+                BeginSdkValidationCapture();
+                try
+                {
                     await builder.BuildAndUpload(_avatarRoot, newAvatar, thumbPath,
                         cancellationToken: _webPresetCancellation?.Token ?? CancellationToken.None);
+                }
+                finally { EndSdkValidationCapture(); }
 
                 // The SDK writes the new ID onto the PipelineManager after a successful create.
                 // On some SDK versions that happens a moment AFTER BuildAndUpload returns,
@@ -576,8 +582,9 @@ namespace ShiroTools
             catch (Exception ex)
             {
                 Debug.LogError("[OutfitBatchUploader] New-avatar upload failed: " + ex);
-                LogUpload($"FAIL  {outfitName} (Express new avatar): {ex.Message}");
-                SetStatus("New-avatar upload failed: " + Truncate(ex.Message, 140), MessageType.Error);
+                string reason = _sdkValidationErrors.Count > 0 ? string.Join(" ", _sdkValidationErrors.Distinct()) : ex.Message;
+                LogUpload($"FAIL  {outfitName} (Express new avatar): {reason}");
+                SetStatus("New-avatar upload failed: " + Truncate(reason, 240), MessageType.Error);
             }
             finally
             {
