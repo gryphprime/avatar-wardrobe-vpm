@@ -46,7 +46,7 @@ namespace OutfitToggleGenerator
             "/api/batch_preset_config", "/api/batch_preset_blends", "/api/batch_preset_items",
             "/api/batch_preset_faceemo", "/api/batch_preset_from_scene", "/api/batch_outfit_set",
             "/api/batch_import", "/api/batch_config_set", "/api/batch_defaults_set", "/api/batch_blendshape", "/api/batch_item", "/api/batch_faceemo",
-            "/api/preset_copy"
+            "/api/preset_copy", "/api/looks_copy"
         };
         private static void WriteMainJson<T>(HttpListenerContext context, Func<T> work, string code, bool background = false, string payloadIdentity = "")
         {

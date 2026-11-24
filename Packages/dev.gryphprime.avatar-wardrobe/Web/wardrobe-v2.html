@@ -21,6 +21,7 @@
 <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
 <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></symbol>
 <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="18" r=".6"/></symbol>
 <symbol id="i-looks" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
 <symbol id="i-menu" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.5 5.5"/></symbol>
 <symbol id="i-editor" viewBox="0 0 24 24"><path d="M4 5h6v5H4zM14 14h6v5h-6zM14 5h6v5h-6zM7 10v7h7M7 10h7"/></symbol>
@@ -90,10 +91,27 @@
 
     <section class="view" id="viewLooks" hidden aria-labelledby="looksHeading">
       <div class="view-head"><h1 id="looksHeading" data-t="looks">Looks</h1>
-        <div class="head-actions"><button type="button" class="btn btn-ghost" id="looksAll" data-t="selectAll">Select all</button><button type="button" class="btn" id="newLook"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg><span data-t="newLook">New look</span></button></div>
+        <div class="head-actions">
+          <label class="search looks-find"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="looksFind" type="search" autocomplete="off" data-t-ph="search" placeholder="Search" data-t-aria="search" aria-label="Search"></label>
+          <label class="size-ctl looks-size" data-t-title="lookSize" title="Look size"><svg class="i" aria-hidden="true"><use href="#i-size-sm"/></svg><input type="range" id="lookSize" data-t-aria="lookSize" aria-label="Look size"><svg class="i" aria-hidden="true"><use href="#i-size-lg"/></svg></label>
+          <div class="seg" role="group" data-t-aria="layout" aria-label="Layout"><button type="button" id="looksAsList" class="icon-seg" data-t-aria="listView" aria-label="List"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></button><button type="button" id="looksAsGrid" class="icon-seg" data-t-aria="gridView" aria-label="Grid"><svg class="i" aria-hidden="true"><use href="#i-looks"/></svg></button></div>
+          <button type="button" class="btn" id="newLook"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg><span data-t="newLook">New look</span></button>
+        </div>
       </div>
-      <div class="looks-scroll" id="looksScroll"><div class="looks-grid" id="looksGrid" role="list"></div></div>
-      <div class="selbar" id="selbar" hidden><strong id="selN"></strong><button type="button" class="btn btn-ghost sm" id="selClear" data-t="clear">Clear</button><span class="grow"></span><button type="button" class="btn btn-primary" id="selUpload"></button></div>
+      <div class="looks-body">
+        <div class="looks-main">
+          <div class="looks-scroll" id="looksScroll">
+            <div class="looks-grid" id="looksGrid" role="list"></div>
+            <table class="looks-table" id="looksTable">
+              <thead><tr><th class="c-ck"><input type="checkbox" id="looksAllBox" data-t-aria="selectAll" aria-label="Select all"></th><th class="c-name" data-t="look">Look</th><th class="c-n" data-t="colItems">Items</th><th class="c-pl" data-t="colPlatforms">Platforms</th><th class="c-st" data-t="colStatus">Status</th><th class="c-last" data-t="colLast">Last upload</th><th class="c-act"><span class="vh" data-t="more">More</span></th></tr></thead>
+              <tbody id="looksRows"></tbody>
+            </table>
+            <p class="empty-note" id="looksEmpty" role="status" hidden></p>
+          </div>
+          <div class="selbar" id="selbar" hidden><strong id="selN"></strong><button type="button" class="btn btn-ghost sm" id="selClear" data-t="clear">Clear</button><span class="grow"></span><button type="button" class="btn" id="selCopy" data-t="copyTo">Copy to…</button><button type="button" class="btn btn-primary" id="selUpload"></button></div>
+        </div>
+        <section class="look-insp" id="lookInsp" data-t-aria="lookDetails" aria-label="Look details"></section>
+      </div>
     </section>
 
     <section class="view tool-view" id="viewMenu" hidden><div id="menuOrganizer" class="scene-editor menu-organizer"></div></section>
@@ -138,6 +156,7 @@
 
 <dialog class="dlg settings" id="settingsDlg" aria-labelledby="settingsHeading"></dialog>
 <dialog class="dlg upload" id="uploadDlg" aria-labelledby="uploadHeading"></dialog>
+<dialog class="dlg copy-dlg" id="copyDlg" aria-labelledby="copyHeading"></dialog>
 <dialog class="dlg scene-up" id="sceneDlg" aria-labelledby="sceneHeading"></dialog>
 <dialog class="dlg thumb-dlg" id="thumbDlg" aria-labelledby="thumbHeading"></dialog>
 

@@ -467,6 +467,42 @@ namespace OutfitToggleGenerator
             return result;
         }
 
+        // Looks of any avatar in the scene, not only the selected one (Look copy reads the target's).
+        internal static List<WardrobePreset> LooksOf(VRCAvatarDescriptor avatar)
+        {
+            var key = BaseKeyForAvatar(avatar);
+            return key == "none" ? new List<WardrobePreset>() : LoadFile().presets.Where(p => p != null && p.baseKey == key).ToList();
+        }
+
+        // Item prefab guids a Look wears on the given avatar: its folder's items and its assignments.
+        internal static HashSet<string> LookGuids(VRCAvatarDescriptor avatar, string lookId)
+        {
+            var result = new HashSet<string>(StringComparer.Ordinal);
+            var preset = GetPreset(lookId);
+            if (avatar == null || preset == null) return result;
+            var holder = string.IsNullOrEmpty(preset.legacyPath) ? null : avatar.transform.Find(preset.legacyPath);
+            if (holder != null && holder != avatar.transform)
+                foreach (var t in holder.GetComponentsInChildren<Transform>(true))
+                {
+                    var root = PrefabUtility.GetNearestPrefabInstanceRoot(t.gameObject);
+                    if (root != null && root != avatar.gameObject && root.transform.IsChildOf(holder))
+                        result.Add(AssetDatabase.AssetPathToGUID(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(root)));
+                }
+            foreach (var a in LoadFile().assignments.Where(a => a != null && a.baseKey == preset.baseKey && a.target == lookId))
+                if (PrefabInstances(avatar, a.guid).Count > 0) result.Add(a.guid);
+            return result;
+        }
+
+        // A copied Look starts with the source Look's upload settings and a blank VRChat ID.
+        internal static void CopyLookUploadProfile(string sourceId, string destinationId)
+        {
+            var source = GetPreset(sourceId);
+            var destination = GetPreset(destinationId);
+            if (source == null || destination == null) return;
+            CopyUploadProfile(source, destination, destination.baseName);
+            ShiroTools.OutfitProjectData.Save();
+        }
+
         private static List<MenuGroup> CopyMenuGroups(List<MenuGroup> groups, VRCAvatarDescriptor destination,
             string presetPath, PresetCopyResult result)
         {

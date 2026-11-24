@@ -14,9 +14,11 @@ Each run writes `results/<time>/index.html`, `report.json`, and one screenshot p
 
 **Window sizes:** laptop 1280×800, desktop 1440×900, wide 2000×1035, ultra 2560×1440, phone 390×844.
 
-**Steps:** load, open the item with the most variants, open the look picker and switch looks (then switch back), worn item → Fit, the Looks page, check two looks, upload review (with both thumbnail dialogs), Settings, Activity. On the mock, the first window size also runs **queue**: wear three items quickly, wear one after a Unity reload, wear one while Unity is busy, opening another item meanwhile, and create a look from the item panel and wear into it before Unity has made it.
+**Steps:** load, open the item with the most variants, open the look picker and switch looks (then switch back), worn item → Fit, the Looks page (grid, then list with the inspector), the size slider in both layouts, check two looks, copy them to another avatar (review; on the mock the copy also runs), upload review (with both thumbnail dialogs), Settings, Activity. On the mock, the first window size also runs **queue**: wear three items quickly, wear one after a Unity reload, wear one while Unity is busy, opening another item meanwhile, and create a look from the item panel and wear into it before Unity has made it.
 
-Against Unity the steps only read data. The one exception is switching looks, which changes the selected look and then restores it. Nothing is worn, removed, saved or uploaded; the queue step only runs on the mock.
+On the mock, the first window size also reloads the page to check that the checked looks come back (they are saved in Unity), and edits platforms, an invalid avatar ID and menu groups in the inspector.
+
+Against Unity the steps only read data, with two exceptions: switching looks, and checking looks (Unity's "include in upload" setting). Both are put back afterwards. Nothing is worn, removed, saved or uploaded; the queue step only runs on the mock.
 
 **Layout rules:**
 - the side panel keeps its CSS width

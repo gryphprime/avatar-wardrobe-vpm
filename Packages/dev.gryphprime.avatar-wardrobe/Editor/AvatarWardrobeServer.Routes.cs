@@ -835,10 +835,14 @@ namespace OutfitToggleGenerator
             if (path == "/api/preset_include")
             {
                 var query = Query(request.Url.Query);
-                string id, include;
+                string id, ids, include;
                 query.TryGetValue("id", out id);
+                query.TryGetValue("ids", out ids);
                 query.TryGetValue("include", out include);
-                WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebPresetInclude(id, include), requestCode);
+                // "ids" (newline separated) sets several looks in one write: Select all, Clear.
+                if (!string.IsNullOrEmpty(ids))
+                    WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebPresetIncludeMany(ids.Split('\n'), include), requestCode);
+                else WriteMainJson(context, () => ShiroTools.OutfitBatchUploader.WebPresetInclude(id, include), requestCode);
                 return;
             }
             if (path == "/api/batch_preset_config")
@@ -954,6 +958,16 @@ namespace OutfitToggleGenerator
                 string select;
                 query.TryGetValue("select", out select);
                 WriteMainJson(context, () => EditAvatar("Save wardrobe preset", () => SavePreset(id, name, select != "0")), requestCode);
+                return;
+            }
+            if (path == "/api/looks_copy_review" || path == "/api/looks_copy")
+            {
+                var query = Query(request.Url.Query);
+                query.TryGetValue("ids", out var copyIds);
+                query.TryGetValue("target", out var copyTarget);
+                query.TryGetValue("existing", out var copyExisting);
+                if (path == "/api/looks_copy") WriteMainJson(context, () => CopyLooks(copyIds, copyTarget, copyExisting), requestCode);
+                else WriteMainJson(context, () => ReviewLookCopy(copyIds, copyTarget, copyExisting), requestCode);
                 return;
             }
             if (path == "/api/preset_copy")

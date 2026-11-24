@@ -323,6 +323,17 @@ async function runViewport(name) {
     result.steps.push({ step, file });
   };
   const step = async (label, fn) => { try { await fn(); } catch (e) { issue(label, "fail", "step-failed", e.message.split("\n")[0]); } };
+  // Checking looks writes Unity's "include in upload" setting: put the person's own picks back afterwards.
+  let originalPicks = null;
+  const restorePicks = async () => {
+    if (!originalPicks) return;
+    // Everything checked (the default) goes back in one write through the header checkbox.
+    await page.ev(`(() => { const want = new Set(${JSON.stringify(originalPicks)});
+      const rows = [...document.querySelectorAll("#looksRows tr")].filter((r) => !r.querySelector("input").hidden);
+      const all = document.getElementById("looksAllBox");
+      if (rows.length && rows.every((r) => want.has(r.querySelector(".lname").textContent))) { all.checked = true; all.dispatchEvent(new Event("change", { bubbles: true })); return; }
+      rows.forEach((r) => { const b = r.querySelector("input"); const on = want.has(r.querySelector(".lname").textContent); if (b.checked !== on) { b.checked = on; b.dispatchEvent(new Event("change", { bubbles: true })); } }); })()`);
+  };
 
   await page.send("Emulation.setDeviceMetricsOverride", { width: vp.w, height: vp.h, deviceScaleFactor: 1, mobile: !!vp.mobile });
   const bootMark = net_.length;
@@ -439,19 +450,60 @@ async function runViewport(name) {
       const tab = document.getElementById("looksTab");
       if (!tab || tab.hidden) return { skip: "single-look mode" };
       tab.click();
+      document.getElementById("looksAsGrid").click();
       const ok = await __wt.at(() => document.querySelector("#looksGrid .look") && !document.getElementById("viewLooks").hidden, 5000);
       return { ok: ok > 0, cards: document.querySelectorAll("#looksGrid .look").length };
     })()`);
     if (r.skip) return issue("looks", "warn", "skipped", r.skip);
     if (!r.ok) return issue("looks", "fail", "looks-page", "The Looks page did not open.");
     await settle();
-    await check("looks");
+    await check("looks-grid");
+    const l = await page.ev(`(async () => {
+      document.getElementById("looksAsList").click();
+      const ok = await __wt.at(() => document.querySelector("#looksRows tr") && document.getElementById("looksGrid").hidden, 3000);
+      const rows = [...document.querySelectorAll("#looksRows tr")];
+      const target = rows[1] || rows[0];
+      target.querySelector(".lk-name").click();
+      await new Promise((r) => setTimeout(r, 120));
+      const insp = document.getElementById("lookInsp");
+      return { ok: ok > 0, rows: rows.length, sel: target.classList.contains("sel"), title: (insp.querySelector(".insp-title") || {}).textContent || "",
+        name: target.querySelector(".lname").textContent, original: rows.filter((r) => { const b = r.querySelector("input"); return !b.hidden && b.checked; }).map((r) => r.querySelector(".lname").textContent) };
+    })()`);
+    if (!l.ok) return issue("looks", "fail", "looks-list", "The list view did not show.");
+    if (!l.sel || l.title.trim() !== l.name.trim()) issue("looks", "fail", "inspector", `Clicking a look does not show it in the inspector ("${l.title.trim()}" vs "${l.name.trim()}").`);
+    originalPicks = l.original;
+    await settle();
+    await check("looks-list");
+  });
+
+  // The size slider works in both layouts and is remembered per layout.
+  await step("look-size", async () => {
+    const r = await page.ev(`(async () => {
+      const slider = document.getElementById("lookSize");
+      if (!__wt.visible(slider)) return { skip: "no size slider at this width" };
+      const set = (v) => { slider.value = v; slider.dispatchEvent(new Event("input", { bubbles: true })); slider.dispatchEvent(new Event("change", { bubbles: true })); };
+      const raf = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      document.getElementById("looksAsGrid").click(); await raf();
+      const before = slider.value; set(slider.min); await raf();
+      const small = document.querySelector("#looksGrid .look").getBoundingClientRect().width; set(slider.max); await raf();
+      const big = document.querySelector("#looksGrid .look").getBoundingClientRect().width; set(before);
+      document.getElementById("looksAsList").click(); await raf();
+      const beforeList = slider.value; set(slider.min); await raf();
+      const t1 = document.querySelector("#looksRows .thumb-s").getBoundingClientRect().width; set(slider.max); await raf();
+      const t2 = document.querySelector("#looksRows .thumb-s").getBoundingClientRect().width; set(beforeList); await raf();
+      return { small, big, t1, t2 };
+    })()`);
+    if (r.skip) return;
+    if (!(r.big > r.small * 1.3)) issue("look-size", "fail", "grid-size", `The size slider does not resize look cards (${Math.round(r.small)} → ${Math.round(r.big)}px).`);
+    if (!(r.t2 > r.t1 * 1.5)) issue("look-size", "fail", "list-size", `The size slider does not resize list previews (${Math.round(r.t1)} → ${Math.round(r.t2)}px).`);
   });
 
   await step("pick-looks", async () => {
     const r = await page.ev(`(async () => {
       if (document.getElementById("viewLooks").hidden) return { skip: "Looks page not open" };
-      const boxes = [...document.querySelectorAll("#looksGrid .look .ck:not([hidden]) input")].slice(0, 2);
+      const all = document.getElementById("looksAllBox");
+      all.checked = false; all.dispatchEvent(new Event("change", { bubbles: true }));
+      const boxes = [...document.querySelectorAll("#looksRows tr input:not([hidden])")].slice(0, 2);
       if (boxes.length < 2) return { skip: "fewer than two looks" };
       boxes.forEach((b) => { b.checked = true; b.dispatchEvent(new Event("change", { bubbles: true })); });
       await new Promise((r) => setTimeout(r, 150));
@@ -461,6 +513,76 @@ async function runViewport(name) {
     if (!r.bar) issue("pick-looks", "fail", "selection-bar", "Checking looks does not show the selection bar.");
     if (!/2/.test(r.label)) issue("pick-looks", "fail", "upload-label", `With two looks checked the upload button reads "${r.label}".`);
     await check("pick-looks");
+  });
+
+  // The checked looks are saved in Unity: after the changes land and the page reloads, the same two are checked.
+  if (mock && name === names[0]) await step("picks-reload", async () => {
+    const before = await page.ev(`(async () => {
+      await __wt.at(() => document.getElementById("statusText").textContent.trim() === "Synced", 15000);
+      localStorage.removeItem("wardrobeV2.picked");
+      return [...document.querySelectorAll("#looksRows tr")].filter((r) => { const b = r.querySelector("input"); return !b.hidden && b.checked; }).map((r) => r.dataset.id || r.querySelector(".lname").textContent);
+    })()`);
+    await page.send("Page.navigate", { url });
+    const after = await page.ev(`(async () => {
+      await __wt.at(() => !document.getElementById("looksTab").hidden, 20000);
+      document.getElementById("looksTab").click();
+      await __wt.at(() => document.querySelector("#looksRows tr") && !document.getElementById("selbar").hidden, 10000);
+      return [...document.querySelectorAll("#looksRows tr")].filter((r) => { const b = r.querySelector("input"); return !b.hidden && b.checked; }).map((r) => r.dataset.id || r.querySelector(".lname").textContent);
+    })()`, 30000);
+    if (JSON.stringify(before) !== JSON.stringify(after)) issue("picks-reload", "fail", "picks-saved", `Checked looks before reload (${before.join(", ")}) differ after (${after.join(", ")}).`);
+    await settle();
+  });
+
+  // Mock only (it writes): platforms, an invalid avatar ID, and a menu group from the inspector.
+  if (mock && name === names[0]) await step("inspector-edit", async () => {
+    const r = await page.ev(`(async () => {
+      const rows = [...document.querySelectorAll("#looksRows tr")];
+      rows[1].querySelector(".lk-name").click();
+      await __wt.at(() => document.querySelector("#lookInsp [data-plat=ios]:not([disabled])"), 5000);
+      const ios = document.querySelector("#lookInsp [data-plat=ios]"); ios.checked = !ios.checked; ios.dispatchEvent(new Event("change", { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 50));
+      const plat = rows[1].querySelector(".c-pl").textContent;
+      const id = document.getElementById("inspId"); id.focus(); id.value = "avtr_nope"; id.dispatchEvent(new Event("input", { bubbles: true }));
+      document.querySelector("#lookInsp [data-a=saveid]").click();
+      await new Promise((r) => setTimeout(r, 50));
+      const err = (document.querySelector("#lookInsp .insp-err") || {}).textContent || "";
+      document.querySelector('#lookInsp [data-tab="groups"]').click();
+      await __wt.at(() => document.querySelector("#lookInsp .insp-group"), 5000);
+      const groups = document.querySelectorAll("#lookInsp .insp-group").length;
+      document.querySelector('#lookInsp [data-tab="items"]').click();
+      return { plat, err, groups, ios: ios.checked };
+    })()`);
+    if (r.ios !== /iOS/.test(r.plat)) issue("inspector-edit", "fail", "platforms", `Toggling iOS does not show in the list ("${r.plat}").`);
+    if (!r.err) issue("inspector-edit", "fail", "avatar-id", "An invalid avatar ID is not refused next to the field.");
+    if (!r.groups) issue("inspector-edit", "fail", "menu-groups", "The menu groups tab is empty.");
+    await settle();
+    await check("inspector-edit");
+    // Put iOS back so later sizes see the same data.
+    await page.ev(`(() => { const ios = document.querySelector("#lookInsp [data-plat=ios]"); if (ios) { ios.checked = !ios.checked; ios.dispatchEvent(new Event("change", { bubbles: true })); } const id = document.getElementById("inspId"); if (id) { id.value = ""; id.dispatchEvent(new Event("input", { bubbles: true })); id.blur(); } })()`);
+  });
+
+  // Copy the two checked looks to another avatar: review, then one queued Unity change.
+  await step("copy-looks", async () => {
+    const r = await page.ev(`(async () => {
+      if (document.getElementById("viewLooks").hidden || document.getElementById("selbar").hidden) return { skip: "no looks checked" };
+      document.getElementById("selCopy").click();
+      const ok = await __wt.at(() => document.getElementById("copyDlg").open && (document.querySelector("#copyDlg .copy-look") || document.querySelector("#copyDlg .up-msg")), 10000);
+      return { ok: ok > 0, looks: document.querySelectorAll("#copyDlg .copy-look").length, msg: (document.querySelector("#copyDlg .up-msg") || {}).textContent || "" };
+    })()`);
+    if (r.skip) return issue("copy-looks", "warn", "skipped", r.skip);
+    if (!r.ok) return issue("copy-looks", "fail", "copy-dialog", "The copy dialog did not open.");
+    if (r.msg) issue("copy-looks", live ? "warn" : "fail", "copy-review", `The copy review says "${r.msg}".`);
+    else if (r.looks !== 2) issue("copy-looks", "fail", "copy-rows", `The copy review lists ${r.looks} look(s) instead of 2.`);
+    await settle();
+    await check("copy-looks");
+    if (live || name !== names[0]) { await page.ev(`document.getElementById("copyDlg").close()`); return; }
+    const done = await page.ev(`(async () => {
+      document.getElementById("copyGo").click();
+      const ok = await __wt.at(() => [...document.querySelectorAll(".toast.ok")].some((t) => /Copied/.test(t.textContent)), 15000);
+      return { ok: ok > 0, open: document.getElementById("copyDlg").open };
+    })()`, 20000);
+    if (done.open) issue("copy-looks", "fail", "copy-close", "The copy dialog stays open while Unity works.");
+    if (!done.ok) issue("copy-looks", "fail", "copy-done", "Copying never reported that it finished.");
   });
 
   await step("upload-review", async () => {
@@ -496,7 +618,8 @@ async function runViewport(name) {
       if (index === 0 && !live && !thumbEdited) { thumbEdited = true; await thumbInteractions(issue); }
       await page.ev(`document.getElementById("thumbDlg").close()`);
     }
-    await page.ev(`(() => { const d = document.getElementById("uploadDlg"); if (d.open) d.close(); const c = document.getElementById("selClear"); if (c && !document.getElementById("selbar").hidden) c.click(); })()`);
+    await page.ev(`(() => { const d = document.getElementById("uploadDlg"); if (d.open) d.close(); })()`);
+    await restorePicks();
   });
 
   // Mock only (it uploads): one of two looks fails. Only that look is marked failed, the toast counts
@@ -511,7 +634,8 @@ async function runViewport(name) {
     }`;
     const first = await page.ev(`(async () => {
       if (document.getElementById("viewLooks").hidden) return { skip: "Looks page not open" };
-      const boxes = [...document.querySelectorAll("#looksGrid .look .ck:not([hidden]) input")].slice(0, 2);
+      const all = document.getElementById("looksAllBox"); all.checked = false; all.dispatchEvent(new Event("change", { bubbles: true }));
+      const boxes = [...document.querySelectorAll("#looksRows tr input:not([hidden])")].slice(0, 2);
       if (boxes.length < 2) return { skip: "fewer than two looks" };
       boxes.forEach((b) => { b.checked = true; b.dispatchEvent(new Event("change", { bubbles: true })); });
       await new Promise((r) => setTimeout(r, 150));
@@ -551,6 +675,7 @@ async function runViewport(name) {
     await settle();
     await check("upload-retry");
     await page.ev(`(() => { const c = document.getElementById("upClose"); if (c) c.click(); const d = document.getElementById("uploadDlg"); if (d.open) d.close(); const s = document.getElementById("selClear"); if (s && !document.getElementById("selbar").hidden) s.click(); })()`);
+    await restorePicks();
   });
 
   // Mock only (it edits the scene): changes never block, show at once, and survive a Unity reload or a busy Unity.

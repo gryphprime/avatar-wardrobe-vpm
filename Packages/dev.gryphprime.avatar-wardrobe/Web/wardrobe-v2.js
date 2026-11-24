@@ -32,13 +32,13 @@
       uploadingN:"Uploading {0} / {1}",done:"Done",queued:"Queued",cancelAll:"Cancel all",resultN:"{0} of {1} uploaded",failed:"Failed",log:"Log",
       close:"Close",blockPending:"Wait for changes to finish",blockSdk:"Sign in to the VRChat SDK in Unity",blockBusy:"An upload is running",
       changedReview:"Looks changed. Check again.",uploadAvatar:"Upload avatar",avatarName:"Name",buildCheck:"Build check",checking:"Checking…",
-      working:"Working…",activity:"Activity",changes:"Changes",noChanges:"No changes",index:"Index",indexChanges:"Index changes",itemsN:"{0} items",
+      working:"Working…",activity:"Activity",changes:"Changes",noChanges:"No changes",index:"Index",indexChanges:"Index changes",itemsN:"{0} items",itemN:"1 item",exists:"Exists",
       previews:"Previews",connected:"Unity connected",dismiss:"Dismiss",notConfirmed:"Not confirmed by Unity",stApplying:"Applying",stQueued:"Queued",
-      general:"General",language:"Language",auto:"Auto",itemSize:"Item size",updateAvail:"{0} available",whatsNew:"What's new",
+      general:"General",language:"Language",auto:"Auto",itemSize:"Item size",lookSize:"Look size",updateAvail:"{0} available",whatsNew:"What's new",
       multipleLooks:"Multiple looks",baseAvatar:"Base avatar",automatic:"Automatic",maintenance:"Maintenance",reindex:"Reindex",clearCache:"Clear cache",
       regenToggles:"Regenerate toggles",migrate:"Migrate legacy presets",checkPreviews:"Check previews",help:"Help",reportProblem:"Report a problem",
       classic:"Classic UI",unsavedScene:"Unsaved scene",version:"Version",newVersion:"Version {0}",wornIn:"Worn in {0}",copyN:"Copy {0}",
-      chooseCopy:"Choose a copy",uploadsBlocked:"Upload unavailable",noLooks:"No looks yet",undo:"Undo",copyLabel:"{0} · {1}",qWear:"Wearing…",qRemove:"Removing…",qSaving:"Saving…",lookNotCreated:"Look not created",qWaiting:"Waiting for Unity",savingN:"Saving {0}…",actWear:"Wear {0}",actRemove:"Remove {0}",switchLook:"Switch to {0}",renameQ:"Rename {0}",deleteQ:"Delete {0}",createQ:"New look {0}",settingsQ:"Settings · {0}",fitQ:"Fit · {0}",compatQ:"Mark compatible · {0}",groupQ:"New group {0}",waitChanges:"Waiting for {0} changes…",avatarChanged:"The avatar changed before this was applied"},
+      chooseCopy:"Choose a copy",uploadsBlocked:"Upload unavailable",noLooks:"No looks yet",undo:"Undo",copyLabel:"{0} · {1}",qWear:"Wearing…",qRemove:"Removing…",qSaving:"Saving…",lookNotCreated:"Look not created",qWaiting:"Waiting for Unity",savingN:"Saving {0}…",actWear:"Wear {0}",actRemove:"Remove {0}",switchLook:"Switch to {0}",renameQ:"Rename {0}",deleteQ:"Delete {0}",createQ:"New look {0}",settingsQ:"Settings · {0}",fitQ:"Fit · {0}",compatQ:"Mark compatible · {0}",groupQ:"New group {0}",waitChanges:"Waiting for {0} changes…",avatarChanged:"The avatar changed before this was applied",layout:"Layout",listView:"List",gridView:"Grid",colItems:"Items",colPlatforms:"Platforms",colStatus:"Status",colLast:"Last upload",uploaded:"Uploaded",itemsN:"{0} items",openLibrary:"Open in Library",avatarId:"Avatar ID",idPlaceholder:"Set on first upload",save:"Save",platformsQ:"Platforms · {0}",idQ:"Avatar ID · {0}",includeQ:"Selection · {0}",menuGroups:"Menu groups",noGroup:"No group",groupAssignQ:"Menu group · {0}",renameGroupQ:"Rename {0}",deleteGroupQ:"Delete {0}",deleteGroup:"Delete {0}? Its items stay worn.",noLookMatch:"No matching looks",lookDetails:"Look details",locate:"Show in Unity",noItemsLook:"Nothing in this look",groupItemsN:"{0} items",tabItems:"Items",newGroup:"New group",copyTo:"Copy to…",copyLook:"Copy {0}",copyLooks:"Copy {0} looks",toAvatar:"To",sameName:"Same name",addNew:"Add as new",addTo:"Add to it",copyBtn:"Copy",copyQ:"Copy to {0}",copied:"Copied to {1}",notCopiedN:"Not copied: {0}",otherVariantN:"Other variants: {0}",alreadyN:"Already there: {0}",cantCopyN:"Can't copy: {0}",noOtherAvatar:"No other avatar in the open scenes",details:"Details",useVariant:"Uses {0}",alreadyThere:"Already there",noVariant:"No variant for this avatar"},
     ja:{thumbnail:"サムネイル",thDefault:"デフォルト",thDefaultTitle:"デフォルトのサムネイル",thCamera:"カメラ",thImage:"画像",thOnUpload:"アップロード時",thReplace:"更新",thKeep:"維持",
       thNewCamera:"新しいカメラ",thFromView:"シーンビューから",thChoose:"画像を選択",thRender:"レンダリング",thFreeze:"画像として使う",thZoom:"ズーム",thEditDefault:"デフォルトを編集",
       thFollows:"{0} · {1}",thImageType:"画像ファイルを使ってください",library:"ライブラリ",current:"現在",looks:"ルック",newLook:"新しいルック",allLooks:"すべてのルック",wardrobe:"ワードローブ",tools:"ツール",menuLayout:"メニュー配置",avatarEditor:"アバターエディター",
@@ -62,13 +62,13 @@
       uploadingN:"アップロード中 {0} / {1}",done:"完了",queued:"待機中",cancelAll:"すべてキャンセル",resultN:"{1} 件中 {0} 件アップロード",failed:"失敗",log:"ログ",
       close:"閉じる",blockPending:"変更の適用が終わるまでお待ちください",blockSdk:"Unity で VRChat SDK にログインしてください",blockBusy:"アップロード実行中",
       changedReview:"ルックが変更されました。もう一度確認してください。",uploadAvatar:"アバターをアップロード",avatarName:"名前",buildCheck:"ビルドチェック",checking:"確認中…",
-      working:"処理中…",activity:"アクティビティ",changes:"変更",noChanges:"変更なし",index:"インデックス",indexChanges:"変更をインデックス",itemsN:"{0} 件",
+      working:"処理中…",activity:"アクティビティ",changes:"変更",noChanges:"変更なし",index:"インデックス",indexChanges:"変更をインデックス",itemsN:"{0} 件",itemN:"1 件",exists:"あり",
       previews:"プレビュー",connected:"Unity 接続中",dismiss:"閉じる",notConfirmed:"Unity で確認できません",stApplying:"適用中",stQueued:"待機中",
-      general:"一般",language:"言語",auto:"自動",itemSize:"アイテムサイズ",updateAvail:"{0} が利用可能",whatsNew:"更新内容",
+      general:"一般",language:"言語",auto:"自動",itemSize:"アイテムサイズ",lookSize:"ルックのサイズ",updateAvail:"{0} が利用可能",whatsNew:"更新内容",
       multipleLooks:"複数のルック",baseAvatar:"素体",automatic:"自動",maintenance:"メンテナンス",reindex:"再インデックス",clearCache:"キャッシュを削除",
       regenToggles:"トグルを再生成",migrate:"旧プリセットを移行",checkPreviews:"プレビューを確認",help:"ヘルプ",reportProblem:"問題を報告",
       classic:"従来の UI",unsavedScene:"未保存のシーン",version:"バージョン",newVersion:"バージョン {0}",wornIn:"{0} で着用中",copyN:"コピー {0}",
-      chooseCopy:"コピーを選択",uploadsBlocked:"アップロードできません",noLooks:"ルックがありません",undo:"元に戻す",copyLabel:"{0} · {1}",qWear:"着用中…",qRemove:"外しています…",qSaving:"保存中…",lookNotCreated:"ルックを作成できませんでした",qWaiting:"Unity を待っています",savingN:"{0} 件を保存中…",actWear:"{0} を着る",actRemove:"{0} を外す",switchLook:"{0} に切り替え",renameQ:"{0} の名前を変更",deleteQ:"{0} を削除",createQ:"ルックを作成: {0}",settingsQ:"設定 · {0}",fitQ:"フィット · {0}",compatQ:"対応にする · {0}",groupQ:"グループを作成: {0}",waitChanges:"{0} 件の変更を待っています…",avatarChanged:"適用前にアバターが変わりました"}
+      chooseCopy:"コピーを選択",uploadsBlocked:"アップロードできません",noLooks:"ルックがありません",undo:"元に戻す",copyLabel:"{0} · {1}",qWear:"着用中…",qRemove:"外しています…",qSaving:"保存中…",lookNotCreated:"ルックを作成できませんでした",qWaiting:"Unity を待っています",savingN:"{0} 件を保存中…",actWear:"{0} を着る",actRemove:"{0} を外す",switchLook:"{0} に切り替え",renameQ:"{0} の名前を変更",deleteQ:"{0} を削除",createQ:"ルックを作成: {0}",settingsQ:"設定 · {0}",fitQ:"フィット · {0}",compatQ:"対応にする · {0}",groupQ:"グループを作成: {0}",waitChanges:"{0} 件の変更を待っています…",avatarChanged:"適用前にアバターが変わりました",layout:"表示",listView:"リスト",gridView:"グリッド",colItems:"アイテム",colPlatforms:"プラットフォーム",colStatus:"状態",colLast:"最終アップロード",uploaded:"アップロード済み",itemsN:"{0} 件",openLibrary:"ライブラリで開く",avatarId:"アバター ID",idPlaceholder:"初回アップロード時に設定",save:"保存",platformsQ:"プラットフォーム · {0}",idQ:"アバター ID · {0}",includeQ:"選択 · {0}",menuGroups:"メニューグループ",noGroup:"グループなし",groupAssignQ:"メニューグループ · {0}",renameGroupQ:"{0} の名前を変更",deleteGroupQ:"{0} を削除",deleteGroup:"{0} を削除しますか？アイテムは着たままです。",noLookMatch:"一致するルックがありません",lookDetails:"ルックの詳細",locate:"Unity で表示",noItemsLook:"このルックには何もありません",groupItemsN:"{0} 件",tabItems:"アイテム",newGroup:"新しいグループ",copyTo:"コピー先…",copyLook:"{0} をコピー",copyLooks:"{0} 件のルックをコピー",toAvatar:"コピー先",sameName:"同じ名前",addNew:"新規に追加",addTo:"そこに追加",copyBtn:"コピー",copyQ:"{0} にコピー",copied:"{1} にコピーしました",notCopiedN:"{0} 件はコピーできませんでした",otherVariantN:"別バリエーション {0} 件",alreadyN:"{0} 件は追加済み",cantCopyN:"{0} 件はコピー不可",noOtherAvatar:"開いているシーンに他のアバターがありません",details:"詳細",useVariant:"{0} を使用",alreadyThere:"追加済み",noVariant:"このアバター用のバリエーションがありません"}
   };
   var langCode="en",langTable={},langList=[];
   function fmt(v,args){for(var a=0;a<args.length;a++)v=v.split("{"+a+"}").join(args[a]==null?"":args[a]);return v;}
@@ -149,7 +149,6 @@
   var multi=false,scope="common",workflowRevision=0,currentView="wardrobe";
   var picked=new Set((function(){try{var v=JSON.parse(stored("wardrobeV2.picked","[]"));return Array.isArray(v)?v:[];}catch(_){return [];}})()),batchAsked=false;
   function savePicked(){R.store("wardrobeV2.picked",JSON.stringify(Array.from(picked)));}
-  function prunePicked(){if(!S)return;var n=picked.size;picked.forEach(function(id){if(!presets().some(function(p){return p.id===id;}))picked.delete(id);});if(picked.size!==n)savePicked();}
   var installed=[],installedFlight=null,installedSignature="",installedKey=null,installedAt=0,wornIndex=new Map();
   var detailCache=new Map();
   var stateFreshAt=0;
@@ -268,6 +267,8 @@
     });
     if(scope===stand)scope=id;
     if(picked.delete(stand)){picked.add(id);savePicked();}
+    if(includeWant[stand]){includeWant[id]=includeWant[stand];delete includeWant[stand];}
+    if(inspId===stand){inspId=id;R.store("wardrobeV2.inspLook",id);}
     if(item&&item.dest===stand){
       item.dest=id;var opt=$("itLook")&&Array.from($("itLook").options).find(function(o){return o.value===stand;});if(opt)opt.value=id;
       loadMemberships(true);
@@ -474,7 +475,6 @@
     var sub=s.scenePath?s.scenePath.split("/").pop().replace(/\.unity$/i,""):"";
     R.text($("avSub"),[sub,s.sceneUnsaved?T("unsavedScene"):""].filter(Boolean).join(" · "));
     if(!multi&&currentView==="looks"){setView("wardrobe");return;}
-    prunePicked();
     $("looksTab").hidden=!multi;R.text($("looksN"),multi&&presets().length?String(presets().length):"");
     var menuOn=stored("wardrobeV2.tool.menu","0")==="1",editorOn=stored("wardrobeV2.tool.editor","0")==="1",tool=currentView==="menu"||currentView==="editor";
     $("toolsBtn").hidden=!menuOn&&!editorOn&&!tool;
@@ -502,7 +502,7 @@
     if($("wearTitle")._html!==html){$("wearTitle")._html=html;$("wearTitle").innerHTML=html;}
     $("lookMore").hidden=!multi||id==="common";
     var saving=outbox.some(function(e){return ACTIVE[e.state]&&(e.key==="look"||(e.effect&&(multi?e.effect.target:"common")===id)||e.scope===id);});
-    var parts=[];if(n)parts.push(esc(T("itemsN",n)));if(multi&&notUploaded(id))parts.push('<span class="warn-t">'+esc(T("notUploaded"))+'</span>');
+    var parts=[];if(n)parts.push(esc(itemsText(n)));if(multi&&notUploaded(id))parts.push('<span class="warn-t">'+esc(T("notUploaded"))+'</span>');
     if(saving)parts.push('<span class="q-note">'+esc(T("qSaving"))+'</span>');
     var sub=$("wearSub"),subHtml=parts.join('<span aria-hidden="true">·</span>');
     if(sub._html!==subHtml){sub._html=subHtml;sub.innerHTML=subHtml;}sub.hidden=!subHtml;
@@ -551,27 +551,113 @@
   $("lookNew").onclick=function(){closeLookPop();newLook();};
   $("lookAllBtn").onclick=function(){closeLookPop();setView("looks");};
 
-  // Looks page: one square card per look (a 2×2 mosaic of what it wears). Checkboxes pick looks for Upload.
+  // Looks page: a list (or square cards) of every look, and an inspector for the one picked.
+  // A look's checkbox is its "include in upload" setting, saved in Unity, so it survives reloads.
+  var looksLayout=stored("wardrobeV2.looksLayout","list")==="grid"?"grid":"list",looksQuery="",inspId=stored("wardrobeV2.inspLook","common"),inspTab="items";
+  var includeWant={},includeSeq=0,idDrafts={},idErrors={};
+  function included(id){var w=includeWant[id];if(w)return w.on;var bp=batchPreset(realLook(id));return bp?!!bp.include:picked.has(id);}
+  function pickedIds(){return presets().filter(function(p){return included(p.id);}).map(function(p){return p.id;});}
+  // Unity's answer wins once it was read after the last change landed.
+  function syncPicked(readAt){
+    if(!batchState)return;
+    Object.keys(includeWant).forEach(function(id){var w=includeWant[id];if(w.doneAt&&w.doneAt<readAt)delete includeWant[id];});
+    (batchState.presets||[]).forEach(function(p){if(includeWant[p.id])return;if(p.include)picked.add(p.id);else picked.delete(p.id);});
+    savePicked();
+  }
+  function setIncluded(ids,on){
+    ids=ids.filter(function(id){return id!=="common"&&included(id)!==on;});
+    if(!ids.length)return;
+    var n=++includeSeq;
+    ids.forEach(function(id){includeWant[id]={on:on,n:n};if(on)picked.add(id);else picked.delete(id);});
+    // One write for any number of looks: Select all and Clear stay a single Unity change.
+    enqueue({key:ids.length===1?"include:"+ids[0]:"",label:ids.length===1?T("includeQ",lookName(ids[0])):T("includeQ",T("selectedN",ids.length)),scope:ids.length===1?ids[0]:undefined,
+      url:function(){var real=ids.map(realLook);return "/api/preset_include?"+(real.length===1?"id="+encodeURIComponent(real[0]):"ids="+encodeURIComponent(real.join("\n")))+"&include="+(on?1:0);},
+      onDone:function(){ids.forEach(function(id){var bp=batchPreset(realLook(id));if(bp)bp.include=on?1:0;var w=includeWant[id];if(w&&w.n===n)w.doneAt=Date.now();});},
+      onFail:function(){var lost=false;ids.forEach(function(id){var w=includeWant[id];if(w&&w.n===n){delete includeWant[id];lost=true;}});if(lost){syncPicked(0);paintLooks();}}});
+    savePicked();paintLooks();
+  }
   function lookCells(id){
     var seen=new Set(),guids=[];
     scopedItems(id).forEach(function(it){var k=it.familyId||it.guid;if(seen.has(k))return;seen.add(k);guids.push(it.guid);});
     if(guids.length<=4)return guids.concat(["","","",""]).slice(0,4);
     return guids.slice(0,3).concat(["+"+(guids.length-3)]);
   }
+  function itemsText(n){return n===1?T("itemN"):T("itemsN",n);}
+  function platformsOf(bp){return bp?[bp.win?"Windows":"",bp.and?"Android":"",bp.ios?"iOS":""].filter(Boolean):[];}
+  function lookFacts(id){
+    var bp=id==="common"?null:batchPreset(realLook(id)),plats=platformsOf(bp);
+    return {bp:bp,platforms:id==="common"?"":bp?(plats.join(", ")||T("noPlatform")):"",
+      status:id==="common"||!batchState?"":notUploaded(id)?T("notUploaded"):T("uploaded"),warn:id!=="common"&&!!batchState&&(notUploaded(id)||(bp&&!plats.length)),
+      last:bp&&bp.lastUpload?bp.lastUpload:""};
+  }
+  function shownLooks(){
+    var q=looksQuery.trim().toLocaleLowerCase();
+    return lookRows().filter(function(r){return !q||r.name.toLocaleLowerCase().indexOf(q)>=0;});
+  }
+  function inspect(id){
+    if(inspId===id&&!$("lookInsp").hidden)return;
+    inspId=id;R.store("wardrobeV2.inspLook",id);paintLooks();
+    if(innerWidth<=760)$("lookInsp").scrollIntoView({block:"start"});
+  }
+  function openInLibrary(id){selectLook(id);}
   function paintLooks(){
-    var counts=lookCounts(),cur=effectiveScope(),root=$("looksScroll");
-    R.reconcile($("looksGrid"),lookRows(),function(r){return r.id;},function(){
+    if(currentView!=="looks")return;
+    if(!lookRows().some(function(r){return r.id===inspId;}))inspId="common";
+    var rows=shownLooks(),counts=lookCounts(),cur=effectiveScope(),root=$("looksScroll"),list=looksLayout==="list";
+    $("looksAsList").classList.toggle("on",list);$("looksAsGrid").classList.toggle("on",!list);
+    $("looksAsList").setAttribute("aria-pressed",String(list));$("looksAsGrid").setAttribute("aria-pressed",String(!list));
+    $("looksGrid").hidden=list||!rows.length;$("looksTable").hidden=!list||!rows.length;
+    var empty=$("looksEmpty");empty.hidden=!!rows.length;R.text(empty,looksQuery.trim()?T("noLookMatch"):T("noLooks"));
+    if(list)paintLookRows(rows,counts,cur,root);else paintLookCards(rows,counts,cur,root);
+    var ids=pickedIds(),n=ids.length,total=presets().length;
+    $("selbar").hidden=!n;R.text($("selN"),T("selectedN",n));
+    var go=$("selUpload");R.text(go,n===1?T("uploadLook"):T("uploadLooks",n));go.disabled=!connected||!(S&&S.avatarInstanceId);$("selCopy").disabled=go.disabled;
+    var all=$("looksAllBox");all.checked=!!total&&n===total;all.indeterminate=n>0&&n<total;all.disabled=!total;
+    paintInsp();
+  }
+  function paintLookRows(rows,counts,cur,root){
+    R.reconcile($("looksRows"),rows,function(r){return r.id;},function(){
+      var tr=document.createElement("tr");
+      tr.innerHTML='<td class="c-ck"><input type="checkbox"></td><td class="c-name"><button type="button" class="lk-name"><span class="thumb-s"></span><span class="lk-copy"><span class="lk-nm"></span><span class="lk-sub sub"></span></span></button></td><td class="c-n"></td><td class="c-pl"></td><td class="c-st"></td><td class="c-last"></td><td class="c-act"><button type="button" class="btn btn-ghost icon-btn sm lk-more">'+icon("i-more")+'</button></td>';
+      tr.querySelector("input").onchange=function(){setIncluded([tr._id],this.checked);};
+      tr.querySelector(".lk-name").onclick=function(){inspect(tr._id);};
+      tr.onclick=function(event){if(event.target.closest("input,button"))return;inspect(tr._id);};
+      tr.ondblclick=function(event){if(event.target.closest("input,.lk-more"))return;openInLibrary(tr._id);};
+      var more=tr.querySelector(".lk-more");more.onclick=function(){lookMenu(more,tr._id);};
+      tr.oncontextmenu=function(event){if(tr._id==="common")return;event.preventDefault();lookMenu(more,tr._id);};
+      return tr;
+    },function(tr,r){
+      tr._id=r.id;var common=r.id==="common",f=lookFacts(r.id),box=tr.querySelector("input");
+      box.hidden=common;box.checked=!common&&included(r.id);box.setAttribute("aria-label",r.name);
+      tr.classList.toggle("sel",r.id===inspId);tr.classList.toggle("picked",!common&&included(r.id));
+      var nm=tr.querySelector(".lk-nm"),html=tape(r.id,r.name)+(r.id===cur?'<span class="pill">'+esc(T("current"))+'</span>':'');
+      if(nm._html!==html){nm._html=html;nm.innerHTML=html;}
+      tr.querySelector(".lk-name").setAttribute("aria-pressed",String(r.id===inspId));
+      var th=tr.querySelector(".thumb-s"),g=lookCells(r.id)[0]||"";
+      if(th._g!==g){th._g=g;th.innerHTML="";if(g&&g.charAt(0)!=="+")previews.observe(th,g,{priority:2,root:root});}
+      // Phones show items and status under the name instead of in their own columns.
+      var subLine=tr.querySelector(".lk-sub");R.text(subLine,[itemsText(counts[r.id]||0),f.status].filter(Boolean).join(" · "));subLine.classList.toggle("warn-t",f.warn);
+      R.text(tr.querySelector(".c-n"),String(counts[r.id]||0));
+      R.text(tr.querySelector(".c-pl"),f.platforms||"—");
+      var st=tr.querySelector(".c-st");R.text(st,f.status||"—");st.classList.toggle("warn-t",f.warn);
+      R.text(tr.querySelector(".c-last"),f.last||"—");
+      var more=tr.querySelector(".lk-more");more.hidden=common;more.setAttribute("aria-label",T("more"));
+    });
+  }
+  function paintLookCards(rows,counts,cur,root){
+    R.reconcile($("looksGrid"),rows,function(r){return r.id;},function(){
       var d=document.createElement("div");d.className="look";d.setAttribute("role","listitem");
       d.innerHTML='<button type="button" class="mosaic"></button><label class="ck"><input type="checkbox"></label>'+
         '<div class="look-foot"><i class="ldot"></i><span class="nm"></span><span class="n"></span><button type="button" class="btn btn-ghost icon-btn sm lk-more">'+icon("i-more")+'</button></div><div class="look-meta"></div>';
-      d.querySelector(".mosaic").onclick=function(){selectLook(d._id);};
-      d.querySelector("input").onchange=function(){if(this.checked)picked.add(d._id);else picked.delete(d._id);savePicked();paintLooks();};
+      d.querySelector(".mosaic").onclick=function(){inspect(d._id);};
+      d.querySelector(".mosaic").ondblclick=function(){openInLibrary(d._id);};
+      d.querySelector("input").onchange=function(){setIncluded([d._id],this.checked);};
       var more=d.querySelector(".lk-more");more.onclick=function(){lookMenu(more,d._id);};
       d.oncontextmenu=function(event){if(d._id==="common")return;event.preventDefault();lookMenu(more,d._id);};
       return d;
     },function(d,r){
       d._id=r.id;var common=r.id==="common",cells=lookCells(r.id),sig=cells.join("|");
-      var mosaic=d.querySelector(".mosaic");mosaic.setAttribute("aria-label",r.name);
+      var mosaic=d.querySelector(".mosaic");mosaic.setAttribute("aria-label",r.name);mosaic.setAttribute("aria-pressed",String(r.id===inspId));
       if(d._sig!==sig){
         d._sig=sig;mosaic.innerHTML="";
         cells.forEach(function(g){
@@ -581,25 +667,198 @@
           if(g&&g.charAt(0)!=="+")previews.observe(span,g,{priority:2,root:root});
         });
       }
-      var label=d.querySelector(".ck"),box=label.querySelector("input");label.hidden=common;box.checked=picked.has(r.id);box.setAttribute("aria-label",r.name);
-      d.classList.toggle("picked",picked.has(r.id));
+      var label=d.querySelector(".ck"),box=label.querySelector("input");label.hidden=common;box.checked=!common&&included(r.id);box.setAttribute("aria-label",r.name);
+      d.classList.toggle("picked",!common&&included(r.id));d.classList.toggle("sel",r.id===inspId);
       d.querySelector(".ldot").className=dotClass(r.id);R.text(d.querySelector(".nm"),r.name);
       R.text(d.querySelector(".n"),counts[r.id]?String(counts[r.id]):"");
       var more=d.querySelector(".lk-more");more.hidden=common;more.setAttribute("aria-label",T("more"));
       var meta=(r.id===cur?'<span class="pill">'+esc(T("current"))+'</span>':'')+(notUploaded(r.id)?'<span class="warn-t">'+esc(T("notUploaded"))+'</span>':'');
       var m=d.querySelector(".look-meta");if(m._html!==meta){m._html=meta;m.innerHTML=meta;}
     });
-    var n=picked.size,total=presets().length;
-    $("selbar").hidden=!n;R.text($("selN"),T("selectedN",n));
-    var go=$("selUpload");R.text(go,n===1?T("uploadLook"):T("uploadLooks",n));go.disabled=!connected||!(S&&S.avatarInstanceId);
-    $("looksAll").hidden=!total||n===total;
   }
-  $("looksAll").onclick=function(){presets().forEach(function(p){picked.add(p.id);});savePicked();paintLooks();};
-  $("selClear").onclick=function(){picked.clear();savePicked();paintLooks();};
+
+  /* Inspector: what the picked look wears, its menu groups, and its upload settings. */
+  var ID_RE=/^avtr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function paintInsp(){
+    var box=$("lookInsp"),id=inspId,common=id==="common",f=lookFacts(id),items=scopedItems(id);
+    if(box._id!==id){box._id=id;box.innerHTML='<div class="insp-head"></div><div class="insp-acts"></div><div class="insp-up"></div><div class="tabs insp-tabs" role="tablist"></div><div class="insp-body"></div>';box.scrollTop=0;}
+    // Head: name, facts, menu.
+    var meta=[itemsText(items.length)].concat(common?[]:[f.platforms,f.status].filter(Boolean));
+    var head='<div class="insp-title"><h2>'+tape(id)+'</h2>'+(common?'':'<button type="button" class="btn btn-ghost icon-btn sm" data-a="menu" aria-label="'+esc(T("more"))+'">'+icon("i-more")+'</button>')+'</div>'+
+      '<p class="sub">'+meta.map(function(t){return esc(t);}).join(" · ")+'</p>';
+    setHtml(box.querySelector(".insp-head"),head);
+    var acts=common?'<button type="button" class="btn" data-a="library">'+esc(T("openLibrary"))+'</button>':
+      '<button type="button" class="btn" data-a="library">'+esc(T("openLibrary"))+'</button><button type="button" class="btn" data-a="show">'+esc(LT("ui.show.in.unity"))+'</button><button type="button" class="btn" data-a="play">'+esc(LT("ui.test.in.play.mode"))+'</button>'+
+      '<span class="grow"></span><button type="button" class="btn btn-primary" data-a="upload"'+(!connected||!(S&&S.avatarInstanceId)?" disabled":"")+'>'+esc(T("uploadLook"))+'</button>';
+    setHtml(box.querySelector(".insp-acts"),acts);
+    paintInspUpload(box.querySelector(".insp-up"),id,f);
+    // Tabs: Items · Menu groups.
+    var groups=cachedGroups(id);
+    if(!groups&&S&&S.avatarInstanceId&&!box._groupFlight){box._groupFlight=true;fetchGroups(id).catch(function(){}).then(function(){box._groupFlight=false;if(inspId===id)paintInsp();});}
+    var tabs=[["items",T("tabItems"),items.length],["groups",T("menuGroups"),groups?groups.length:""]];
+    setHtml(box.querySelector(".insp-tabs"),tabs.map(function(t){return '<button type="button" role="tab" class="tab'+(inspTab===t[0]?" on":"")+'" aria-selected="'+(inspTab===t[0])+'" data-tab="'+t[0]+'">'+esc(t[1])+(t[2]!==""?'<span class="c">'+t[2]+'</span>':'')+'</button>';}).join(""));
+    var body=box.querySelector(".insp-body");
+    if(inspTab==="groups")paintInspGroups(body,id,groups);else paintInspItems(body,id,items,groups);
+  }
+  function setHtml(node,html){if(node._html!==html){node._html=html;node.innerHTML=html;}}
+  function paintInspUpload(node,id,f){
+    if(id==="common"){setHtml(node,"");node.hidden=true;return;}
+    node.hidden=false;var bp=f.bp;
+    // Never repaint under the person typing an ID.
+    if(node.contains(document.activeElement)&&document.activeElement.tagName==="INPUT"&&document.activeElement.type==="text")return;
+    var draft=Object.prototype.hasOwnProperty.call(idDrafts,id)?idDrafts[id]:(bp?String(bp.blueprintId||""):"");
+    var html='<div class="insp-row"><span class="lbl">'+esc(T("colPlatforms"))+'</span><div class="plats">'+
+      [["win","Windows"],["and","Android"],["ios","iOS"]].map(function(p){return '<label class="chk"><input type="checkbox" data-plat="'+p[0]+'"'+(bp&&bp[p[0]]?" checked":"")+(bp?"":" disabled")+'><span>'+p[1]+'</span></label>';}).join("")+'</div></div>'+
+      '<div class="insp-row"><label class="lbl" for="inspId">'+esc(T("avatarId"))+'</label><div class="idrow"><input type="text" id="inspId" spellcheck="false" autocomplete="off" placeholder="'+esc(T("idPlaceholder"))+'" value="'+esc(draft)+'"'+(bp?"":" disabled")+'>'+
+      '<button type="button" class="btn sm" data-a="saveid"'+(bp&&draft.trim()!==String(bp.blueprintId||"").trim()?"":" disabled")+'>'+esc(T("save"))+'</button></div></div>'+
+      (idErrors[id]?'<p class="sub warn-t insp-err" role="status">'+esc(idErrors[id])+'</p>':'');
+    setHtml(node,html);
+  }
+  function groupOf(groups,path){var g=(groups||[]).find(function(x){return (x.paths||[]).indexOf(path)>=0;});return g?g.id:"";}
+  function paintInspItems(body,id,items,groups){
+    if(!items.length){setHtml(body,'<p class="empty-note">'+esc(T("noItemsLook"))+'</p>');return;}
+    var list=body.querySelector(".insp-items");
+    if(!list){body.innerHTML='<div class="insp-items"></div>';body._html=null;list=body.querySelector(".insp-items");}
+    R.reconcile(list,items,function(it){return it.guid+"|"+it.instanceId+"|"+(it.path||"");},function(){
+      var row=document.createElement("div");row.className="insp-item";
+      row.innerHTML='<button type="button" class="worn"><span class="thumb-s"></span><span class="worn-copy"><span class="t"></span><span class="s"></span></span></button><select class="grp"></select><button type="button" class="btn btn-ghost icon-btn sm it-more">'+icon("i-more")+'</button>';
+      row.querySelector(".worn").onclick=function(){var it=row._it;selectLook(id);openItem(it.familyId,it.guid,it);};
+      row.querySelector(".grp").onchange=function(){assignGroup(id,row._it,this.value);};
+      var more=row.querySelector(".it-more");
+      more.onclick=function(){var it=row._it;showMenu(more,[{label:T("locate"),act:function(){api("/api/batch_ping_object?guid="+encodeURIComponent(it.guid)).catch(function(){});}},"hr",{label:LT("detail.remove"),danger:true,act:function(){removeFromLook(id,it);}}]);};
+      return row;
+    },function(row,it){
+      row._it=it;var variant=it.variant&&it.variant.toLowerCase()!=="default"?it.variant:LT("variant.default");
+      R.text(row.querySelector(".t"),it.family);
+      var q=it.queued?T("qWear"):it.removing?T("qRemove"):"",sub=row.querySelector(".s");
+      R.text(sub,q||(it.setupWarning||variant));sub.classList.toggle("warn-t",!q&&!!it.setupWarning);
+      row.classList.toggle("queued",!!it.queued);row.classList.toggle("removing",!!it.removing);
+      var sel=row.querySelector(".grp"),opts=groups?[["",T("noGroup")]].concat(groups.map(function(g){return [g.id,g.name];})):[],sig=JSON.stringify(opts);
+      if(sel._sig!==sig){sel._sig=sig;sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'">'+esc(o[1])+'</option>';}).join("");}
+      sel.hidden=!groups||!groups.length;sel.disabled=!!it.queued||!!it.removing||!it.path;sel.value=groupOf(groups,it.path);
+      sel.setAttribute("aria-label",LT("detail.menuGroup")+" · "+it.family);
+      row.querySelector(".it-more").setAttribute("aria-label",T("more")+" · "+it.family);
+      previews.observe(row.querySelector(".thumb-s"),it.guid,{priority:2,root:$("lookInsp")});
+    });
+  }
+  function paintInspGroups(body,id,groups){
+    if(!groups){setHtml(body,'<p class="empty-note">'+spinner()+'</p>');return;}
+    var html='<div class="insp-groups">'+groups.map(function(g){
+      return '<div class="insp-group"><span class="nm">'+esc(g.name)+'</span><span class="sub">'+esc(T("groupItemsN",(g.paths||[]).length))+'</span><button type="button" class="btn btn-ghost icon-btn sm" data-group="'+esc(g.id)+'" aria-label="'+esc(T("more")+" · "+g.name)+'">'+icon("i-more")+'</button></div>';
+    }).join("")+'</div><button type="button" class="btn btn-ghost" data-a="newgroup">'+icon("i-plus")+'<span>'+esc(T("newGroup"))+'</span></button>';
+    setHtml(body,html);
+  }
+  function groupEntry(id,spec){
+    var look=realLook(id);
+    spec.scope=id;spec.grpLook=id;
+    var done=spec.onDone;
+    spec.onDone=function(r){if(done)done(r);
+      // Unity's list is authoritative once no other group change for this look is waiting.
+      if(r&&Array.isArray(r.groups)&&!outbox.some(function(e){return e.grpLook===id&&ACTIVE[e.state];}))groupCache.set(realLook(id),r.groups);
+      installedSignature="";if(inspId===id)paintInsp();};
+    spec.onFail=function(){groupCache.delete(realLook(id));if(inspId===id)paintInsp();};
+    spec.url=(function(u){return function(){return realLook(u);};})("/api/menu_groups?id="+encodeURIComponent(id)+spec.query);
+    delete spec.query;
+    enqueue(spec);
+    if(inspId===id)paintInsp();
+  }
+  function assignGroup(id,it,gid){
+    var gs=cachedGroups(id);
+    if(gs)gs.forEach(function(g){g.paths=(g.paths||[]).filter(function(p){return p!==it.path;});if(g.id===gid)g.paths=g.paths.concat([it.path]);});
+    groupEntry(id,{key:"grpa:"+id+":"+it.path,label:T("groupAssignQ",it.family),query:"&op=assign&group="+encodeURIComponent(gid)+"&item="+encodeURIComponent(it.path)+"&guid="+encodeURIComponent(it.guid)});
+  }
+  function groupMenu(anchor,id,gid){
+    var gs=cachedGroups(id)||[],g=gs.find(function(x){return x.id===gid;});if(!g)return;
+    showMenu(anchor,[{label:T("rename"),act:function(){
+      var name=prompt(T("groupName"),g.name);if(name==null||!name.trim())return;name=name.trim();
+      var old=g.name;g.name=name;
+      groupEntry(id,{key:"grpr:"+gid,label:T("renameGroupQ",old),query:"&op=save&group="+encodeURIComponent(gid)+"&name="+encodeURIComponent(name)});
+    }},"hr",{label:T("del"),danger:true,act:function(){
+      if(!confirm(T("deleteGroup",g.name)))return;
+      gs.splice(gs.indexOf(g),1);
+      groupEntry(id,{label:T("deleteGroupQ",g.name),query:"&op=delete&group="+encodeURIComponent(gid)});
+    }}]);
+  }
+  function newLookGroup(id){
+    var name=prompt(T("groupName"));if(name==null||!name.trim())return;name=name.trim();
+    groupEntry(id,{label:T("groupQ",name),query:"&op=save&name="+encodeURIComponent(name),
+      onDone:function(r){var gs=cachedGroups(id);if(r&&r.id&&gs&&!gs.some(function(x){return x.id===r.id;}))gs.push({id:r.id,name:name,paths:[]});}});
+  }
+  function removeFromLook(id,it){
+    if(!confirm(T("removeConfirm",it.family,lookName(id))))return;
+    enqueue({label:T("actRemove",it.family),refresh:"catalog",
+      effect:{type:"remove",guid:it.guid,familyId:it.familyId,target:id,instanceId:String(it.instanceId||"")},
+      url:"/api/preset_remove_item?guid="+encodeURIComponent(it.guid)+"&target="+encodeURIComponent(id)+"&item="+encodeURIComponent(it.path||"")+"&instanceId="+encodeURIComponent(it.instanceId||"")+"&latest=1",
+      onDone:function(){refreshMemberships(it.guid,id);}});
+  }
+  function savePlatforms(id){
+    var bp=batchPreset(realLook(id)),box=$("lookInsp");if(!bp)return;
+    var v={};box.querySelectorAll("[data-plat]").forEach(function(c){v[c.dataset.plat]=c.checked?1:0;});
+    var before={win:bp.win,and:bp.and,ios:bp.ios};Object.assign(bp,v);
+    enqueue({key:"plat:"+id,label:T("platformsQ",lookName(id)),scope:id,
+      url:"/api/batch_preset_config?id="+encodeURIComponent(realLook(id))+"&win="+v.win+"&and="+v.and+"&ios="+v.ios,
+      onFail:function(){Object.assign(bp,before);paintLooks();}});
+    paintLooks();
+  }
+  function saveAvatarId(id){
+    var bp=batchPreset(realLook(id)),input=$("inspId");if(!bp||!input)return;
+    var value=input.value.trim();
+    if(value&&!ID_RE.test(value)){idErrors[id]=T("invalidId");input.blur();paintInsp();return;}
+    delete idErrors[id];delete idDrafts[id];
+    var before=bp.blueprintId;bp.blueprintId=value;input.blur();
+    enqueue({key:"bp:"+id,label:T("idQ",lookName(id)),scope:id,
+      url:"/api/batch_preset_config?id="+encodeURIComponent(realLook(id))+"&blueprint="+encodeURIComponent(value),
+      onFail:function(){bp.blueprintId=before;paintLooks();}});
+    paintLooks();
+  }
+  (function wireInsp(){
+    var box=$("lookInsp");
+    box.addEventListener("click",function(event){
+      var b=event.target.closest("[data-a],[data-tab],[data-group]");if(!b||b.disabled)return;var id=inspId;
+      if(b.dataset.tab){inspTab=b.dataset.tab;paintInsp();return;}
+      if(b.dataset.group){groupMenu(b,id,b.dataset.group);return;}
+      var a=b.dataset.a;
+      if(a==="menu")lookMenu(b,id);
+      else if(a==="library")openInLibrary(id);
+      else if(a==="show")showInUnity(id);
+      else if(a==="play")playTest(id);
+      else if(a==="upload"){if(upload.running){openUpload(null);return;}openUpload([realLook(id)]);}
+      else if(a==="saveid")saveAvatarId(id);
+      else if(a==="newgroup")newLookGroup(id);
+    });
+    box.addEventListener("change",function(event){if(event.target.matches("[data-plat]"))savePlatforms(inspId);});
+    box.addEventListener("input",function(event){
+      if(event.target.id!=="inspId")return;var id=inspId,bp=batchPreset(realLook(id)),v=event.target.value;
+      if(bp&&v===String(bp.blueprintId||""))delete idDrafts[id];else idDrafts[id]=v;
+      delete idErrors[id];var err=box.querySelector(".insp-err");if(err)err.remove();
+      var save=box.querySelector("[data-a=saveid]");if(save)save.disabled=!bp||v.trim()===String(bp.blueprintId||"").trim();
+    });
+    box.addEventListener("keydown",function(event){if(event.target.id==="inspId"&&event.key==="Enter"){event.preventDefault();saveAvatarId(inspId);}});
+    box.addEventListener("focusout",function(){setTimeout(function(){if(!box.contains(document.activeElement)){var up=box.querySelector(".insp-up");if(up)up._html=null;paintInsp();}},0);});
+  })();
+  $("looksFind").oninput=function(){looksQuery=this.value;paintLooks();};
+  // Look size: one slider, remembered per layout. Cards set their smallest column width;
+  // list rows set their preview size (the row grows with it).
+  var LOOK_SIZE={grid:{min:140,max:360,step:10,def:200,css:"--look-min"},list:{min:28,max:96,step:4,def:36,css:"--look-thumb"}};
+  function lookSize(layout){var c=LOOK_SIZE[layout],v=parseInt(stored("wardrobeV2.lookSize."+layout,String(c.def)),10);return Math.max(c.min,Math.min(c.max,v||c.def));}
+  function applyLookSize(layout,value){document.documentElement.style.setProperty(LOOK_SIZE[layout].css,value+"px");}
+  function paintLookSize(){
+    var c=LOOK_SIZE[looksLayout],slider=$("lookSize");
+    slider.min=c.min;slider.max=c.max;slider.step=c.step;slider.value=lookSize(looksLayout);
+  }
+  applyLookSize("grid",lookSize("grid"));applyLookSize("list",lookSize("list"));
+  $("lookSize").oninput=function(){applyLookSize(looksLayout,+this.value);};
+  $("lookSize").onchange=function(){R.store("wardrobeV2.lookSize."+looksLayout,String(+this.value));};
+  $("looksAsList").onclick=function(){looksLayout="list";R.store("wardrobeV2.looksLayout","list");paintLookSize();paintLooks();};
+  $("looksAsGrid").onclick=function(){looksLayout="grid";R.store("wardrobeV2.looksLayout","grid");paintLookSize();paintLooks();};
+  paintLookSize();
+  $("looksAllBox").onchange=function(){var ids=presets().map(function(p){return p.id;});setIncluded(ids,this.checked);};
+  $("selClear").onclick=function(){setIncluded(pickedIds(),false);};
   $("selUpload").onclick=function(){
     if(upload.running){openUpload(null);return;}
-    openUpload(presets().filter(function(p){return picked.has(p.id);}).map(function(p){return p.id;}));
+    openUpload(pickedIds().map(realLook));
   };
+  $("selCopy").onclick=function(){openCopy(pickedIds());};
   function paintStatus(){
     var s=S||{},dot=$("statusDot"),active=outboxActive(),pending=active.length||Math.min(1,R.pendingWrites()),failed=outboxFailed().length,
       waiting=active.some(function(e){return e.retrying;});
@@ -633,6 +892,7 @@
   }
   function newLook(){
     var name=prompt(T("lookName"));if(name==null||!name.trim())return;
+    if(currentView==="looks"){var e=createLook(name.trim(),false,function(){refreshState();loadBatchState(true);});inspId=e.look.id;inspTab="items";paintLooks();return;}
     createLook(name.trim(),true,function(r){refreshState().then(function(){if(r.id)selectLook(String(r.id));});});
   }
   $("newLook").onclick=newLook;
@@ -1450,12 +1710,13 @@
   var batchState=null,batchStateAt=0;
   function loadBatchState(force){
     if(!force&&batchState&&Date.now()-batchStateAt<8000)return Promise.resolve(batchState);
-    return api("/api/batch_state",{method:"GET",timeout:30000}).then(function(d){if(d&&d.ok){batchState=d;batchStateAt=Date.now();if(multi)paintRail();}return batchState;}).catch(function(){return batchState;});
+    var readAt=Date.now();
+    return api("/api/batch_state",{method:"GET",timeout:30000}).then(function(d){if(d&&d.ok){batchState=d;batchStateAt=Date.now();syncPicked(readAt);if(multi)paintRail();}return batchState;}).catch(function(){return batchState;});
   }
-  // Shows a look on the scene avatar. Another look is switched to (that shows it); the current one is shown
-  // again, e.g. after the scene was changed by hand.
+  // Shows a look on the scene avatar. In the Library another look is switched to (that shows it); the Looks
+  // page stays where it is. The current look is shown again, e.g. after the scene was changed by hand.
   function showInUnity(id){
-    if(multi&&id!==scope){selectLook(id);return;}
+    if(multi&&id!==scope&&currentView==="wardrobe"){selectLook(id);return;}
     enqueue({key:"show",label:LT("ui.show.in.unity")+" · "+lookName(id),url:"/api/preset_show?id="+encodeURIComponent(realLook(id))});
   }
   function playTest(id){
@@ -1463,7 +1724,7 @@
   }
   function lookMenu(anchor,id){
     var unity=id==="common"?[]:[{label:LT("ui.show.in.unity"),act:function(){showInUnity(id);}},{label:LT("ui.test.in.play.mode"),act:function(){playTest(id);}},"hr"];
-    showMenu(anchor,unity.concat([{label:T("thumbnail"),act:function(){loadBatchState(true).then(function(){openThumb(id);});}},{label:T("rename"),act:function(){
+    showMenu(anchor,unity.concat([{label:T("copyTo"),act:function(){openCopy([id]);}},{label:T("thumbnail"),act:function(){loadBatchState(true).then(function(){openThumb(id);});}},{label:T("rename"),act:function(){
       var name=prompt(T("lookName"),lookName(id));if(name==null||!name.trim())return;
       enqueue({key:"rename:"+id,label:T("renameQ",lookName(id)),look:{id:id,rename:name.trim()},scope:id,
         url:"/api/preset_save?id="+encodeURIComponent(id)+"&name="+encodeURIComponent(name.trim()),onDone:function(){refreshState();}});
@@ -1471,9 +1732,84 @@
       if(!confirm(T("deleteLook",lookName(id))))return;
       var label=T("deleteQ",lookName(id));
       enqueue({label:label,look:{id:id,del:true},url:"/api/preset_delete?id="+encodeURIComponent(id),onDone:function(){refreshState();}});
-      picked.delete(id);savePicked();
+      picked.delete(id);delete includeWant[id];savePicked();if(inspId===id)inspId="common";
       if(scope===id){scope="common";workflowRevision++;closeItem(true);scopeChanged();}
     }}]));
+  }
+
+
+  /* ---------- Copy looks to another avatar ---------- */
+  // Unity installs each item again on the target, picking the variant made for its base when needed.
+  var copy={ids:[],target:"",existing:"new",review:null,error:"",flight:0};
+  function copyTargets(){var cur=S&&S.avatarInstanceId;return ((S&&S.sceneTargets)||[]).filter(function(t){return t.id!==cur;});}
+  function openCopy(ids){
+    ids=ids.filter(function(id){return id!=="common";});if(!ids.length)return;
+    var targets=copyTargets();
+    copy.ids=ids;copy.review=null;copy.error="";
+    if(!targets.some(function(t){return String(t.id)===copy.target;}))copy.target=targets.length?String(targets[0].id):"";
+    var dlg=$("copyDlg");if(!dlg.open)dlg.showModal();
+    paintCopy();loadCopyReview();
+  }
+  function copyQuery(){return "ids="+encodeURIComponent(copy.ids.map(realLook).join("\n"))+"&target="+encodeURIComponent(copy.target)+"&existing="+copy.existing;}
+  function loadCopyReview(){
+    if(!copy.target)return;
+    var flight=++copy.flight;copy.review=null;copy.error="";paintCopy();
+    // Reviews what Unity has after the changes already queued (a new look, a wear).
+    outboxSettled().then(function(){
+      if(flight!==copy.flight)return;
+      api("/api/looks_copy_review?"+copyQuery(),{method:"GET",timeout:60000}).then(function(r){
+        if(flight!==copy.flight)return;
+        if(!r||!r.ok)throw new Error(r&&r.message||T("loadError"));
+        copy.review=r;paintCopy();
+      }).catch(function(error){if(flight===copy.flight){copy.error=error.message;paintCopy();}});
+    });
+  }
+  function copyCounts(look){
+    var c={same:0,variant:0,missing:0,already:0};(look.items||[]).forEach(function(i){c[i.status]=(c[i.status]||0)+1;});return c;
+  }
+  function paintCopy(){
+    var dlg=$("copyDlg"),targets=copyTargets(),r=copy.review,n=copy.ids.length;
+    var title=n===1?T("copyLook",lookName(copy.ids[0])):T("copyLooks",n);
+    var body;
+    if(!targets.length)body='<p class="up-msg">'+esc(T("noOtherAvatar"))+'</p>';
+    else{
+      body='<div class="insp-row"><label class="lbl" for="copyTarget">'+esc(T("toAvatar"))+'</label><select id="copyTarget">'+targets.map(function(t){
+          return '<option value="'+esc(t.id)+'"'+(String(t.id)===copy.target?" selected":"")+'>'+esc(t.name)+'</option>';}).join("")+'</select></div>'+
+        '<div class="insp-row"><span class="lbl">'+esc(T("sameName"))+'</span><div class="seg" role="group" aria-label="'+esc(T("sameName"))+'"><button type="button" data-ex="new" class="'+(copy.existing==="new"?"on":"")+'" aria-pressed="'+(copy.existing==="new")+'">'+esc(T("addNew"))+'</button><button type="button" data-ex="merge" class="'+(copy.existing==="merge"?"on":"")+'" aria-pressed="'+(copy.existing==="merge")+'">'+esc(T("addTo"))+'</button></div></div>';
+      if(copy.error)body+='<p class="up-msg warn-t" role="status">'+esc(copy.error)+'</p>';
+      else if(!r)body+='<div class="loading">'+spinner()+'<span>'+esc(T("checking"))+'</span></div>';
+      else body+=r.looks.map(function(look){
+        var c=copyCounts(look),bits=[itemsText((look.items||[]).length)];
+        if(c.variant)bits.push(T("otherVariantN",c.variant));
+        if(c.already)bits.push(T("alreadyN",c.already));
+        var issues=(look.items||[]).filter(function(i){return i.status!=="same";});
+        return '<div class="copy-look"><div class="up-row">'+tape(look.id,look.name)+(look.exists?'<span class="pill">'+esc(T("exists"))+'</span>':'')+
+          '<span class="st'+(c.missing?" warn-t":"")+'">'+esc(bits.join(" · "))+(c.missing?' · '+esc(T("cantCopyN",c.missing)):'')+'</span></div>'+
+          (issues.length?'<details class="copy-issues"><summary class="sub">'+esc(T("details"))+'</summary>'+issues.map(function(i){
+            var what=i.status==="variant"?T("useVariant",i.variant):i.status==="already"?T("alreadyThere"):T("noVariant");
+            return '<div class="copy-item"><span class="nm">'+esc(i.name)+'</span><span class="sub'+(i.status==="missing"?" warn-t":"")+'">'+esc(what)+'</span></div>';
+          }).join("")+'</details>':'')+'</div>';
+      }).join("");
+    }
+    var ready=!!(targets.length&&r&&!copy.error);
+    dlg.innerHTML='<div class="dlg-head"><h2 id="copyHeading">'+esc(title)+'</h2></div><div class="dlg-body">'+body+'</div>'+
+      '<div class="dlg-foot"><span class="grow"></span><button type="button" class="btn btn-ghost" id="copyCancel">'+esc(T("cancel"))+'</button><button type="button" class="btn btn-primary" id="copyGo"'+(ready?"":" disabled")+'>'+esc(T("copyBtn"))+'</button></div>';
+    $("copyCancel").onclick=function(){copy.flight++;dlg.close();};
+    if($("copyTarget"))$("copyTarget").onchange=function(){copy.target=this.value;loadCopyReview();};
+    dlg.querySelectorAll("[data-ex]").forEach(function(b){b.onclick=function(){if(copy.existing===b.dataset.ex)return;copy.existing=b.dataset.ex;loadCopyReview();};});
+    $("copyGo").onclick=commitCopy;
+  }
+  function commitCopy(){
+    var t=copyTargets().find(function(x){return String(x.id)===copy.target;});if(!t||!copy.review)return;
+    var q=copyQuery(),n=copy.ids.length,name=t.name;
+    // Unity does the work in the background; the page stays usable.
+    enqueue({label:T("copyQ",name),url:"/api/looks_copy?"+q,
+      onDone:function(r){
+        var msg=T("copied",r.looks||n,r.target||name);
+        if(r.missing)msg+=" · "+T("notCopiedN",r.missing);
+        toast(msg,"ok");
+      }});
+    $("copyDlg").close();
   }
 
   /* ---------- Upload looks: review, queue, result ---------- */
@@ -1608,7 +1944,6 @@
     u.order=order;u.step="queue";u.q={index:0,total:order.length};u.running=true;u.results=null;u.reasons=null;paintUpload();paintWearing();paintStatus();
     api("/api/batch_upload_presets?ids="+encodeURIComponent(ids.join("\n"))+"&requestId="+encodeURIComponent(requestId),{timeout:120000}).then(function(r){
       if(!r||!r.ok||!r.job)throw new Error(r&&r.message||T("failed"));
-      picked.clear();savePicked();paintRail();
       followJob(r.job,order);
     }).catch(function(error){
       // Recover status only; never resend the upload command.

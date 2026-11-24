@@ -75,7 +75,9 @@ for j in range(3): wear(40 + j, 0, 'common')
 
 # Unity's queued writes: receipt saved on acceptance, applied in order on one worker.
 QUEUED = {'/api/install', '/api/preset_remove_item', '/api/workflow', '/api/item_settings', '/api/preset_save', '/api/preset_delete',
-          '/api/menu_groups', '/api/item_parts', '/api/preset_show', '/api/preset_include'}
+          '/api/menu_groups', '/api/item_parts', '/api/preset_show', '/api/preset_include', '/api/batch_preset_config', '/api/looks_copy'}
+# Per-look upload settings that writes change (include, platforms, avatar ID), like Unity's project data.
+CONF = {}; GROUPS = {}
 RECEIPTS = {}; WRITES = []; WRITE_CV = threading.Condition()
 def write_worker():
     while True:
@@ -120,8 +122,42 @@ def apply_write(p, q):
         return {'ok': 1, 'id': nid}
     if p == '/api/preset_delete':
         LOOKS[:] = [x for x in LOOKS if x[0] != q.get('id')]; return {'ok': 1, 'message': 'Deleted'}
-    if p == '/api/menu_groups' and q.get('op') == 'save': return {'ok': 1, 'id': 'g%d' % int(time.time() * 1000)}
+    if p == '/api/looks_copy':
+        r = copy_review(q); items = sum(len(l['items']) for l in r['looks']); missing = sum(1 for l in r['looks'] for i in l['items'] if i['status'] == 'missing')
+        return {'ok': 1, 'target': r['target'], 'targetId': 456, 'looks': len(r['looks']), 'items': items - missing, 'missing': missing,
+                'variants': sum(1 for l in r['looks'] for i in l['items'] if i['status'] == 'variant'), 'settingsSkipped': 0}
+    if p == '/api/preset_include':
+        for i in (q['ids'].split('\n') if q.get('ids') else [q.get('id', '')]): CONF.setdefault(i, {})['include'] = 1 if q.get('include') == '1' else 0
+        return {'ok': 1}
+    if p == '/api/batch_preset_config':
+        c = CONF.setdefault(q.get('id', ''), {})
+        for k in ('win', 'and', 'ios'):
+            if k in q: c[k] = 1 if q[k] == '1' else 0
+        if 'blueprint' in q: c['blueprintId'] = q['blueprint']
+        return {'ok': 1}
+    if p == '/api/menu_groups' and q.get('op'):
+        gs = GROUPS.setdefault(q.get('id') or 'common', [{'id': 'g1', 'name': 'Outfits', 'paths': [x['path'] for x in installed_in(q.get('id') or 'common')]}, {'id': 'g2', 'name': 'Accessories', 'paths': []}])
+        op, g = q.get('op'), next((x for x in gs if x['id'] == q.get('group')), None)
+        if op == 'save':
+            if not g: g = {'id': 'g%d' % int(time.time() * 1000), 'name': '', 'paths': []}; gs.append(g)
+            g['name'] = q.get('name', '')
+        elif op == 'delete' and g: gs.remove(g)
+        elif op == 'assign':
+            for x in gs: x['paths'] = [y for y in x['paths'] if y != q.get('item')]
+            if g: g['paths'].append(q.get('item'))
+        return {'ok': 1, 'id': g['id'] if g else '', 'groups': gs}
     return {'ok': 1, 'message': 'ok'}
+
+# Look copy review: every third item needs another variant, every seventh has none for the target.
+def copy_review(q):
+    names = dict(LOOKS); looks = []
+    for lid in [x for x in q.get('ids', '').split('\n') if x in names]:
+        items = []
+        for n, x in enumerate(installed_in(lid)):
+            st = 'missing' if n % 7 == 6 else 'variant' if n % 3 == 2 else 'same'
+            items.append({'name': x['family'], 'variant': 'Summer' if st == 'variant' else x['variant'], 'status': st, 'guid': x['guid']})
+        looks.append({'id': lid, 'name': names[lid], 'exists': 1 if names[lid] in ('First',) else 0, 'items': items})
+    return {'ok': 1, 'message': '', 'target': 'Mayo Summer', 'looks': looks}
 
 def installed_in(target): return [x for x in STATE['installed'] if (x['target'] or 'common') == target]
 def fam_row(f, target):
@@ -197,6 +233,7 @@ class H(BaseHTTPRequestHandler):
                 'avatarName': 'MAYO_Kaihen (2)', 'avatarLabel': 'MAYO_Kaihen (2)', 'avatarGuid': 'g1', 'session': STATE['session'], 'epoch': 'e1', 'previewEpoch': 1,
                 'installedKey': 'i%d' % STATE['rev'], 'outfits': 7059, 'families': len(FAMILIES), 'indexing': 0, 'dirty': 0, 'hiBaked': 6936, 'hiTotal': 7059,
                 'baseAvatars': [{'guid': 'b1', 'name': 'Mayo', 'path': 'Assets/Mayo.prefab'}], 'avatarBaseEditable': True, 'ai': 0})
+        if p == '/api/looks_copy_review': return self.send(200, copy_review(q))
         if p == '/api/installed': return self.send(200, {'items': STATE['installed'], 'projectId': 'p1', 'avatarId': 'a1', 'avatarName': 'Mayo'})
         if p == '/api/families':
             rows = FAMILIES
@@ -222,7 +259,7 @@ class H(BaseHTTPRequestHandler):
                 t = x['target'] or 'common'; e = out.setdefault(t, {'id': t, 'name': t, 'paths': [], 'instanceIds': [], 'partToggles': 1, 'partTogglesMixed': 0})
                 e['paths'].append(x['path']); e['instanceIds'].append(x['instanceId'])
             return self.send(200, {'presets': list(out.values())})
-        if p == '/api/menu_groups': return self.send(200, {'ok': 1, 'groups': [{'id': 'g1', 'name': 'Outfits', 'paths': [x['path'] for x in installed_in(q.get('id') or 'common')]}, {'id': 'g2', 'name': 'Accessories', 'paths': []}], 'id': 'g3'})
+        if p == '/api/menu_groups': return self.send(200, {'ok': 1, 'groups': GROUPS.get(q.get('id') or 'common') or [{'id': 'g1', 'name': 'Outfits', 'paths': [x['path'] for x in installed_in(q.get('id') or 'common')]}, {'id': 'g2', 'name': 'Accessories', 'paths': []}], 'id': 'g3'})
         if p == '/api/item_parts':
             if q.get('op') == 'save': return self.send(200, {'ok': 1, 'message': 'Applied to the avatar.'})
             return self.send(200, {'ok': 1, 'parts': [{'key': '', 'name': 'Base', 'worn': 1, 'shapes': [{'mesh': 'Body', 'shape': 'Shrink_Chest', 'value': 100, 'delete': 0}]},
@@ -268,7 +305,7 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/batch_state':
             def row(i, a, b):
                 plan = thumb_plan(a)
-                return {'id': a, 'name': b, 'blueprintId': '' if i % 3 == 0 else 'avtr_12345678-1234-1234-1234-1234567890ab', 'win': 1, 'and': 1 if i % 2 else 0, 'ios': 0, 'include': 1, 'members': [],
+                return {**{'id': a, 'name': b, 'blueprintId': '' if i % 3 == 0 else 'avtr_12345678-1234-1234-1234-1234567890ab', 'win': 1, 'and': 1 if i % 2 else 0, 'ios': 0, 'include': 1, 'members': [], 'lastUpload': '' if i % 3 == 0 else '2026-11-2%d 18:%02d' % (i % 4, i * 7 % 60)}, **CONF.get(a, {}),
                         'thumbSource': plan['source'], 'thumbUpdate': plan['update'], 'thumbInherited': plan['inherited'], 'thumbOriginal': plan['original'] if plan['source'] == 'image' else '',
                         'thumbCropX': plan['cropX'], 'thumbCropY': plan['cropY'], 'thumbCropZoom': plan['cropZoom']}
             return self.send(200, {'ok': 1, 'presets': [row(i, a, b) for i, (a, b) in enumerate(LOOKS)],

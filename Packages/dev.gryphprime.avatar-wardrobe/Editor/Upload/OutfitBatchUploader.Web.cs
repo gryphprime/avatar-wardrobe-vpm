@@ -1461,6 +1461,15 @@ namespace ShiroTools
         {
             return WebPresetConfigSet(id, include, null, null, null);
         }
+        internal static WebResultDto WebPresetIncludeMany(IEnumerable<string> ids, string include)
+        {
+            foreach (var id in ids.Select(x => (x ?? "").Trim()).Where(x => x.Length > 0).Distinct())
+            {
+                var r = WebPresetConfigSet(id, include, null, null, null);
+                if (r.ok != 1) return r;
+            }
+            return new WebResultDto { ok = 1 };
+        }
         internal static WebResultDto WebPresetConfigSet(string id, string include, string win, string and, string ios, string blueprint = null)
         {
             var r = new WebResultDto();
