@@ -26,22 +26,26 @@ namespace ShiroTools
         {
             var fixedPaths = new List<string>();
             if (root == null) return fixedPaths;
-            var renderers = root.GetComponentsInChildren<Renderer>(true).Where(r => !IsEditorOnly(r.transform, root.transform)).ToList();
+            // Renderer materials plus every material the avatar references
+            // (MA Material Setter/Swap, animations, controllers): NDMF applies
+            // those during the build, and the SDK validates the result.
+            var materials = new HashSet<Material>();
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+                if (!IsEditorOnly(renderer.transform, root.transform))
+                    foreach (var material in renderer.sharedMaterials)
+                        if (material != null) materials.Add(material);
+            foreach (var dependency in EditorUtility.CollectDependencies(new UnityEngine.Object[] { root }))
+                if (dependency is Material material) materials.Add(material);
             var importers = new Dictionary<string, TextureImporter>(StringComparer.Ordinal);
-            foreach (var renderer in renderers)
-                foreach (var material in renderer.sharedMaterials)
+            foreach (var material in materials)
+                foreach (int id in material.GetTexturePropertyNameIDs() ?? Array.Empty<int>())
                 {
-                    if (material == null) continue;
-                    foreach (int id in material.GetTexturePropertyNameIDs() ?? Array.Empty<int>())
-                    {
-                        var texture = material.GetTexture(id);
-                        if (texture == null) continue;
-                        string path = AssetDatabase.GetAssetPath(texture);
-                        if (string.IsNullOrEmpty(path) || importers.ContainsKey(path)) continue;
-                        if (AssetImporter.GetAtPath(path) is TextureImporter importer) importers[path] = importer;
-                    }
+                    var texture = material.GetTexture(id);
+                    if (texture == null) continue;
+                    string path = AssetDatabase.GetAssetPath(texture);
+                    if (string.IsNullOrEmpty(path) || importers.ContainsKey(path)) continue;
+                    if (AssetImporter.GetAtPath(path) is TextureImporter importer) importers[path] = importer;
                 }
-            var oversize = new HashSet<TextureImporter>(VRCSdkControlPanel.GetOversizeTextureImporters(renderers) ?? new List<TextureImporter>());
             foreach (var pair in importers)
             {
                 var importer = pair.Value;
@@ -52,7 +56,7 @@ namespace ShiroTools
                     importer.streamingMipmapsPriority = 0;
                     changed = true;
                 }
-                if (oversize.Contains(importer))
+                if (importer.maxTextureSize > VRCSdkControlPanel.MAX_SDK_TEXTURE_SIZE)
                 {
                     importer.maxTextureSize = VRCSdkControlPanel.MAX_SDK_TEXTURE_SIZE;
                     changed = true;
@@ -96,7 +100,10 @@ namespace ShiroTools
         private void CaptureSdkValidation(string message, string stackTrace, LogType type)
         {
             if (message == SdkValidationHeader) { _capturingSdkValidation = true; return; }
-            if (_capturingSdkValidation && type == LogType.Error && !string.IsNullOrEmpty(message))
+            // Only the SDK's own validation lines; shader compile errors and
+            // other noise logged during the build are left out.
+            if (_capturingSdkValidation && type == LogType.Error && !string.IsNullOrEmpty(message) &&
+                (stackTrace ?? "").Contains("VRCSdkControlPanelAvatarBuilder"))
                 _sdkValidationErrors.Add(message.Trim());
         }
     }
